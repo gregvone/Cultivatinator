@@ -12,6 +12,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .models import (
     ActivityEvent,
+    Spawn,
+    GrowBatch,
+    FruitingContainer,
+    LineOrigin,
     CultureLine,
     IdentitySequence,
     PhotoAttachment,
@@ -39,12 +43,18 @@ MODELS = {
     "lines": CultureLine,
     "spores": SporeSource,
     "physical": PhysicalCulture,
+    "spawn": Spawn,
+    "batches": GrowBatch,
+    "fruiting": FruitingContainer,
 }
 OWNER = {
     "strains": "strain_id",
     "lines": "line_id",
     "spores": "spore_id",
     "physical": "physical_id",
+    "spawn": "spawn_id",
+    "batches": "batch_id",
+    "fruiting": "fruiting_id",
 }
 PREFIX = {
     "lc_syringe": "LC",
@@ -113,11 +123,12 @@ def output(session, kind, row):
     }
     values["kind"] = kind
     strain_id = values.get("strain_id")
-    if kind == "physical":
+    if kind in ("physical", "spawn"):
         line = session.get(CultureLine, row.line_id)
         strain_id = line.strain_id
-        values["supplier"] = line.supplier
-        values["supplier_reference"] = line.supplier_reference
+        if kind == "physical":
+            values["supplier"] = line.supplier
+            values["supplier_reference"] = line.supplier_reference
         values["strain_id"] = strain_id
     if strain_id:
         values["strain_name"] = session.get(Strain, strain_id).name
@@ -191,6 +202,7 @@ def receive_culture(data: ReceiveCulture, request: Request):
             )
             session.add(line)
             session.flush()
+            session.add(LineOrigin(line_id=line.id, origin_type="external"))
             event(
                 session,
                 "lines",
@@ -268,13 +280,13 @@ def list_records(
         statement = select(model)
         if status != "all":
             statement = statement.where(model.status == status)
-        if kind == "physical":
+        if kind in ("physical", "spawn"):
             statement = statement.join(CultureLine, model.line_id == CultureLine.id)
             if strain_id:
                 statement = statement.where(CultureLine.strain_id == strain_id)
             if line_id:
                 statement = statement.where(model.line_id == line_id)
-        elif strain_id and kind != "strains":
+        elif strain_id and hasattr(model, "strain_id"):
             statement = statement.where(model.strain_id == strain_id)
         if material_type and hasattr(model, "material_type"):
             statement = statement.where(model.material_type == material_type)
@@ -290,7 +302,7 @@ def list_records(
             if query:
                 values = [getattr(row, column.name) for column in row.__table__.columns]
                 associated_strain = getattr(row, "strain_id", None)
-                if kind == "physical":
+                if kind in ("physical", "spawn"):
                     line = session.get(CultureLine, row.line_id)
                     associated_strain = line.strain_id
                     values.extend([line.supplier, line.supplier_reference])
@@ -322,6 +334,9 @@ def edit_record(kind: Kind, code: str, data: EditRecord, request: Request):
             "strain_id",
             "line_id",
             "registration_batch",
+            "batch_id",
+            "batch_origin",
+            "allocation_mode",
             "normalized_name",
         }
         if values.keys() - allowed:
@@ -336,17 +351,35 @@ def edit_record(kind: Kind, code: str, data: EditRecord, request: Request):
                     422, "Strain name must be 1–200 characters after normalization"
                 ) from exc
             item.normalized_name = normalized(values["name"])
+        if "stage" in values and (
+            values["stage"] is None
+            or (kind == "spawn" and values["stage"] not in {"ready", "colonizing"})
+        ):
+            raise HTTPException(422, "Invalid stage for this record")
         if "material_type" in values:
             types = (
                 PREFIX
                 if kind == "physical"
-                else {"spore_print", "spore_syringe", "spore_swab", "other_spore"}
+                else (
+                    {"spawn_jar", "spawn_bag"}
+                    if kind == "spawn"
+                    else (
+                        {"tray", "bag", "block", "other"}
+                        if kind == "fruiting"
+                        else {
+                            "spore_print",
+                            "spore_syringe",
+                            "spore_swab",
+                            "other_spore",
+                        }
+                    )
+                )
             )
             if values["material_type"] not in types:
                 raise HTTPException(422, "Invalid material type")
         if "origin" in values and values["origin"] is None:
             raise HTTPException(422, "Origin is required")
-        if kind in ("physical", "spores"):
+        if kind in ("physical", "spores", "spawn", "fruiting"):
             quantity = values.get("quantity", item.quantity)
             unit = values.get("unit", item.unit)
             if quantity is not None and unit is None:

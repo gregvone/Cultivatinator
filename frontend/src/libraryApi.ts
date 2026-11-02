@@ -1,4 +1,11 @@
-export type Kind = "strains" | "lines" | "spores" | "physical";
+export type Kind =
+  | "strains"
+  | "lines"
+  | "spores"
+  | "physical"
+  | "spawn"
+  | "batches"
+  | "fruiting";
 export interface Photo {
   id: string;
   is_cover: boolean;
@@ -12,6 +19,10 @@ export interface LibraryRecord {
   notes: string | null;
   status: "active" | "archived";
   created_at: string;
+  stage?: string | null;
+  batch_id?: string | null;
+  batch_origin?: string | null;
+  allocation_mode?: string | null;
   strain_id: string | null;
   strain_name: string | null;
   line_id: string | null;
@@ -50,8 +61,9 @@ export async function libraryApi<T>(
   path: string,
   method = "GET",
   body?: unknown,
+  base = "library",
 ): Promise<T> {
-  const response = await fetch(`/api/library/${path}`, {
+  const response = await fetch(`/api/${base}/${path}`, {
     method,
     headers:
       body instanceof FormData
@@ -112,6 +124,9 @@ export const kindNames: Record<Kind, string> = {
   lines: "Culture Lines",
   spores: "Spore Sources",
   physical: "Physical Cultures",
+  spawn: "Spawn Jars & Bags",
+  batches: "Grow Batches",
+  fruiting: "Fruiting Containers",
 };
 export function title(record: LibraryRecord) {
   return record.name || record.id;
@@ -135,4 +150,28 @@ export async function allLibraryRecords(
     records.push(...page);
     if (page.length < 1000) return records;
   }
+}
+
+export function provenanceApi<T>(path: string, method = "GET", body?: unknown) {
+  return libraryApi<T>(path, method, body, "provenance");
+}
+export const growTypes = {
+  spawn_jar: "Colonized spawn jar",
+  spawn_bag: "Colonized spawn bag",
+  tray: "Tray",
+  bag: "Fruiting bag",
+  block: "Fruiting block",
+  other: "Other fruiting container",
+};
+export interface Provenance {
+  origin_type: string | null;
+  origin_date: string | null;
+  notes: string | null;
+  revision: number;
+  ancestry_status: "confirmed" | "uncertain" | "unknown";
+  parents: { parent_id: string; confidence: "confirmed" | "possible" }[];
+  relationships: { label: string; record: LibraryRecord }[];
+  warnings: string[];
+  allocation_mode: string | null;
+  provenance_mode: string;
 }

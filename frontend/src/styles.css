@@ -1069,3 +1069,32 @@ button:disabled {
     gap: 12px;
   }
 }
+
+/* Milestone 2B relationship panels stay outside the primary strain cards. */
+.lineage-panel {
+  margin-block: 1rem;
+  padding: 1.25rem;
+}
+.relationship-label {
+  display: block;
+  color: #9aaec5;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+.provenance-warning {
+  border-left: 3px solid #ddbf83;
+  padding: 0.65rem;
+  color: #ddbf83;
+}
+.library-form fieldset {
+  min-width: 0;
+  border: 1px solid #3b4b5d;
+  padding: 1rem;
+  margin-block: 0.75rem;
+}
+.library-form legend {
+  padding-inline: 0.4rem;
+}
+.lineage-panel .record-list a {
+  overflow-wrap: anywhere;
+}

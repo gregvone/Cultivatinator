@@ -19,7 +19,7 @@ Unit = Literal["mL", "L", "g", "count", "plate", "slant", "print", "swab"]
 Origin = Literal["purchased", "gifted", "other"]
 CultureType = Literal["lc_syringe", "lc_jar", "agar_plate", "slant", "other_culture"]
 SporeType = Literal["spore_print", "spore_syringe", "spore_swab", "other_spore"]
-Kind = Literal["strains", "lines", "spores", "physical"]
+Kind = Literal["strains", "lines", "spores", "physical", "spawn", "batches", "fruiting"]
 Status = Literal["active", "archived"]
 
 
@@ -116,6 +116,7 @@ class SporeInput(Acquisition):
 
 
 class EditRecord(Description):
+    stage: Literal["ready", "colonizing", "fruiting", "finished"] | None = None
     scientific_name: Text | None = None
     description: Notes | None = None
     supplier: Text | None = None
@@ -123,7 +124,12 @@ class EditRecord(Description):
     supplier_batch: Text | None = None
     acquisition_date: date | None = None
     origin: Origin | None = None
-    material_type: CultureType | SporeType | None = None
+    material_type: (
+        CultureType
+        | SporeType
+        | Literal["spawn_jar", "spawn_bag", "tray", "bag", "block", "other"]
+        | None
+    ) = None
     quantity: Quantity | None = None
     unit: Unit | None = None
     storage_location: Text | None = None
@@ -158,12 +164,21 @@ class RecordOut(BaseModel):
     supplier_reference: str | None = None
     supplier_batch: str | None = None
     acquisition_date: str | None = None
-    material_type: CultureType | SporeType | None = None
+    material_type: (
+        CultureType
+        | SporeType
+        | Literal["spawn_jar", "spawn_bag", "tray", "bag", "block", "other"]
+        | None
+    ) = None
     quantity: Decimal | None = None
     unit: Unit | None = None
     storage_location: str | None = None
     purchase_price: Decimal | None = None
     registration_batch: str | None = None
+    stage: str | None = None
+    batch_id: str | None = None
+    batch_origin: str | None = None
+    allocation_mode: str | None = None
     line_count: int = 0
     spore_count: int = 0
     physical_count: int = 0

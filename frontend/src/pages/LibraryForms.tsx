@@ -5,6 +5,7 @@ import { PageHeader } from "../components/UI";
 import {
   ApiError,
   cultureTypes,
+  growTypes,
   libraryApi,
   allLibraryRecords,
   localToday,
@@ -746,24 +747,43 @@ export function EditForm({
             "supplier_reference",
             "acquisition_date",
           ]
-        : kind === "spores"
+        : kind === "batches"
           ? [
               "supplier",
               "supplier_reference",
+              "supplier_batch",
               "acquisition_date",
-              "material_type",
-              "quantity",
-              "unit",
-              "storage_location",
             ]
-          : [
-              "acquisition_date",
-              "material_type",
-              "quantity",
-              "unit",
-              "storage_location",
-              "purchase_price",
-            ]),
+          : kind === "spawn" || kind === "fruiting"
+            ? [
+                ...(kind === "spawn"
+                  ? ["supplier", "supplier_reference", "supplier_batch"]
+                  : []),
+                "acquisition_date",
+                "stage",
+                "material_type",
+                "quantity",
+                "unit",
+                "storage_location",
+              ]
+            : kind === "spores"
+              ? [
+                  "supplier",
+                  "supplier_reference",
+                  "acquisition_date",
+                  "material_type",
+                  "quantity",
+                  "unit",
+                  "storage_location",
+                ]
+              : [
+                  "acquisition_date",
+                  "material_type",
+                  "quantity",
+                  "unit",
+                  "storage_location",
+                  "purchase_price",
+                ]),
   ];
   const [values, setValues] = useState<Values>(
     Object.fromEntries(
@@ -789,6 +809,7 @@ export function EditForm({
   }
   const labels: Values = {
     name: kind === "strains" ? "Strain name" : "Custom name",
+    stage: "Stage",
     notes: "Notes",
     scientific_name: "Scientific name",
     description: "Description",
@@ -830,10 +851,31 @@ export function EditForm({
               : k === "material_type"
                 ? kind === "spores"
                   ? sporeTypes
-                  : cultureTypes
-                : k === "unit"
-                  ? { "": "Unknown", ...units }
-                  : undefined
+                  : kind === "spawn"
+                    ? {
+                        spawn_jar: growTypes.spawn_jar,
+                        spawn_bag: growTypes.spawn_bag,
+                      }
+                    : kind === "fruiting"
+                      ? {
+                          tray: "Tray",
+                          bag: "Bag",
+                          block: "Block",
+                          other: "Other",
+                        }
+                      : cultureTypes
+                : k === "stage"
+                  ? kind === "spawn"
+                    ? { ready: "Ready", colonizing: "Colonizing" }
+                    : {
+                        ready: "Ready",
+                        colonizing: "Colonizing",
+                        fruiting: "Fruiting",
+                        finished: "Finished",
+                      }
+                  : k === "unit"
+                    ? { "": "Unknown", ...units }
+                    : undefined
           }
         />
       ))}

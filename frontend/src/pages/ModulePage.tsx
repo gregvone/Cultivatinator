@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { navigation } from "../navigation";
 import { EmptyState, PageHeader, Panel } from "../components/UI";
 export const modules = {
@@ -19,14 +20,7 @@ export const modules = {
     title: "Cultivation",
     description: "Follow physical material from spawn preparation to harvest.",
     workspace: "A clear view of every growing cycle.",
-    features: [
-      "Spawn jars",
-      "Spawn bags",
-      "Spawn preparation",
-      "Fruiting units",
-      "Colonization",
-      "Harvests and flushes",
-    ],
+    features: ["Spawn preparation", "Colonization", "Harvests and flushes"],
   },
   inventory: {
     title: "Inventory",
@@ -67,11 +61,36 @@ export default function ModulePage({
     <>
       <PageHeader title={info.title} description={info.description} />
       <div className="module-intro">
-        <span className="badge">PLANNED WORKSPACE</span>
-        <p>
-          This section is part of a future milestone. Record creation is not
-          available yet.
-        </p>
+        {module === "cultivation" ? (
+          <>
+            <span className="badge">GROW PROVENANCE FOUNDATION</span>
+            <p>
+              Register acquired spawn and fruiting material, document grow
+              batches, and follow individual containers in the Culture Library.
+              Preparation, consumption, and harvesting remain planned.
+            </p>
+            <div className="actions">
+              <Link className="button" to="/culture-library/acquire">
+                Receive Acquisition
+              </Link>
+              <Link className="button" to="/culture-library/register-grow">
+                Register Grow Provenance
+              </Link>
+              <Link className="button" to="/culture-library">
+                Browse records
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="badge">PLANNED WORKSPACE</span>
+            <p>
+              This section is part of a future milestone. Detailed preparation
+              and monitoring are not available yet. Successful establishments
+              are registered from Culture Library source records.
+            </p>
+          </>
+        )}
       </div>
       <Panel
         title={

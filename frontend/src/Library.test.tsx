@@ -41,6 +41,15 @@ function mockLibrary(empty = false) {
     .mockImplementation(async (input, init) => {
       const url = String(input);
       const method = init?.method || "GET";
+      if (url.includes("/api/provenance/"))
+        return response({
+          origin_type: "external",
+          ancestry_status: "unknown",
+          revision: 1,
+          parents: [],
+          relationships: [],
+          warnings: [],
+        });
       if (url.endsWith("/activity") || url.endsWith("/photos"))
         return response([]);
       if (url.includes("/library/strains?"))

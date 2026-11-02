@@ -36,6 +36,14 @@ def test_health_and_database(client, settings):
         "physical_cultures",
         "photo_attachments",
         "activity_events",
+        "spawn",
+        "grow_batches",
+        "batch_sources",
+        "fruiting_containers",
+        "fruiting_sources",
+        "spore_collections",
+        "line_origins",
+        "line_parents",
     }
 
 
@@ -80,7 +88,7 @@ def test_migrations_repeat_and_persist(settings):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
-                == "0002_culture_library"
+                == "0004_acquisition"
             )
 
 

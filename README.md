@@ -1,10 +1,12 @@
 # Cultivatinator
 
-A personal mushroom cultivation, culture lineage, and inventory management application for legally cultivated mushrooms. **Milestone 2A: Culture Library & Photo Management** extends the application foundation.
+A personal mushroom cultivation, culture lineage, and inventory management application for legally cultivated mushrooms. **Milestone 2B: Genetic Lineage, Universal Acquisitions & Grow Provenance** builds on the Culture Library and photo foundation.
 
-The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; unimplemented modules remain zero/empty. No demonstration records or login are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
+The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; spawn and fruiting counts reflect active registered records; monitoring and unimplemented modules remain empty. No demonstration records or login are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
 
-See [Culture Library operations](docs/MILESTONE_2A.md) for registration, photo limits, API details, validation, and copy-ready update commands for an **existing** installation. Strains are one catalog, with an optional scientific name; there is no required species hierarchy. Spores do not establish culture lines. Starting quantities are not live inventory balances.
+See [Milestone 2B operations and safe upgrade](docs/MILESTONE_2B.md) for universal acquisitions, successful establishments, explicit ancestry, manual grow sources and allocation, spore collection, schema/API details, and backup/rollback precautions. Manual provenance never consumes spawn or marks it Used. Production data is `/storage/tv/cultivatinator`; discover the actual Git and Compose directories separately. No production update is automatic.
+
+See [Culture Library operations](docs/MILESTONE_2A.md) for registration, photo limits, API details, validation, and historical 2A workflows; use the 2B operations document for current upgrade instructions. Strains are one catalog, with an optional scientific name; there is no required species hierarchy. Receiving spores does not establish a line; the explicit Establish Culture action registers a successful independent establishment. Starting quantities are not live inventory balances.
 
 ## Stack and structure
 
@@ -21,8 +23,8 @@ Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI 
 sudo install -d -m 0755 /opt/stacks
 sudo git clone https://github.com/gregvone/Cultivatinator.git /opt/stacks/cultivatinator
 cd /opt/stacks/cultivatinator
-# For the Milestone 2A review implementation:
-sudo git switch feature/milestone-2a-culture-library
+# For the Milestone 2B review implementation:
+sudo git switch feature/milestone-2b-lineage
 sudo install -d -o 10001 -g 10001 -m 0750 /storage/tv/cultivatinator
 sudo docker compose up -d --build --wait
 sudo docker compose ps
@@ -42,7 +44,7 @@ All persistent content is mounted at `/data`:
 | Host directory under `/storage/tv/cultivatinator/` | Purpose |
 | --- | --- |
 | `database/cultivatinator.sqlite3` | SQLite database, including migration version; WAL sidecars may be present |
-| `photos/` | Reserved for future photographs |
+| `photos/` | Photo originals and generated thumbnails |
 | `files/` | Reserved for application-managed files |
 | `settings/` | Reserved for future persistent settings |
 
@@ -96,4 +98,4 @@ npm run build
 - Failed migration: stop, preserve data and logs, and diagnose the version mismatch. Do not delete the database to bypass an error.
 - Docker logs: `docker compose logs --tail=100 app`; readiness: `docker compose ps` and the health endpoint.
 
-See [architecture](docs/ARCHITECTURE.md), [requirements](docs/REQUIREMENTS.md), [roadmap](docs/ROADMAP.md), and [design](docs/DESIGN.md). Future modules are documented there and remain unimplemented.
+See [architecture](docs/ARCHITECTURE.md), [requirements](docs/REQUIREMENTS.md), [roadmap](docs/ROADMAP.md), and [design](docs/DESIGN.md). Deferred modules are documented there. Successful lineage establishment and basic grow provenance are implemented; preparation, consumption and harvest workflows remain deferred.

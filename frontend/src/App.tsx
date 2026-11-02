@@ -1,4 +1,5 @@
 import { Link, Route, Routes } from "react-router-dom";
+import { AcquisitionForm, GrowForm } from "./pages/Provenance";
 import Shell from "./components/Shell";
 import Dashboard from "./pages/Dashboard";
 import ModulePage, { modules } from "./pages/ModulePage";
@@ -14,6 +15,8 @@ export default function App() {
       <Routes>
         <Route element={<Shell />}>
           <Route index element={<Dashboard />} />
+          <Route path="culture-library/acquire" element={<AcquisitionForm />} />
+          <Route path="culture-library/register-grow" element={<GrowForm />} />
           <Route path="culture-library" element={<CultureLibrary />} />
           <Route path="culture-library/add-strain" element={<StrainForm />} />
           <Route

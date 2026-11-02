@@ -82,6 +82,8 @@ sudo docker compose logs --tail=100 app
 
 The feature branch is for review; after merging, use `main` for the switch/pull steps instead. Default host port stays 8085; `.env` overrides remain supported. No commands above remove the database or persistent directories, and the running application remains non-root. No production deployment is performed by the implementation task.
 
-## Next: Milestone 2B
+## Historical scope boundary: Milestone 2A
 
 Culture ancestry and lineage relationships remain deferred. A spore source may later be an ancestor of multiple independently established culture lines, each with its own identity. Cloning, isolates, germination, propagation/transfer operations, lineage visualization, and inventory consumption are not implemented in 2A. Do not infer ancestry from names, shared suppliers, or matching strain IDs.
+
+Milestone 2B is now documented in [MILESTONE_2B.md](MILESTONE_2B.md); the preceding deferred list describes the original 2A boundary, not the current implementation. Follow the 2B safe upgrade procedure for current deployments.

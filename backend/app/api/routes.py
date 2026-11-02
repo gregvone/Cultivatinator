@@ -5,7 +5,7 @@ from alembic.script import ScriptDirectory
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text, select, func
-from ..models import PhysicalCulture
+from ..models import PhysicalCulture, Spawn, FruitingContainer
 
 from ..config import VERSION
 from ..database import migration_config
@@ -51,6 +51,19 @@ def dashboard_summary(request: Request):
             .select_from(PhysicalCulture)
             .where(PhysicalCulture.status == "active")
         )
+        for field, model in [
+            ("spawn_containers", Spawn),
+            ("fruiting_units", FruitingContainer),
+        ]:
+            setattr(
+                summary.counts,
+                field,
+                connection.scalar(
+                    select(func.count())
+                    .select_from(model)
+                    .where(model.status == "active")
+                ),
+            )
     return summary
 
 
