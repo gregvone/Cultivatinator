@@ -27,7 +27,16 @@ def test_health_and_database(client, settings):
     assert all(
         (settings.data_dir / name).is_dir() for name in ("photos", "files", "settings")
     )
-    assert inspect(client.app.state.engine).get_table_names() == ["alembic_version"]
+    assert set(inspect(client.app.state.engine).get_table_names()) == {
+        "alembic_version",
+        "identity_sequences",
+        "strains",
+        "culture_lines",
+        "spore_sources",
+        "physical_cultures",
+        "photo_attachments",
+        "activity_events",
+    }
 
 
 def test_dashboard_empty_contract(client):
@@ -71,7 +80,7 @@ def test_migrations_repeat_and_persist(settings):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
-                == "0001_foundation"
+                == "0002_culture_library"
             )
 
 

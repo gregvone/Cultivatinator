@@ -4,7 +4,8 @@ from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import text, select, func
+from ..models import PhysicalCulture
 
 from ..config import VERSION
 from ..database import migration_config
@@ -42,9 +43,15 @@ def health(request: Request):
 
 
 @router.get("/dashboard/summary", response_model=DashboardSummary)
-def dashboard_summary():
-    # No cultivation modules exist yet. Replace with aggregate queries as added.
-    return DashboardSummary()
+def dashboard_summary(request: Request):
+    summary = DashboardSummary()
+    with request.app.state.engine.connect() as connection:
+        summary.counts.active_cultures = connection.scalar(
+            select(func.count())
+            .select_from(PhysicalCulture)
+            .where(PhysicalCulture.status == "active")
+        )
+    return summary
 
 
 @router.get("/app/info", response_model=AppInfo)

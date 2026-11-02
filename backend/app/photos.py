@@ -1,0 +1,195 @@
+"""Persistent image originals and thumbnails; filenames are server generated."""
+
+from io import BytesIO
+from pathlib import Path
+from uuid import uuid4
+import warnings
+from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
+from PIL import Image, ImageOps, UnidentifiedImageError
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
+from .library import OWNER, event, photo_out, record, transaction
+from .library_schemas import Kind, PhotoOut
+from .models import PhotoAttachment
+
+router = APIRouter(prefix="/api/library", tags=["Photos"])
+MAX_BYTES = 10 * 1024 * 1024
+MAX_PIXELS = 24_000_000
+FORMATS = {
+    "JPEG": ("jpg", "image/jpeg"),
+    "PNG": ("png", "image/png"),
+    "WEBP": ("webp", "image/webp"),
+}
+
+
+def photo_path(request, filename):
+    root = (request.app.state.settings.data_dir / "photos").resolve()
+    path = (root / filename).resolve()
+    if path.parent != root:
+        raise HTTPException(404, "Photo not found")
+    return path
+
+
+def load_photo(session, photo_id):
+    photo = session.get(PhotoAttachment, photo_id)
+    if photo is None:
+        raise HTTPException(404, "Photo not found")
+    return photo
+
+
+@router.post("/{kind}/{code}/photos", response_model=PhotoOut, status_code=201)
+def upload(kind: Kind, code: str, request: Request, file: UploadFile):
+    data = file.file.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise HTTPException(413, "Each photo must be 10 MB or smaller")
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(BytesIO(data)) as image:
+                if image.format not in FORMATS:
+                    raise ValueError("Unsupported image format")
+                ext, media = FORMATS[image.format]
+                if image.width * image.height > MAX_PIXELS or max(image.size) > 12000:
+                    raise ValueError(
+                        "Image dimensions exceed 24 megapixels or 12000 pixels per side"
+                    )
+                image.verify()
+            with Image.open(BytesIO(data)) as image:
+                image.load()
+                thumb = ImageOps.exif_transpose(image).convert("RGB")
+                thumb.thumbnail((640, 640))
+                buffer = BytesIO()
+                thumb.save(buffer, format="WEBP", quality=82)
+    except (
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+        SyntaxError,
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+    ) as exc:
+        raise HTTPException(
+            422, "Upload a valid JPEG, PNG or WebP within the dimension limits"
+        ) from exc
+    photo_id = str(uuid4())
+    filename, thumbnail = f"{photo_id}.{ext}", f"{photo_id}-thumb.webp"
+    paths = [photo_path(request, filename), photo_path(request, thumbnail)]
+    written = []
+    try:
+        with transaction(request) as session:
+            record(session, kind, code)
+            paths[0].parent.mkdir(parents=True, exist_ok=True)
+            # Exclusive writes prevent accidental replacement of existing content.
+            for path, content in zip(paths, (data, buffer.getvalue())):
+                with path.open("xb") as dest:
+                    written.append(path)
+                    dest.write(content)
+            cover = session.scalar(
+                select(PhotoAttachment.id).where(
+                    getattr(PhotoAttachment, OWNER[kind]) == code,
+                    PhotoAttachment.is_cover == 1,
+                )
+            )
+            photo = PhotoAttachment(
+                id=photo_id,
+                filename=filename,
+                thumbnail=thumbnail,
+                media_type=media,
+                is_cover=0 if cover else 1,
+                **{OWNER[kind]: code},
+            )
+            session.add(photo)
+            event(session, kind, code, "photo_attached", "Photograph attached")
+            session.flush()
+            result = photo_out(photo)
+        return result
+    except Exception:
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise
+
+
+@router.get("/{kind}/{code}/photos", response_model=list[PhotoOut])
+def list_photos(kind: Kind, code: str, request: Request):
+    with Session(request.app.state.engine) as session:
+        record(session, kind, code)
+        return [
+            photo_out(p)
+            for p in session.scalars(
+                select(PhotoAttachment)
+                .where(getattr(PhotoAttachment, OWNER[kind]) == code)
+                .order_by(PhotoAttachment.created_at, PhotoAttachment.id)
+            )
+        ]
+
+
+@router.get("/photos/{photo_id}/{variant}")
+def get_photo(photo_id: str, variant: str, request: Request):
+    if variant not in ("original", "thumbnail"):
+        raise HTTPException(404, "Photo not found")
+    with Session(request.app.state.engine) as session:
+        photo = load_photo(session, photo_id)
+        path = photo_path(
+            request, photo.filename if variant == "original" else photo.thumbnail
+        )
+        if not path.is_file():
+            raise HTTPException(404, "Photo file not found")
+        return FileResponse(
+            path,
+            media_type=photo.media_type if variant == "original" else "image/webp",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
+
+
+@router.post("/photos/{photo_id}/cover", response_model=PhotoOut)
+def cover(photo_id: str, request: Request):
+    with transaction(request) as session:
+        photo = load_photo(session, photo_id)
+        kind = next(k for k, v in OWNER.items() if getattr(photo, v))
+        code = getattr(photo, OWNER[kind])
+        session.execute(
+            update(PhotoAttachment)
+            .where(getattr(PhotoAttachment, OWNER[kind]) == code)
+            .values(is_cover=0)
+        )
+        session.flush()
+        photo.is_cover = 1
+        event(session, kind, code, "cover_selected", "Cover photograph selected")
+        session.flush()
+        return photo_out(photo)
+
+
+@router.delete("/photos/{photo_id}", status_code=204)
+def remove(photo_id: str, request: Request):
+    # Stage files on the same filesystem; a DB failure restores both files.
+    staged = []
+    try:
+        with transaction(request) as session:
+            photo = load_photo(session, photo_id)
+            kind = next(k for k, v in OWNER.items() if getattr(photo, v))
+            code = getattr(photo, OWNER[kind])
+            for filename in (photo.filename, photo.thumbnail):
+                path = photo_path(request, filename)
+                if path.exists():
+                    tomb = path.with_name(f".{uuid4()}.removed")
+                    path.rename(tomb)
+                    staged.append((path, tomb))
+            was_cover = photo.is_cover
+            session.delete(photo)
+            session.flush()
+            if was_cover:
+                fallback = session.scalar(
+                    select(PhotoAttachment)
+                    .where(getattr(PhotoAttachment, OWNER[kind]) == code)
+                    .order_by(PhotoAttachment.created_at, PhotoAttachment.id)
+                )
+                if fallback:
+                    fallback.is_cover = 1
+            event(session, kind, code, "photo_removed", "Photograph removed")
+    except Exception:
+        for path, tomb in staged:
+            tomb.rename(path)
+        raise
+    for _, tomb in staged:
+        tomb.unlink(missing_ok=True)

@@ -6,8 +6,11 @@ export default function Shell() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const title =
-    navigation.find((item) => item.path === location.pathname)?.title ??
-    "Workspace";
+    navigation.find(
+      (item) =>
+        item.path === location.pathname ||
+        (item.path !== "/" && location.pathname.startsWith(item.path + "/")),
+    )?.title ?? "Workspace";
   return (
     <div className="shell">
       <aside
@@ -40,7 +43,7 @@ export default function Shell() {
         <div className="sidebar-footer">
           <span className="status-dot" />
           Single-user workspace
-          <small>Milestone 01 / Application foundation</small>
+          <small>Milestone 2A / Culture Library</small>
         </div>
       </aside>
       {open && (
@@ -71,7 +74,7 @@ export default function Shell() {
         </main>
         <footer className="workspace-footer">
           <span>Cultivatinator</span>
-          <span>Application foundation · No demonstration data</span>
+          <span>Culture Library · Private single-user workspace</span>
         </footer>
       </div>
     </div>
