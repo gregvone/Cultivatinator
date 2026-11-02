@@ -5,7 +5,23 @@ from pydantic import Field, model_validator
 from .library_schemas import Input, Text, Notes, Quantity
 
 Positive = Annotated[Decimal, Field(gt=0, max_digits=14, decimal_places=3)]
-StockUnit = Literal["mL", "L", "g", "kg", "count", "plate", "print", "swab", "slant"]
+StockUnit = Literal[
+    "mg",
+    "g",
+    "kg",
+    "oz",
+    "lb",
+    "mL",
+    "L",
+    "us_fl_oz",
+    "us_cup",
+    "each",
+    "count",
+    "plate",
+    "print",
+    "swab",
+    "slant",
+]
 MaterialType = Literal["agar_plate", "lc_jar", "lc_syringe", "spawn_jar", "spawn_bag"]
 
 
@@ -15,13 +31,16 @@ class Command(Input):
 
 class StockInput(Command):
     name: Annotated[Text, Field(min_length=1)]
-    category: Literal["ingredient", "consumable", "reusable", "source"]
+    category: Literal[
+        "ingredient", "consumable", "reusable", "source", "equipment", "other"
+    ]
     unit: StockUnit
     available: Quantity | None = None
     container_type: MaterialType | Literal["fruiting_tray"] | None = None
     source_kind: Literal["physical", "spores"] | None = None
     source_id: Text | None = None
     notes: Notes | None = None
+    storage_location: Text | None = None
     reason: Annotated[Notes, Field(min_length=1)]
 
     @model_validator(mode="after")
@@ -33,7 +52,7 @@ class StockInput(Command):
             raise ValueError("Only source inventory can bind a biological record")
         if self.category == "reusable" and (
             self.available is None
-            or self.unit != "count"
+            or self.unit not in {"count", "each"}
             or self.container_type
             not in {"agar_plate", "lc_jar", "spawn_jar", "fruiting_tray"}
         ):
@@ -44,14 +63,17 @@ class StockInput(Command):
             self.category == "consumable"
             and self.container_type
             and (
-                self.unit != "count"
+                self.unit not in {"count", "each"}
                 or self.container_type not in {"spawn_bag", "lc_syringe"}
             )
         ):
             raise ValueError(
                 "Disposable container supplies must use count and a bag/syringe type"
             )
-        if self.category == "ingredient" and self.container_type:
+        if (
+            self.category in {"ingredient", "equipment", "other"}
+            and self.container_type
+        ):
             raise ValueError("Ingredients are separate from container supplies")
         return self
 
@@ -60,6 +82,7 @@ class StockAdjustment(Command):
     mode: Literal["add", "correct"]
     quantity: Quantity | None = None
     expected_revision: int = Field(ge=1)
+    unit: StockUnit | None = None
     reason: Annotated[Notes, Field(min_length=1)]
 
     @model_validator(mode="after")
@@ -89,7 +112,7 @@ class Processing(Input):
 
 class RecipeData(Input):
     name: Annotated[Text, Field(min_length=1)]
-    recipe_type: Literal["agar", "grain", "lc"]
+    recipe_type: Literal["agar", "grain", "lc", "substrate"]
     batch_yield: int = Field(ge=1, le=10000)
     ingredients: list[Ingredient] = Field(min_length=1, max_length=100)
     instructions: Notes | None = None
@@ -170,6 +193,7 @@ class StockOut(Input):
     physical_id: str | None
     spore_id: str | None
     notes: str | None
+    storage_location: str | None = None
     status: str
     revision: int
     created_at: str

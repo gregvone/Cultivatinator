@@ -73,10 +73,6 @@ def prepare(client, raw, container, count=5, **values):
     return post(client, "prepare", body)
 
 
-def ready(client, materials):
-    return post(client, "ready", {"prepared_ids": [r["id"] for r in materials]}, 200)
-
-
 def lc_source(client, remaining=None):
     source = receive(
         client,
@@ -136,16 +132,13 @@ def test_prepare_ingredients_readiness_individual_ids_and_idempotency(client):
     assert len(first["materials"]) == 10
     assert [r["id"] for r in first["materials"]] == [f"AG-{i:04}" for i in range(1, 11)]
     assert all(
-        r["stage"] == "preparing" and r["physical_id"] is None
-        for r in first["materials"]
+        r["stage"] == "ready" and r["physical_id"] is None for r in first["materials"]
     )
     assert client.get("/api/library/lines").json() == []
     assert list_stock(client)[raw["id"]]["available"] == "994.875"
     assert list_stock(client)[container["id"]]["available"] == "10.000"
-    readied = ready(client, first["materials"][:3])
-    assert all(r["stage"] == "ready" for r in readied["materials"])
     rows = client.get("/api/preparation/materials").json()
-    assert sum(r["stage"] == "preparing" for r in rows) == 7
+    assert sum(r["stage"] == "ready" for r in rows) == 10
     assert rows[0]["expired"] is True
     assert rows[0]["snapshot"]["processing"]["method"] == "Instant Pot"
     post(client, "prepare", {**body, "count": 1}, 409, key="prepare-request")
@@ -300,7 +293,6 @@ def test_unknown_balances_and_adjustment_audit_are_not_invented(client):
 def test_bulk_partial_inoculation_uses_25ml_once_and_preserves_line(client):
     raw, container = setup_preparation(client, "spawn_bag")
     batch = prepare(client, raw, container, 8)
-    ready(client, batch["materials"])
     source = lc_source(client, "100")
     selected = batch["materials"][:5]
     body = {
@@ -364,7 +356,6 @@ def test_bulk_partial_inoculation_uses_25ml_once_and_preserves_line(client):
 def test_lc_depletion_correction_and_unknown_source_quantities(client):
     raw, container = setup_preparation(client, "lc_syringe")
     batch = prepare(client, raw, container, 3)
-    ready(client, batch["materials"])
     source = lc_source(client, "10")
     result = inoculate(client, source, batch["materials"][:2])
     depleted = client.get("/api/library/physical/" + source["id"]).json()
@@ -420,7 +411,6 @@ def test_lc_depletion_correction_and_unknown_source_quantities(client):
 def test_pool_release_complete_failure_and_plate_remains_after_transfer(client):
     raw, container = setup_preparation(client, "agar_plate", 20)
     batch = prepare(client, raw, container, 3)
-    ready(client, batch["materials"])
     source = lc_source(client)
     first = inoculate(client, source, batch["materials"][:1])["materials"][0]
     agar = client.get("/api/library/physical/" + first["physical_id"]).json()
@@ -474,7 +464,6 @@ def test_pool_release_complete_failure_and_plate_remains_after_transfer(client):
 def test_spore_inoculation_creates_pending_independent_establishments(client):
     raw, container = setup_preparation(client, "agar_plate")
     batch = prepare(client, raw, container, 2)
-    ready(client, batch["materials"])
     spore = client.post("/api/library/spores", json={}).json()
     inoculate(
         client,
@@ -516,6 +505,8 @@ def test_invalid_readiness_source_units_and_atomic_write_failure(client):
     raw, container = setup_preparation(client, "spawn_bag")
     batch = prepare(client, raw, container, 2)
     source = lc_source(client, "100")
+    with client.app.state.engine.begin() as connection:
+        connection.execute(text("UPDATE prepared_materials SET stage='preparing'"))
     post(
         client,
         "inoculate",
@@ -528,7 +519,12 @@ def test_invalid_readiness_source_units_and_atomic_write_failure(client):
         },
         409,
     )
-    ready(client, batch["materials"])
+    post(
+        client,
+        "ready",
+        {"prepared_ids": [row["id"] for row in batch["materials"]]},
+        200,
+    )
     post(
         client,
         "inoculate",
@@ -582,7 +578,6 @@ def test_concurrent_pool_capacity_and_idempotent_inoculation(client):
         )
     assert sorted(r.status_code for r in results) == [201, 409]
     materials = client.get("/api/preparation/materials").json()
-    ready(client, materials)
     source = lc_source(client, "25")
     payload = {
         "prepared_ids": [m["id"] for m in materials],
@@ -653,7 +648,6 @@ def test_migration_restart_preserves_preparation_stock_and_existing_photos(setti
         original = client.get(photo["url"]).content
         raw, container = setup_preparation(client, "spawn_jar", 6)
         batch = prepare(client, raw, container, 5)
-        ready(client, batch["materials"])
         inoculate(client, source, batch["materials"])
     with TestClient(create_app(settings)) as client:
         assert client.get(photo["url"]).content == original
@@ -666,7 +660,7 @@ def test_migration_restart_preserves_preparation_stock_and_existing_photos(setti
             == "25.000"
         )
     command.check(migration_config(settings))
-    with pytest.raises(RuntimeError, match="Preparation/inventory data exists"):
+    with pytest.raises(RuntimeError, match="inventory data exists"):
         command.downgrade(migration_config(settings), "0004_acquisition")
 
 
@@ -697,7 +691,6 @@ def test_measured_inventory_cannot_be_retyped_and_liquid_syringe_conserves_volum
     )
     raw, container = setup_preparation(client, "lc_syringe")
     batch = prepare(client, raw, container, 1)
-    ready(client, batch["materials"])
     post(
         client,
         "inoculate",
@@ -721,7 +714,6 @@ def test_measured_inventory_cannot_be_retyped_and_liquid_syringe_conserves_volum
 def test_lc_container_inoculation_preserves_line_from_agar_or_lc(client, source_type):
     raw, container = setup_preparation(client, "lc_jar", 2)
     batch = prepare(client, raw, container, 1)
-    ready(client, batch["materials"])
     source = receive(client, count=1, material={"material_type": source_type})[
         "physical"
     ][0]
@@ -771,7 +763,6 @@ def test_invalid_history_kind_is_validated(client):
 def test_spore_to_grain_rejected_without_consumption_or_line_creation(client):
     raw, container = setup_preparation(client, "spawn_bag")
     batch = prepare(client, raw, container, 1)
-    ready(client, batch["materials"])
     spore = client.post("/api/library/spores", json={}).json()
     before = list_stock(client)
     post(

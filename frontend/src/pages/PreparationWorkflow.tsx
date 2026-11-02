@@ -11,6 +11,7 @@ import {
   materialNames,
   scaleQuantity,
   stockUnits,
+  compatibleUnits,
 } from "../preparationApi";
 import type { Stock, Recipe, Prepared, Ingredient } from "../preparationApi";
 import {
@@ -34,47 +35,24 @@ export function PreparationWorkflow({
   operation: string;
   source?: LibraryRecord;
 }) {
-  const [mode, setMode] = useState(source ? "inoculate" : "prepare");
   return (
     <section className="preparation-workflow">
-      <div
-        className="library-tabs"
-        role="group"
-        aria-label="Preparation or inoculation"
-      >
-        <button
-          aria-pressed={mode === "prepare"}
-          onClick={() => setMode("prepare")}
-        >
-          Prepare Containers
-        </button>
-        <button
-          aria-pressed={mode === "inoculate"}
-          onClick={() => setMode("inoculate")}
-        >
-          {operation === "lc-syringe"
-            ? "Fill Prepared Syringes"
-            : "Inoculate Prepared Material"}
-        </button>
-      </div>
-      {mode === "prepare" ? (
-        <PreparationForm operation={operation} />
-      ) : (
-        <InoculationForm
-          operation={operation}
-          source={source}
-          onPrepare={() => setMode("prepare")}
-        />
-      )}
+      <InoculationForm operation={operation} source={source} />
     </section>
   );
 }
-function PreparationForm({ operation }: { operation: string }) {
+export function PreparationForm() {
   const stock = useInventoryList<Stock>("stock");
   const recipes = useInventoryList<Recipe>("recipes");
   const command = useInventoryCommand();
   const navigate = useNavigate();
-  const types = kindForOperation[operation];
+  const types = [
+    "agar_plate",
+    "spawn_jar",
+    "spawn_bag",
+    "lc_jar",
+    "lc_syringe",
+  ];
   const [v, setV] = useState<Values>({
     material_type: types[0],
     count: "1",
@@ -164,7 +142,7 @@ function PreparationForm({ operation }: { operation: string }) {
     if (r)
       navigate("/inventory/prepared", {
         state: {
-          message: `${r.materials.length} containers prepared. Confirm readiness separately.`,
+          message: `${r.materials.length} containers prepared and Ready to Inoculate.`,
         },
       });
   }
@@ -197,7 +175,8 @@ function PreparationForm({ operation }: { operation: string }) {
       <p>
         Preparation deducts the actual ingredients and disposable supplies,
         reserves pooled reusable containers, and creates individually identified
-        Preparing records. No inoculation or genetic line is implied.
+        Ready to Inoculate records. Save after preparation and sterilization are
+        complete.
       </p>
       {types.length > 1 && (
         <Field
@@ -312,11 +291,9 @@ function PreparationForm({ operation }: { operation: string }) {
 function InoculationForm({
   operation,
   source,
-  onPrepare,
 }: {
   operation: string;
   source?: LibraryRecord;
-  onPrepare: () => void;
 }) {
   const materials = useInventoryList<Prepared>("materials?stage=ready");
   const command = useInventoryCommand();
@@ -396,18 +373,18 @@ function InoculationForm({
         </p>
       ) : (
         <p>
-          Source {source.id} · Remaining{" "}
+          Source {source.id} · Remaining Culture Material{" "}
           {source.remaining_quantity ?? "Unknown"} {source.remaining_unit || ""}
           . Starting acquisition quantities are not remaining balances.
         </p>
       )}
+      <p>{allowed.length} prepared containers available.</p>
       {!allowed.length ? (
         <p>
-          No matching Ready to Inoculate containers.{" "}
-          <button type="button" onClick={onPrepare}>
-            Prepare containers first
-          </button>
-          , then explicitly confirm readiness in Prepared Materials.
+          No prepared containers available.{" "}
+          <Link to="/inventory/prepared/prepare">
+            Inventory → Prepared Materials → Prepare Materials
+          </Link>
         </p>
       ) : (
         <fieldset>
@@ -454,9 +431,9 @@ function InoculationForm({
         set={(n, x) => setV({ ...v, [n]: x })}
         options={
           liquid
-            ? { mL: "mL" }
+            ? compatibleUnits("mL")
             : source?.remaining_unit
-              ? { [source.remaining_unit]: source.remaining_unit }
+              ? compatibleUnits(source.remaining_unit)
               : stockUnits
         }
       />
@@ -547,25 +524,27 @@ export function MaterialOperationPanel({
     <section className="panel workflow-source">
       <h2>Lifecycle, Preparation & Physical Transfers</h2>
       <p>
-        Lifecycle: {record.lifecycle || "active"} · Remaining:{" "}
+        Lifecycle: {record.lifecycle || "active"} · Remaining Culture Material:{" "}
         {record.remaining_quantity ?? "Unknown"} {record.remaining_unit || ""}
       </p>
       <p>
         Balances are explicitly measured or remain unknown; initial registration
         quantities are preserved separately.
       </p>
-      {["physical", "spores"].includes(record.kind) && (
-        <Link
-          to={
-            record.stock_item_id
-              ? `/inventory/stock?item=${record.stock_item_id}`
-              : `/inventory/stock?source_kind=${record.kind}&source_id=${record.id}`
-          }
-        >
-          {record.stock_item_id
-            ? "Adjust documented balance in Inventory"
-            : "Configure explicit source balance"}
-        </Link>
+      {record.kind === "physical" && record.material_type?.startsWith("lc_") ? (
+        <CultureBalanceForm record={record} onSaved={onSaved} />
+      ) : (
+        ["physical", "spores"].includes(record.kind) && (
+          <Link
+            to={
+              record.stock_item_id
+                ? `/inventory/stock?item=${record.stock_item_id}`
+                : `/inventory/stock?source_kind=${record.kind}&source_id=${record.id}`
+            }
+          >
+            Correct Remaining Culture Material
+          </Link>
+        )
       )}
       {error && <p role="alert">{error}</p>}
       {history?.preparation && (
@@ -609,5 +588,104 @@ export function MaterialOperationPanel({
           />
         )}
     </section>
+  );
+}
+
+function CultureBalanceForm({
+  record,
+  onSaved,
+}: {
+  record: LibraryRecord;
+  onSaved: () => void;
+}) {
+  const stock = useInventoryList<Stock>("stock");
+  const command = useInventoryCommand();
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState<Values>({
+    quantity: "",
+    unit: record.remaining_unit || "mL",
+    reason: "",
+  });
+  const item = stock.data?.find((s) => s.id === record.stock_item_id);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!stock.data || (record.stock_item_id && !item)) return;
+    const result = item
+      ? await command.send(`stock/${item.id}/adjust`, {
+          mode: "correct",
+          quantity: v.quantity || null,
+          unit: v.unit,
+          expected_revision: item.revision,
+          reason: v.reason,
+        })
+      : await command.send("stock", {
+          name: `Culture ${record.id}`,
+          category: "source",
+          source_kind: record.kind,
+          source_id: record.id,
+          unit: v.unit,
+          available: v.quantity || null,
+          reason: v.reason,
+        });
+    if (result) {
+      setOpen(false);
+      stock.reload();
+      onSaved();
+    }
+  }
+  if (!open)
+    return (
+      <button onClick={() => setOpen(true)}>
+        Correct Remaining Culture Material
+      </button>
+    );
+  return (
+    <form className="library-form" onSubmit={submit}>
+      <h3>Correct Remaining Culture Material</h3>
+      <p>
+        Enter a measured balance, or leave blank for Unknown. Include a reason;
+        zero marks an LC source Depleted.
+      </p>
+      <Field
+        name="culture_quantity"
+        label="Measured remaining quantity (blank = unknown)"
+        type="number"
+        values={{ culture_quantity: v.quantity }}
+        set={(_, x) => setV({ ...v, quantity: x })}
+      />
+      <Field
+        name="culture_unit"
+        label="Culture volume unit"
+        values={{ culture_unit: v.unit }}
+        set={(_, x) => setV({ ...v, unit: x })}
+        options={compatibleUnits("mL")}
+      />
+      <Field
+        name="culture_reason"
+        label="Measurement correction reason"
+        type="textarea"
+        required
+        values={{ culture_reason: v.reason }}
+        set={(_, x) => setV({ ...v, reason: x })}
+      />
+      {(stock.error || command.error) && (
+        <p role="alert">{stock.error || command.error}</p>
+      )}
+      {stock.error && (
+        <button type="button" onClick={stock.reload}>
+          Reload measured balance
+        </button>
+      )}
+      <button
+        disabled={
+          command.busy || !stock.data || (!!record.stock_item_id && !item)
+        }
+      >
+        Save Measured Balance
+      </button>
+      <button type="button" onClick={() => setOpen(false)}>
+        Cancel
+      </button>
+    </form>
   );
 }

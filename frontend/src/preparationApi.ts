@@ -16,6 +16,7 @@ export interface Stock {
   spore_id: string | null;
   revision: number;
   notes: string | null;
+  storage_location?: string | null;
   status: string;
 }
 export interface Ingredient {
@@ -88,14 +89,20 @@ export const materialNames: Record<string, string> = {
   lc_syringe: "LC syringe",
   spawn_jar: "Spawn jar",
   spawn_bag: "Spawn bag",
-  fruiting_tray: "6-quart shoebox fruiting tray",
+  fruiting_tray: "Fruiting tray",
 };
 export const stockUnits = {
-  g: "g",
-  kg: "kg",
-  mL: "mL",
-  L: "L",
-  count: "Count",
+  mg: "Milligrams (mg)",
+  g: "Grams (g)",
+  kg: "Kilograms (kg)",
+  oz: "Ounces — weight (oz)",
+  lb: "Pounds (lb)",
+  mL: "Milliliters (mL)",
+  L: "Liters (L)",
+  us_fl_oz: "US fluid ounces (volume)",
+  us_cup: "US cups (volume)",
+  count: "Each / count",
+  each: "Each",
   plate: "Plate",
   print: "Print",
   swab: "Swab",
@@ -185,4 +192,27 @@ export function scaleQuantity(
     (milli * BigInt(numerator) * 2n + BigInt(denominator)) /
     (2n * BigInt(denominator));
   return `${result / 1000n}.${String(result % 1000n).padStart(3, "0")}`;
+}
+
+export function compatibleUnits(unit: string) {
+  const dimensions = [
+    ["mg", "g", "kg", "oz", "lb"],
+    ["mL", "L", "us_fl_oz", "us_cup"],
+    ["count", "each"],
+  ];
+  const group = dimensions.find((g) => g.includes(unit)) || [unit];
+  return Object.fromEntries(
+    Object.entries(stockUnits).filter(([u]) => group.includes(u)),
+  );
+}
+export interface Pool {
+  item_id: string;
+  name: string;
+  available: string;
+  ready: number;
+  inoculated: number;
+  preparing: number;
+  other_reserved: number;
+  reserved: number;
+  total: string;
 }

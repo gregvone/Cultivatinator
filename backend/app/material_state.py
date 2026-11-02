@@ -1,6 +1,7 @@
 """Read-only lifecycle/balance projection, without importing API modules."""
 
 from sqlalchemy import select
+from .inventory_quantities import balance
 from .preparation_models import StockItem, MaterialLifecycle, PreparedMaterial
 
 
@@ -32,7 +33,7 @@ def material_state(session, kind, code):
     return {
         "lifecycle": state.state if state else "active",
         "stock_item_id": stock.id if stock else None,
-        "remaining_quantity": stock.available if stock else None,
+        "remaining_quantity": balance(stock) if stock else None,
         "remaining_unit": stock.unit if stock else None,
         "balance_tracked": stock is not None,
         "prepared_id": prepared.id if prepared else None,

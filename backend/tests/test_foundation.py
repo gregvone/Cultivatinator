@@ -97,7 +97,7 @@ def test_migrations_repeat_and_persist(settings):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
-                == "0006_history"
+                == "0007_inventory"
             )
 
 

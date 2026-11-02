@@ -6,8 +6,13 @@ import {
   RecipesPage,
   PreparedDetail,
   FinishForm,
+  PoolOverview,
 } from "./pages/PreparationInventory";
-import { PreparationWorkflow } from "./pages/PreparationWorkflow";
+import {
+  PreparationForm,
+  PreparationWorkflow,
+  MaterialOperationPanel,
+} from "./pages/PreparationWorkflow";
 import { scaleQuantity, newRequestKey } from "./preparationApi";
 import { quickCreate, eligibleSource } from "./quickCreate";
 import type { Stock, Recipe, Prepared } from "./preparationApi";
@@ -110,26 +115,40 @@ test("quantity previews use exact integer thousandths and match server half-up s
   expect(scaleQuantity("99999999999.999", 1)).toBe("99999999999.999");
   expect(scaleQuantity("invalid", 5)).toBe("");
 });
-test("opening reusable pools requires explicit user confirmation and creates no startup stock", async () => {
+test("generic Add Inventory starts blank and records a user-defined pool with storage", async () => {
   const fetch = mocks({ stocks: [] });
   mount(<StockPage />);
   const u = userEvent.setup();
-  await u.click(
-    await screen.findByRole("button", { name: "Configure 20 Agar Plates" }),
+  await u.click(await screen.findByRole("button", { name: "+ Add Inventory" }));
+  expect(screen.queryByText(/Configure 20/)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Inventory name *")).toHaveValue("");
+  await u.selectOptions(
+    screen.getByLabelText("Inventory category"),
+    "reusable",
   );
   expect(screen.getByLabelText("Confirmed free container count *")).toHaveValue(
-    20,
+    null,
   );
   expect(
     fetch.mock.calls.every(
       ([, init]) => !init?.method || init.method === "GET",
     ),
   ).toBe(true);
+  await u.type(screen.getByLabelText("Inventory name *"), "My plates");
+  await u.selectOptions(
+    screen.getByLabelText("Container supply type *"),
+    "agar_plate",
+  );
+  await u.type(screen.getByLabelText("Confirmed free container count *"), "20");
+  await u.type(
+    screen.getByLabelText("Storage location (optional)"),
+    "Clean cabinet",
+  );
   await u.type(
     screen.getByLabelText("Opening balance reason *"),
     "Counted clean plates",
   );
-  await u.click(screen.getByRole("button", { name: "Confirm Opening Stock" }));
+  await u.click(screen.getByRole("button", { name: "Add Inventory" }));
   await waitFor(() =>
     expect(fetch.mock.calls.some(([, init]) => init?.method === "POST")).toBe(
       true,
@@ -140,6 +159,7 @@ test("opening reusable pools requires explicit user confirmation and creates no 
     category: "reusable",
     container_type: "agar_plate",
     available: "20",
+    storage_location: "Clean cabinet",
     reason: "Counted clean plates",
   });
 });
@@ -163,10 +183,14 @@ test("recipe form records unit-bearing ingredient quantities and a declared cont
 });
 test("preparation scales a saved recipe and submits actual settings without any source requirement", async () => {
   const fetch = mocks();
-  mount(<PreparationWorkflow operation="lc-container" />);
+  mount(<PreparationForm />);
   const u = userEvent.setup();
   const count = await screen.findByLabelText(
     "Number of prepared containers (1–100) *",
+  );
+  await u.selectOptions(
+    screen.getByLabelText("Preparation container type"),
+    "lc_jar",
   );
   await u.clear(count);
   await u.type(count, "5");
@@ -252,7 +276,7 @@ test("explicit balances and terminal lifecycle exclude sources while unknown leg
     }),
   ).toBe(false);
 });
-test("readiness is an explicit action and expired preparation is a warning, not automatic failure", async () => {
+test("legacy Preparing readiness is an explicit action and expired preparation is a warning, not automatic failure", async () => {
   const row = {
     ...prepared[0],
     stage: "preparing",
@@ -323,4 +347,111 @@ test("idempotency keys support private-network HTTP without randomUUID", () => {
     getRandomValues: (buffer: Uint8Array) => buffer.fill(1),
   } as unknown as Crypto;
   expect(newRequestKey(random)).toBe("01".repeat(16));
+});
+
+test("Quick Create only inoculates prepared material and links to Inventory when empty", async () => {
+  mocks({ materials: [] });
+  mount(<PreparationWorkflow operation="agar-plate" source={source} />);
+  expect(
+    await screen.findByText("No prepared containers available."),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: /Inventory → Prepared Materials/ }),
+  ).toHaveAttribute("href", "/inventory/prepared/prepare");
+  expect(
+    screen.queryByRole("button", { name: "Prepare Containers" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Saved recipe (optional)"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText(/Number of prepared containers/),
+  ).not.toBeInTheDocument();
+});
+test("recipe variants compare actual ingredient quantities and yields", async () => {
+  mocks({
+    recipes: [
+      recipe,
+      {
+        ...recipe,
+        id: "RCP-2",
+        name: "Low nutrient",
+        batch_yield: 20,
+        ingredients: [{ item_id: raw.id, quantity: "2.500", unit: "g" }],
+      },
+    ],
+  });
+  mount(<RecipesPage />);
+  const u = userEvent.setup();
+  await u.click(await screen.findByLabelText("Compare LC recipe"));
+  await u.click(screen.getByLabelText("Compare Low nutrient"));
+  expect(
+    screen.getByRole("heading", { name: "Recipe Comparison" }),
+  ).toBeInTheDocument();
+  const table = screen.getByRole("table");
+  expect(table).toHaveTextContent("Batch yield (containers)1020");
+  expect(table).toHaveTextContent("12.345 Grams (g)");
+  expect(table).toHaveTextContent("2.500 Grams (g)");
+});
+test("reusable pool overview separates empty, ready and inoculated allocations", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    response([
+      {
+        item_id: pool.id,
+        name: "Plates",
+        available: "7.000",
+        ready: 5,
+        inoculated: 8,
+        preparing: 0,
+        other_reserved: 0,
+        total: "20.000",
+      },
+    ]),
+  );
+  mount(<PoolOverview />);
+  expect(await screen.findByRole("table")).toHaveTextContent(
+    "Plates7.000580020.000",
+  );
+});
+test("LC detail corrects measured Remaining Culture Material with reason and revision", async () => {
+  const fetch = mocks({
+    stocks: [
+      {
+        ...raw,
+        id: "INV-LC",
+        category: "source",
+        unit: "mL",
+        available: "25.000",
+        revision: 3,
+      },
+    ],
+  });
+  mount(
+    <MaterialOperationPanel
+      record={{ ...source, stock_item_id: "INV-LC" }}
+      onSaved={vi.fn()}
+    />,
+  );
+  const u = userEvent.setup();
+  await u.click(
+    screen.getByRole("button", { name: "Correct Remaining Culture Material" }),
+  );
+  await u.type(
+    screen.getByLabelText("Measured remaining quantity (blank = unknown)"),
+    "0",
+  );
+  await u.type(
+    screen.getByLabelText("Measurement correction reason *"),
+    "Measured empty",
+  );
+  await u.click(screen.getByRole("button", { name: "Save Measured Balance" }));
+  const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
+  expect(call[0]).toBe("/api/preparation/stock/INV-LC/adjust");
+  expect(JSON.parse(call[1]!.body as string)).toMatchObject({
+    mode: "correct",
+    quantity: "0",
+    unit: "mL",
+    expected_revision: 3,
+    reason: "Measured empty",
+  });
 });

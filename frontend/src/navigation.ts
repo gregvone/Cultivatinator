@@ -4,6 +4,7 @@ import {
   FlaskConical,
   Sprout,
   Boxes,
+  BookOpen,
   ChartNoAxesCombined,
   Settings2,
 } from "lucide-react";
@@ -13,6 +14,7 @@ export const navigation = [
   { path: "/laboratory", title: "Laboratory", icon: FlaskConical },
   { path: "/cultivation", title: "Cultivation", icon: Sprout },
   { path: "/inventory", title: "Inventory", icon: Boxes },
+  { path: "/recipes", title: "Recipes", icon: BookOpen },
   { path: "/reports", title: "Reports", icon: ChartNoAxesCombined },
   { path: "/settings", title: "Settings", icon: Settings2 },
 ];

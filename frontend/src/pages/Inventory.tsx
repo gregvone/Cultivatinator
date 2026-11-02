@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { PackagePlus, Dna, Boxes } from "lucide-react";
-import { InventoryNav } from "./PreparationInventory";
+import { InventoryNav, PoolOverview } from "./PreparationInventory";
 import { PageHeader, Panel } from "../components/UI";
 export default function Inventory() {
   return (
@@ -10,6 +10,15 @@ export default function Inventory() {
         title="Inventory"
         description="Outside acquisitions, stock, reusable pools, recipes, prepared materials, and transaction history. Purchase tracking is planned."
       />
+      <div className="actions">
+        <Link className="button primary" to="/inventory/stock?add=1">
+          + Add Inventory
+        </Link>
+        <Link className="button" to="/inventory/prepared">
+          Prepared Materials
+        </Link>
+      </div>
+      <PoolOverview />
       <Panel
         title="Receive outside material"
         icon={PackagePlus}
@@ -25,9 +34,8 @@ export default function Inventory() {
             Receive Acquisition
           </Link>
           <p>
-            For preparation, inoculation, or transfers within your collection,
-            use Dashboard Quick Create. Acquisition is not a substitute for
-            those operations.
+            Prepare sterile materials in Inventory. Use Dashboard Quick Create
+            to inoculate or transfer into prepared containers.
           </p>
         </div>
       </Panel>
@@ -57,7 +65,7 @@ export default function Inventory() {
             <Link className="button" to="/inventory/stock">
               Stock & Pools
             </Link>
-            <Link className="button" to="/inventory/recipes">
+            <Link className="button" to="/recipes">
               Recipes
             </Link>
             <Link className="button" to="/inventory/prepared">

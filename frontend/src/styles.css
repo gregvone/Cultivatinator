@@ -1180,7 +1180,7 @@ button:disabled {
 
 .ingredient-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: end;
   gap: 0.75rem;
   margin-block: 0.75rem;
@@ -1199,4 +1199,25 @@ button:disabled {
   .ingredient-row {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+.table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.table-scroll th,
+.table-scroll td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border, #334155);
+  vertical-align: top;
+  min-width: 8rem;
+}
+.pool-overview {
+  margin: 1rem 0;
 }

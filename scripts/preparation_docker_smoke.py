@@ -160,7 +160,7 @@ try:
             "recipe_id": recipe["id"],
         },
     )
-    command("ready", {"prepared_ids": [r["id"] for r in prepared["materials"]]})
+    assert all(row["stage"] == "ready" for row in prepared["materials"])
     inoc_payload = {
         "prepared_ids": [r["id"] for r in prepared["materials"]],
         "source_kind": "physical",

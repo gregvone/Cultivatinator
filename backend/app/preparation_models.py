@@ -10,7 +10,9 @@ from .models import now
 class StockItem(Base):
     __tablename__ = "stock_items"
     __table_args__ = (
-        CheckConstraint("category IN ('ingredient','consumable','reusable','source')"),
+        CheckConstraint(
+            "category IN ('ingredient','consumable','reusable','source','equipment','other')"
+        ),
         CheckConstraint("available IS NULL OR available >= 0"),
         CheckConstraint(
             "category != 'reusable' OR (available IS NOT NULL AND unit = 'count')"
@@ -25,6 +27,8 @@ class StockItem(Base):
     category: Mapped[str] = mapped_column(String(20), index=True)
     unit: Mapped[str] = mapped_column(String(20))
     available: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    available_exact: Mapped[str | None] = mapped_column(String(64))
+    storage_location: Mapped[str | None] = mapped_column(String(200))
     container_type: Mapped[str | None] = mapped_column(String(30))
     physical_id: Mapped[str | None] = mapped_column(
         ForeignKey("physical_cultures.id"), unique=True
@@ -61,6 +65,9 @@ class StockTransaction(Base):
     unit: Mapped[str] = mapped_column(String(20))
     before_quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
     after_quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 3))
+    amount_exact: Mapped[str | None] = mapped_column(String(64))
+    before_exact: Mapped[str | None] = mapped_column(String(64))
+    after_exact: Mapped[str | None] = mapped_column(String(64))
     reason: Mapped[str] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
 
@@ -106,7 +113,7 @@ class PreparedMaterial(Base):
         ForeignKey("preparation_batches.id"), index=True
     )
     material_type: Mapped[str] = mapped_column(String(30))
-    stage: Mapped[str] = mapped_column(String(20), default="preparing", index=True)
+    stage: Mapped[str] = mapped_column(String(20), default="ready", index=True)
     use_by: Mapped[str | None] = mapped_column(String(10))
     physical_id: Mapped[str | None] = mapped_column(
         ForeignKey("physical_cultures.id"), unique=True

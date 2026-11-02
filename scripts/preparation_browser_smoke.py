@@ -1,4 +1,4 @@
-"""Optional 2B browser acceptance check. Uses a disposable database; build UI first.
+"""2C.2 revised Inventory → Preparation → Quick Create acceptance check. Uses a disposable database; build UI first.
 Run: .venv/bin/python scripts/preparation_browser_smoke.py /usr/bin/chromium
 Requires optional Playwright tooling in the invoking virtualenv.
 """
@@ -54,7 +54,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 )
                 page = browser.new_page(viewport={"width": 1440, "height": 1100})
                 page.set_default_timeout(10000)
-                page.add_init_script("Object.defineProperty(Crypto.prototype, 'randomUUID', {value: undefined, configurable: true})")
+                page.add_init_script(
+                    "Object.defineProperty(Crypto.prototype, 'randomUUID', {value: undefined, configurable: true})"
+                )
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
 
@@ -76,7 +78,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 def open_stock(name, category, quantity, unit="g", container_type=None):
                     page.goto(base + "/inventory/stock")
                     page.get_by_role(
-                        "button", name="Open Inventory Item", exact=True
+                        "button", name="+ Add Inventory", exact=True
                     ).click()
                     page.get_by_label("Inventory name *", exact=True).fill(name)
                     page.get_by_label("Inventory category").select_option(category)
@@ -86,14 +88,17 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                         )
                     page.get_by_label("Inventory unit").select_option(unit)
                     page.get_by_label(
-                        "Confirmed available quantity (blank = unknown)", exact=True
+                        (
+                            "Confirmed free container count *"
+                            if category == "reusable"
+                            else "Confirmed available quantity (blank = unknown)"
+                        ),
+                        exact=True,
                     ).fill(quantity)
                     page.get_by_label("Opening balance reason *", exact=True).fill(
                         "Counted and confirmed opening stock"
                     )
-                    page.get_by_role(
-                        "button", name="Confirm Opening Stock", exact=True
-                    ).click()
+                    page.get_by_role("button", name="Add Inventory", exact=True).click()
                     expect(
                         page.get_by_text("Opening inventory recorded.", exact=True)
                     ).to_be_visible()
@@ -105,32 +110,17 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                         if r["name"] == name
                     )
 
-                grain = open_stock("Grain", "ingredient", "1000")
+                grain = open_stock("Grain", "ingredient", "2", "lb")
+                assert grain["available"] == "907.18474"
                 bags = open_stock(
                     "Sterile bags", "consumable", "10", "count", "spawn_bag"
                 )
-                agar = open_stock("Agar powder", "ingredient", "100")
-                # Opening the recommended pool only submits after explicit confirmation.
-                page.goto(base + "/inventory/stock")
-                page.get_by_role(
-                    "button", name="Configure 20 Agar Plates", exact=True
-                ).click()
-                expect(
-                    page.get_by_label("Confirmed free container count *", exact=True)
-                ).to_have_value("20")
-                page.get_by_label("Opening balance reason *", exact=True).fill(
-                    "Counted 20 clean reusable plates"
-                )
-                page.get_by_role(
-                    "button", name="Confirm Opening Stock", exact=True
-                ).click()
-                expect(
-                    page.get_by_text("Opening inventory recorded.", exact=True)
-                ).to_be_visible()
-                pool = next(
-                    r
-                    for r in page.request.get(base + "/api/preparation/stock").json()
-                    if r["container_type"] == "agar_plate"
+                agar = open_stock("Agar powder", "ingredient", "1", "oz")
+                assert agar["available"] == "28.349523125"
+                volume = open_stock("Liquid ingredient", "ingredient", "32", "us_fl_oz")
+                assert volume["available"] == "946.352946"
+                pool = open_stock(
+                    "Clean plates", "reusable", "20", "count", "agar_plate"
                 )
                 # Legacy acquisition quantities were not imported as remaining source volume.
                 assert (
@@ -139,36 +129,36 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     ).json()["remaining_quantity"]
                     is None
                 )
-                page.goto(
-                    base
-                    + f"/inventory/stock?source_kind=physical&source_id={source['id']}"
-                )
+                page.goto(base + "/culture-library/physical/" + source["id"])
+                page.get_by_role(
+                    "button", name="Correct Remaining Culture Material", exact=True
+                ).click()
                 page.get_by_label(
-                    "Confirmed available quantity (blank = unknown)", exact=True
+                    "Measured remaining quantity (blank = unknown)", exact=True
                 ).fill("25")
-                page.get_by_label("Opening balance reason *", exact=True).fill(
+                page.get_by_label("Measurement correction reason *", exact=True).fill(
                     "Measured 25 mL remaining"
                 )
                 page.get_by_role(
-                    "button", name="Confirm Opening Stock", exact=True
+                    "button", name="Save Measured Balance", exact=True
                 ).click()
                 expect(
-                    page.get_by_text("Opening inventory recorded.", exact=True)
+                    page.get_by_text(
+                        "Remaining Culture Material: 25.000 mL", exact=False
+                    )
                 ).to_be_visible()
                 source_stock = next(
                     r
                     for r in page.request.get(base + "/api/preparation/stock").json()
                     if r["physical_id"] == source["id"]
                 )
-                page.goto(base + "/inventory/recipes")
+                page.goto(base + "/recipes")
                 page.get_by_role("button", name="New Recipe", exact=True).click()
                 page.get_by_label("Recipe name *", exact=True).fill("Five grain bags")
                 page.get_by_label("Recipe type").select_option("grain")
                 page.get_by_label("Recipe yield (containers) *", exact=True).fill("5")
                 page.get_by_role("button", name="Add Ingredient", exact=True).click()
-                page.get_by_label("Ingredient 1 *").select_option(
-                    grain["id"]
-                )
+                page.get_by_label("Ingredient 1 *").select_option(grain["id"])
                 page.get_by_label("Ingredient 1 quantity (g) *", exact=True).fill("500")
                 page.get_by_label("Processing method").select_option("instant_pot")
                 page.get_by_label("Duration (minutes)", exact=True).fill("90")
@@ -177,7 +167,22 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     page.get_by_role("button", name="New Recipe", exact=True)
                 ).to_be_visible()
                 recipe = page.request.get(base + "/api/preparation/recipes").json()[0]
-                page.goto(base + "/quick-create/spawn")
+                page.get_by_role("button", name="New Recipe", exact=True).click()
+                page.get_by_label("Recipe name *", exact=True).fill("Low grain variant")
+                page.get_by_label("Recipe type").select_option("grain")
+                page.get_by_label("Recipe yield (containers) *", exact=True).fill("5")
+                page.get_by_role("button", name="Add Ingredient", exact=True).click()
+                page.get_by_label("Ingredient 1 *").select_option(grain["id"])
+                page.get_by_label("Ingredient 1 quantity (g) *", exact=True).fill("250")
+                page.get_by_role("button", name="Save Recipe", exact=True).click()
+                page.get_by_label("Compare Five grain bags", exact=True).check()
+                page.get_by_label("Compare Low grain variant", exact=True).check()
+                expect(
+                    page.get_by_role("heading", name="Recipe Comparison", exact=True)
+                ).to_be_visible()
+                expect(page.get_by_role("table")).to_contain_text("500 Grams (g)")
+                expect(page.get_by_role("table")).to_contain_text("250 Grams (g)")
+                page.goto(base + "/inventory/prepared/prepare")
                 page.get_by_label("Preparation container type").select_option(
                     "spawn_bag"
                 )
@@ -197,15 +202,8 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 ).to_be_visible()
                 prepared = page.request.get(base + "/api/preparation/materials").json()
                 assert len(prepared) == 5 and all(
-                    r["stage"] == "preparing" for r in prepared
+                    r["stage"] == "ready" for r in prepared
                 )
-                for row in prepared:
-                    page.get_by_label(
-                        f"Select {row['id']} for readiness confirmation", exact=True
-                    ).check()
-                page.get_by_role(
-                    "button", name="Confirm Selected Ready to Inoculate", exact=True
-                ).click()
                 expect(
                     page.get_by_text("Ready to Inoculate · Batch", exact=False)
                 ).to_have_count(5)
@@ -213,6 +211,17 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     base
                     + f"/quick-create/spawn?source_kind=physical&source_id={source['id']}"
                 )
+                expect(page.get_by_label("Source material", exact=True)).to_have_value(
+                    "physical:" + source["id"]
+                )
+                expect(
+                    page.get_by_label(
+                        "Number of prepared containers (1–100) *", exact=True
+                    )
+                ).to_have_count(0)
+                expect(
+                    page.get_by_role("button", name="Prepare Containers", exact=True)
+                ).to_have_count(0)
                 page.get_by_role(
                     "button", name="Select Up to 100 Ready Containers", exact=True
                 ).click()
@@ -246,17 +255,23 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     source["id"]
                     not in page.get_by_label("Source material", exact=True).inner_text()
                 )
-                page.goto(base + "/inventory/stock?item=" + source_stock["id"])
-                page.get_by_label("Adjustment type").select_option("correct")
+                page.goto(base + "/culture-library/physical/" + source["id"])
+                page.get_by_role(
+                    "button", name="Correct Remaining Culture Material", exact=True
+                ).click()
                 page.get_by_label(
-                    "Adjustment quantity (blank correction = unknown)", exact=True
+                    "Measured remaining quantity (blank = unknown)", exact=True
                 ).fill("30")
-                page.get_by_label("Adjustment reason *", exact=True).fill(
+                page.get_by_label("Measurement correction reason *", exact=True).fill(
                     "Verified volume correction"
                 )
-                page.get_by_role("button", name="Record Adjustment", exact=True).click()
+                page.get_by_role(
+                    "button", name="Save Measured Balance", exact=True
+                ).click()
                 expect(
-                    page.get_by_text("Adjustment recorded.", exact=True)
+                    page.get_by_text(
+                        "Remaining Culture Material: 30.000 mL", exact=False
+                    )
                 ).to_be_visible()
                 assert (
                     page.request.get(
@@ -265,7 +280,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     == "active"
                 )
                 # Prepare two reusable agar plates, inoculate them separately, then release each exactly once.
-                page.goto(base + "/quick-create/agar-plate")
+                page.goto(base + "/inventory/prepared/prepare")
                 page.get_by_label(
                     "Number of prepared containers (1–100) *", exact=True
                 ).fill("2")
@@ -273,9 +288,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     pool["id"]
                 )
                 page.get_by_role("button", name="Add Ingredient", exact=True).click()
-                page.get_by_label("Ingredient 1 *").select_option(
-                    agar["id"]
-                )
+                page.get_by_label("Ingredient 1 *").select_option(agar["id"])
                 page.get_by_label("Ingredient 1 quantity (g) *", exact=True).fill("10")
                 page.get_by_role("button", name="Prepare Materials", exact=True).click()
                 expect(
@@ -288,13 +301,6 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     ).json()
                     if r["material_type"] == "agar_plate"
                 ]
-                for row in plates:
-                    page.get_by_label(
-                        f"Select {row['id']} for readiness confirmation", exact=True
-                    ).check()
-                page.get_by_role(
-                    "button", name="Confirm Selected Ready to Inoculate", exact=True
-                ).click()
                 expect(
                     page.get_by_text("Ready to Inoculate · Batch", exact=False)
                 ).to_have_count(2)
@@ -310,6 +316,17 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 expect(
                     page.get_by_role("heading", name="Prepared Materials", exact=True)
                 ).to_be_visible()
+                state = next(
+                    r
+                    for r in page.request.get(base + "/api/preparation/pools").json()
+                    if r["item_id"] == pool["id"]
+                )
+                assert (
+                    state["available"] == "18.000"
+                    and state["ready"] == 1
+                    and state["inoculated"] == 1
+                    and state["total"] == "20.000"
+                )
                 page.goto(
                     base
                     + f"/quick-create/agar-plate?source_kind=physical&source_id={plates[0]['id']}"
@@ -375,6 +392,24 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth"
                 ), "Mobile overflow"
+                page.goto(base + "/inventory/stock")
+                expect(
+                    page.get_by_role(
+                        "heading", name="Reusable Container Pools", exact=True
+                    )
+                ).to_be_visible()
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth"
+                ), "Pool table mobile overflow"
+                page.goto(base + "/recipes")
+                page.get_by_label("Compare Five grain bags", exact=True).check()
+                page.get_by_label("Compare Low grain variant", exact=True).check()
+                expect(
+                    page.get_by_role("heading", name="Recipe Comparison", exact=True)
+                ).to_be_visible()
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth"
+                ), "Recipe comparison mobile overflow"
                 page.screenshot(
                     path="/tmp/cultivatinator-preparation-mobile.png", full_page=True
                 )
@@ -386,7 +421,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Milestone 2C.2 browser smoke passed: explicit stock/pool opening, recipe scaling, preparation/readiness, five separate spawn bags, one 25mL deduction, depletion/correction, partial agar transfers, terminal release, audit, desktop/mobile"
+                    "Milestone 2C.2 browser smoke passed: generic inventory, recipe scaling, automatic readiness, five separate spawn bags, one 25mL deduction, depletion/correction, partial agar transfers, terminal release, audit, desktop/mobile"
                 )
 
         finally:

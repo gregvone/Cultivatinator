@@ -366,3 +366,20 @@ test.each([
     ),
   );
 });
+
+test("Recipes has a main navigation workspace and its legacy URL preserves context", async () => {
+  mock();
+  mount("/inventory/recipes?variant=RCP-1#compare");
+  await waitFor(() =>
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      "/recipes?variant=RCP-1",
+    ),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Recipes", level: 1 }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Recipes" })).toHaveAttribute(
+    "href",
+    "/recipes",
+  );
+});

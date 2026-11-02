@@ -25,6 +25,7 @@ from .preparation_models import (
     MaterialTransfer,
 )
 from .material_state import lifecycle, material_state
+from .inventory_quantities import balance, convert, compatible, canonical, text_or_none
 from .preparation_schemas import (
     StockInput,
     StockAdjustment,
@@ -69,7 +70,22 @@ def fail(message, status=422):
 
 
 def row_values(row):
-    return {c.name: getattr(row, c.name) for c in row.__table__.columns}
+    values = {
+        c.name: getattr(row, c.name)
+        for c in row.__table__.columns
+        if not c.name.endswith("_exact")
+    }
+    if isinstance(row, StockItem):
+        values["available"] = balance(row)
+    elif isinstance(row, StockTransaction):
+        for public, stored in (
+            ("amount", "amount_exact"),
+            ("before_quantity", "before_exact"),
+            ("after_quantity", "after_exact"),
+        ):
+            if getattr(row, stored) is not None:
+                values[public] = D(getattr(row, stored))
+    return values
 
 
 def get(session, model, code):
@@ -81,6 +97,13 @@ def get(session, model, code):
 
 def execute(request, data, kind, work):
     payload = data.model_dump(mode="json")
+    # Preserve fingerprints from operations predating these optional fields.
+    optional_fields = ["storage_location"] + (
+        ["unit"] if isinstance(data, StockAdjustment) else []
+    )
+    for optional in optional_fields:
+        if payload.get(optional) is None:
+            payload.pop(optional, None)
     fingerprint = hashlib.sha256(
         (kind + json.dumps(payload, sort_keys=True)).encode()
     ).hexdigest()
@@ -127,8 +150,6 @@ def validate_quantity(quantity, unit):
             and quantity != quantity.to_integral_value()
         ):
             fail("Count-based units require whole quantities")
-        if quantity != quantity.quantize(D(".001")):
-            fail("Quantity supports at most three decimal places")
 
 
 def set_lifecycle(session, kind, code, state):
@@ -154,7 +175,7 @@ def sync_depletion(session, item):
     prior = lifecycle(session, "physical", physical.id)
     if prior and prior.state in {"completed", "failed"}:
         return
-    state = "depleted" if item.available == 0 else "active"
+    state = "depleted" if balance(item) == 0 else "active"
     if (prior.state if prior else "active") != state:
         set_lifecycle(session, "physical", physical.id, state)
         event(
@@ -175,12 +196,16 @@ def ledger(session, op, item, entry, amount, after, reason):
             entry_type=entry,
             amount=amount,
             unit=item.unit,
-            before_quantity=item.available,
+            before_quantity=balance(item),
+            amount_exact=text_or_none(amount),
+            before_exact=text_or_none(balance(item)),
+            after_exact=text_or_none(after),
             after_quantity=after,
             reason=reason,
         )
     )
     item.available = after
+    item.available_exact = text_or_none(after)
     item.revision += 1
     sync_depletion(session, item)
 
@@ -188,23 +213,24 @@ def ledger(session, op, item, entry, amount, after, reason):
 def use_stock(session, op, item, quantity, unit, entry, reason):
     if item.status != "active":
         fail("Restore inventory before using it", 409)
-    if unit != item.unit:
-        fail(
-            f"Unit mismatch for {item.name}: use {item.unit}; automatic conversions are not assumed"
-        )
+    try:
+        quantity = convert(quantity, unit, item.unit)
+    except ValueError as exc:
+        fail(str(exc))
     if quantity is not None:
-        validate_quantity(quantity, unit)
+        validate_quantity(quantity, item.unit)
         if quantity <= 0:
             fail("Usage must be positive")
-    if item.available is not None:
+    current = balance(item)
+    if current is not None:
         if quantity is None:
             fail("Specify measured usage for a source with a known balance")
-        if item.available < quantity:
+        if current < quantity:
             fail(
-                f"Insufficient stock: {item.name} needs {quantity} {unit}; available {item.available}",
+                f"Insufficient stock: {item.name} needs {quantity} {item.unit}; available {current}",
                 409,
             )
-        after = item.available - quantity
+        after = current - quantity
     else:
         after = None
     ledger(
@@ -228,11 +254,13 @@ def stock_source(session, kind, code):
 
 
 def create_stock(session, op, data):
-    validate_quantity(data.available, data.unit)
+    unit = canonical(data.unit)
+    quantity = convert(data.available, data.unit, unit)
+    validate_quantity(quantity, unit)
     binding = {}
     if data.category == "source":
         source = record(session, data.source_kind, data.source_id)
-        if source.material_type in LIQUID and data.unit != "mL":
+        if source.material_type in LIQUID and not compatible(unit, "mL"):
             fail("LC remaining volumes must be tracked in mL")
         if stock_source(session, data.source_kind, data.source_id):
             fail("Source inventory already exists; use a documented adjustment", 409)
@@ -243,7 +271,8 @@ def create_stock(session, op, data):
         id=allocate(session, "INV"),
         name=data.name,
         category=data.category,
-        unit=data.unit,
+        unit=unit,
+        storage_location=data.storage_location,
         available=D(0) if data.category == "reusable" else None,
         notes=data.notes,
         container_type=data.container_type,
@@ -251,7 +280,7 @@ def create_stock(session, op, data):
     )
     session.add(item)
     session.flush()
-    ledger(session, op, item, "opening", data.available, data.available, data.reason)
+    ledger(session, op, item, "opening", quantity, quantity, data.reason)
     session.flush()
     return row_values(item)
 
@@ -280,20 +309,23 @@ def adjust_stock(code: str, data: StockAdjustment, request: Request):
         item = get(session, StockItem, code)
         if item.revision != data.expected_revision:
             fail("Inventory changed; reload the current balance before adjusting", 409)
+        try:
+            quantity = convert(data.quantity, data.unit or item.unit, item.unit)
+        except ValueError as exc:
+            fail(str(exc))
+        current = balance(item)
         after = (
-            (item.available + data.quantity if item.available is not None else None)
+            (current + quantity if current is not None else None)
             if data.mode == "add"
-            else data.quantity
+            else quantity
         )
         if item.category == "reusable" and after is None:
             fail("Reusable capacity must be a known whole count")
         delta = (
-            data.quantity
+            quantity
             if data.mode == "add"
             else (
-                after - item.available
-                if after is not None and item.available is not None
-                else None
+                after - current if after is not None and current is not None else None
             )
         )
         ledger(session, op, item, data.mode, delta, after, data.reason)
@@ -327,8 +359,10 @@ def validate_ingredients(session, ingredients):
         item = get(session, StockItem, ingredient.item_id)
         if item.category != "ingredient" or item.status != "active":
             fail("Recipe ingredients must reference active raw ingredient inventory")
-        if item.unit != ingredient.unit:
-            fail(f"Use the inventory unit {item.unit} for {item.name}")
+        if not compatible(item.unit, ingredient.unit):
+            fail(
+                f"Incompatible units for {item.name}: {ingredient.unit} and {item.unit}"
+            )
         validate_quantity(ingredient.quantity, ingredient.unit)
 
 
@@ -526,7 +560,7 @@ def prepare_materials(session, op, data):
             id=allocate(session, PREFIX[data.material_type]),
             batch_id=batch.id,
             material_type=data.material_type,
-            stage="preparing",
+            stage="ready",
             use_by=snapshot["use_by"],
         )
         session.add(row)
@@ -599,7 +633,7 @@ def eligible(session, kind, code, destination):
     if state["lifecycle"] in {"completed", "failed", "depleted"}:
         fail("This source is completed, failed, or depleted", 409)
     stock = stock_source(session, kind, code)
-    if stock and (stock.status != "active" or stock.available == 0):
+    if stock and (stock.status != "active" or balance(stock) == 0):
         fail("Source stock is unavailable or depleted", 409)
     if kind == "spores":
         if destination != "agar_plate":
@@ -623,7 +657,7 @@ def ensure_source_stock(session, op, source, kind, unit):
         id=allocate(session, "INV"),
         name=f"Source {source.id}",
         category="source",
-        unit=unit,
+        unit=canonical(unit),
         available=None,
         **{("physical_id" if kind == "physical" else "spore_id"): source.id},
     )
@@ -651,9 +685,14 @@ def inoculate_materials(session, op, data):
     for row in rows:
         source = eligible(session, data.source_kind, data.source_id, row.material_type)
     if source.material_type in LIQUID and (
-        data.unit != "mL" or data.usage_per_container is None
+        not compatible(data.unit, "mL") or data.usage_per_container is None
     ):
         fail("LC transfers require a measured positive mL amount per container")
+    measured_ml = (
+        convert(data.usage_per_container, data.unit, "mL")
+        if compatible(data.unit, "mL")
+        else None
+    )
     stock = ensure_source_stock(session, op, source, data.source_kind, data.unit)
     total = (
         data.usage_per_container * len(rows)
@@ -690,7 +729,7 @@ def inoculate_materials(session, op, data):
             kind, item = biological_material(session, row, line, op.id)
             if row.material_type in LIQUID:
                 volume = (
-                    data.usage_per_container
+                    measured_ml
                     if row.material_type == "lc_syringe"
                     else data.destination_volume_ml
                 )
@@ -702,9 +741,8 @@ def inoculate_materials(session, op, data):
                     fail("A filled syringe volume must equal the transferred volume")
                 if (
                     volume is not None
-                    and data.unit == "mL"
-                    and data.usage_per_container is not None
-                    and volume < data.usage_per_container
+                    and measured_ml is not None
+                    and volume < measured_ml
                 ):
                     fail(
                         "Destination total volume cannot be less than the inoculum volume"
@@ -795,7 +833,7 @@ def close_source_balance(session, op, kind, code, reason):
             item,
             "closed",
             D(0),
-            item.available,
+            balance(item),
             reason + "; last recorded balance retained, source no longer usable",
         )
 
@@ -810,7 +848,7 @@ def finish(session, op, row, data):
     reservation = session.get(ContainerReservation, row.id)
     if reservation and not reservation.released:
         item = get(session, StockItem, reservation.item_id)
-        ledger(session, op, item, "release", D(1), item.available + D(1), data.reason)
+        ledger(session, op, item, "release", D(1), balance(item) + D(1), data.reason)
         reservation.released = 1
     if row.physical_id or row.spawn_id:
         kind = "physical" if row.physical_id else "spawn"
@@ -913,3 +951,42 @@ def operations(request: Request):
                 )
             )
         ]
+
+
+@router.get("/pools")
+def pools(request: Request):
+    with Session(request.app.state.engine) as session:
+        result = []
+        for item in session.scalars(
+            select(StockItem).where(StockItem.category == "reusable")
+        ):
+            stages = list(
+                session.scalars(
+                    select(PreparedMaterial.stage)
+                    .join(
+                        ContainerReservation,
+                        ContainerReservation.prepared_id == PreparedMaterial.id,
+                    )
+                    .where(
+                        ContainerReservation.item_id == item.id,
+                        ContainerReservation.released == 0,
+                    )
+                )
+            )
+            result.append(
+                {
+                    "item_id": item.id,
+                    "name": item.name,
+                    "available": text_or_none(balance(item)),
+                    "ready": stages.count("ready"),
+                    "inoculated": stages.count("inoculated"),
+                    "preparing": stages.count("preparing"),
+                    "other_reserved": len(stages)
+                    - sum(
+                        stages.count(s) for s in ("ready", "inoculated", "preparing")
+                    ),
+                    "reserved": len(stages),
+                    "total": text_or_none(balance(item) + len(stages)),
+                }
+            )
+        return result

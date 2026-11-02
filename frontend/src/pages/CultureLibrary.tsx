@@ -281,8 +281,8 @@ export function CultureLibrary() {
               </p>
               {r.balance_tracked && (
                 <p>
-                  Remaining: {r.remaining_quantity ?? "Unknown"}{" "}
-                  {r.remaining_unit}
+                  Remaining Culture Material:{" "}
+                  {r.remaining_quantity ?? "Unknown"} {r.remaining_unit}
                 </p>
               )}
               {r.quantity !== null && (
@@ -677,7 +677,8 @@ export function RecordDetail() {
           {(kind === "physical" || kind === "spores") && (
             <p className="license-note">
               Initial registration quantities remain descriptive. Explicit
-              source balances and recorded usage are shown separately below.
+              Remaining Culture Material and recorded usage are shown separately
+              below.
             </p>
           )}
         </section>

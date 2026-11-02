@@ -8,6 +8,7 @@ import {
   TransactionsPage,
 } from "./pages/PreparationInventory";
 import Inventory from "./pages/Inventory";
+import PrepareMaterials from "./pages/PrepareMaterials";
 import QuickCreatePage from "./pages/QuickCreate";
 import Shell from "./components/Shell";
 import Dashboard from "./pages/Dashboard";
@@ -31,7 +32,15 @@ export default function App() {
           <Route path="quick-create/:operation" element={<QuickCreatePage />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="inventory/stock" element={<StockPage />} />
-          <Route path="inventory/recipes" element={<RecipesPage />} />
+          <Route path="recipes" element={<RecipesPage />} />
+          <Route
+            path="inventory/recipes"
+            element={<LegacyRedirect to="/recipes" />}
+          />
+          <Route
+            path="inventory/prepared/prepare"
+            element={<PrepareMaterials />}
+          />
           <Route path="inventory/prepared" element={<PreparedPage />} />
           <Route path="inventory/prepared/:code" element={<PreparedDetail />} />
           <Route path="inventory/transactions" element={<TransactionsPage />} />
