@@ -116,6 +116,8 @@ function mock() {
     const path = new URL(String(input), "http://test").pathname;
     let data: unknown = [];
     if (path.endsWith("/summary")) data = summary;
+    else if (path.startsWith("/api/preparation/records/"))
+      data = { preparation: null, destinations: [] };
     else if (path.startsWith("/api/provenance/"))
       data = {
         origin_type: "external",
@@ -212,7 +214,7 @@ test.each([
         .map((o) => (o as HTMLOptionElement).value)
         .filter(Boolean),
     ).toEqual(expected);
-    if (id !== "spore-print") {
+    if (id === "fruiting-container") {
       await userEvent.selectOptions(select, expected[0]);
       expect(
         screen.getByText("OPERATION NOT YET AVAILABLE"),

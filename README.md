@@ -1,12 +1,14 @@
 # Cultivatinator
 
-A personal mushroom cultivation, culture lineage, and inventory management application for legally cultivated mushrooms. **Milestone 2C.1: Dashboard Quick Create & Culture Library Redesign** builds on the completed lineage and provenance foundation.
+A personal mushroom cultivation, culture lineage, and inventory management application for legally cultivated mushrooms. **Milestone 2C.2: Preparation, Inoculation, Recipes & Transactional Inventory** adds operational preparation and transfers to the lineage/provenance foundation.
 
 The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; spawn and fruiting counts reflect active registered records; monitoring and unimplemented modules remain empty. No demonstration records or login are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
 
-See [Milestone 2C.1 navigation and scope](docs/MILESTONE_2C1.md): use Dashboard Quick Create for material-specific source selection, Inventory → Receive Acquisition for outside material, and Culture Library for browsing records and relationships. Spore-print collection uses the existing working operation; preparation, transfers, inoculation and actual spawning are clearly deferred without creating records. Legacy acquisition URLs redirect to Inventory.
+See [Milestone 2C.2 operations, inventory and upgrade safety](docs/MILESTONE_2C2.md) for stock/pools, recipes, preparing and confirming readiness, bulk/partial inoculation, source balances, depletion and one-time container release. Existing starting quantities are never silently converted into balances. The user-confirmed Debian checkout, Compose files and persistent data **coexist at `/storage/tv/cultivatinator`**; preserve that layout and the existing port 8085/non-root configuration.
 
-See [Milestone 2B operations and safe upgrade](docs/MILESTONE_2B.md) for universal acquisitions, successful establishments, explicit ancestry, manual grow sources and allocation, spore collection, schema/API details, and backup/rollback precautions. Manual provenance never consumes spawn or marks it Used. Production data is `/storage/tv/cultivatinator`; discover the actual Git and Compose directories separately. No production update is automatic.
+See [Milestone 2C.1 navigation and scope](docs/MILESTONE_2C1.md): use Dashboard Quick Create for material-specific source selection, Inventory → Receive Acquisition for outside material, and Culture Library for browsing records and relationships. Spore-print collection remains supported. Preparation and transfers are now operational in 2C.2; actual spawning remains deferred to 2C.3. Legacy acquisition URLs redirect to Inventory.
+
+See [Milestone 2B operations and safe upgrade](docs/MILESTONE_2B.md) for universal acquisitions, successful establishments, explicit ancestry, manual grow sources and allocation, spore collection, schema/API details, and backup/rollback precautions. Manual provenance never consumes spawn or marks it Used. Production data is `/storage/tv/cultivatinator`; the current Git/Compose directory is the same host directory, as confirmed for 2C.2. No production update is automatic.
 
 See [Culture Library operations](docs/MILESTONE_2A.md) for registration, photo limits, API details, validation, and historical 2A workflows; use the 2B operations document for current upgrade instructions. Strains are one catalog, with an optional scientific name; there is no required species hierarchy. Receiving spores does not establish a line; the explicit Establish Culture action registers a successful independent establishment. Starting quantities are not live inventory balances.
 
@@ -25,8 +27,8 @@ Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI 
 sudo install -d -m 0755 /opt/stacks
 sudo git clone https://github.com/gregvone/Cultivatinator.git /opt/stacks/cultivatinator
 cd /opt/stacks/cultivatinator
-# For the Milestone 2C.1 review implementation:
-sudo git switch feature/milestone-2c1-quick-create
+# For the Milestone 2C.2 review implementation:
+sudo git switch feature/milestone-2c2-preparation
 sudo install -d -o 10001 -g 10001 -m 0750 /storage/tv/cultivatinator
 sudo docker compose up -d --build --wait
 sudo docker compose ps
@@ -100,4 +102,4 @@ npm run build
 - Failed migration: stop, preserve data and logs, and diagnose the version mismatch. Do not delete the database to bypass an error.
 - Docker logs: `docker compose logs --tail=100 app`; readiness: `docker compose ps` and the health endpoint.
 
-See [architecture](docs/ARCHITECTURE.md), [requirements](docs/REQUIREMENTS.md), [roadmap](docs/ROADMAP.md), and [design](docs/DESIGN.md). Deferred modules are documented there. Successful lineage establishment and basic grow provenance are implemented; preparation, consumption and harvest workflows remain deferred.
+See [architecture](docs/ARCHITECTURE.md), [requirements](docs/REQUIREMENTS.md), [roadmap](docs/ROADMAP.md), and [design](docs/DESIGN.md). Deferred modules are documented there. Successful lineage establishment, preparation and inoculation/transfers are implemented. Actual spawning/consumption, substrate allocation, advanced observations and harvest workflows remain deferred.

@@ -23,6 +23,12 @@ export interface LibraryRecord {
   batch_id?: string | null;
   batch_origin?: string | null;
   allocation_mode?: string | null;
+  lifecycle?: string;
+  remaining_quantity?: string | null;
+  remaining_unit?: string | null;
+  stock_item_id?: string | null;
+  prepared_id?: string | null;
+  balance_tracked?: boolean;
   strain_id: string | null;
   strain_name: string | null;
   strain_identification?: "known" | "mixed" | "partial" | "unknown" | null;

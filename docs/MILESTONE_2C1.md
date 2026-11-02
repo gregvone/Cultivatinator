@@ -1,5 +1,8 @@
 # Milestone 2C.1 — Quick Create and reference browsing
 
+Current behavior and the user-confirmed co-located Debian deployment layout are described in [Milestone 2C.2](MILESTONE_2C2.md). Earlier deferred-operation and separate/unknown checkout-location descriptions in this historical milestone document do not override 2C.2.
+
+
 This increment changes interface responsibilities only. It starts from merged Milestone 2B, including FR strain correction `baa171e`. It adds no models, migrations, runtime dependencies or operational backend endpoints. Existing IDs, photographs, genetic lineage, physical provenance and histories remain intact. Port 8085, the non-root Docker/Compose architecture and persistent `/data` mapping are unchanged. Debian deployment data remains `/storage/tv/cultivatinator`; no server access, deployment or merge is performed.
 
 ## Responsibilities and working actions

@@ -1,12 +1,14 @@
 import { Link } from "react-router-dom";
 import { PackagePlus, Dna, Boxes } from "lucide-react";
+import { InventoryNav } from "./PreparationInventory";
 import { PageHeader, Panel } from "../components/UI";
 export default function Inventory() {
   return (
     <>
+      <InventoryNav />
       <PageHeader
         title="Inventory"
-        description="Bring outside material into your collection. Supplies, recipes, purchases, and stock management will expand here in later stages."
+        description="Outside acquisitions, stock, reusable pools, recipes, prepared materials, and transaction history. Purchase tracking is planned."
       />
       <Panel
         title="Receive outside material"
@@ -40,14 +42,31 @@ export default function Inventory() {
           </Link>
         </div>
       </Panel>
-      <Panel title="Stock and supplies" icon={Boxes} label="PLANNED">
+      <Panel
+        title="Preparation & Inventory"
+        icon={Boxes}
+        label="TRANSACTIONAL STOCK"
+      >
         <div className="workflow-source">
           <p>
-            Recipes, preparation batches, reusable container pools, known stock
-            balances, automatic deductions, and purchase tracking are planned
-            for subsequent stages. No stock balance is implied by registered
-            starting quantities.
+            Configure confirmed stock or unknown balances. Reserve reusable
+            containers and prepare materials before inoculation; all deductions
+            and adjustments are audited.
           </p>
+          <div className="actions">
+            <Link className="button" to="/inventory/stock">
+              Stock & Pools
+            </Link>
+            <Link className="button" to="/inventory/recipes">
+              Recipes
+            </Link>
+            <Link className="button" to="/inventory/prepared">
+              Prepared Materials
+            </Link>
+            <Link className="button" to="/inventory/transactions">
+              Transaction History
+            </Link>
+          </div>
         </div>
       </Panel>
     </>

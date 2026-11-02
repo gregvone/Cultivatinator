@@ -24,6 +24,7 @@ from .models import (
     Strain,
 )
 from .provenance_sources import fruiting_strain_identity
+from .material_state import material_state
 from .library_schemas import (
     ActivityOut,
     EditRecord,
@@ -67,7 +68,10 @@ PREFIX = {
 
 
 @contextmanager
-def transaction(request):
+def transaction(
+    request,
+    conflict_detail="Conflicting record. Strain names must be unique, including archived names.",
+):
     with Session(request.app.state.engine, expire_on_commit=False) as session:
         try:
             with session.begin():
@@ -78,7 +82,7 @@ def transaction(request):
         except IntegrityError as exc:
             raise HTTPException(
                 409,
-                "Conflicting record. Strain names must be unique, including archived names.",
+                conflict_detail,
             ) from exc
 
 
@@ -123,6 +127,7 @@ def output(session, kind, row):
         if c.name != "normalized_name"
     }
     values["kind"] = kind
+    values.update(material_state(session, kind, row.id))
     strain_id = values.get("strain_id")
     if kind in ("physical", "spawn"):
         line = session.get(CultureLine, row.line_id)
@@ -359,6 +364,24 @@ def edit_record(kind: Kind, code: str, data: EditRecord, request: Request):
             or (kind == "spawn" and values["stage"] not in {"ready", "colonizing"})
         ):
             raise HTTPException(422, "Invalid stage for this record")
+        state = material_state(session, kind, code)
+        if (
+            "material_type" in values
+            and values["material_type"] != getattr(item, "material_type", None)
+            and (state["prepared_id"] or state["balance_tracked"])
+        ):
+            raise HTTPException(
+                409,
+                "Material type is fixed for tracked preparations and source balances",
+            )
+        if (
+            "stage" in values
+            and values["stage"] != getattr(item, "stage", None)
+            and state["lifecycle"] in {"completed", "failed"}
+        ):
+            raise HTTPException(
+                409, "Completed or failed material cannot change readiness"
+            )
         if "material_type" in values:
             types = (
                 PREFIX

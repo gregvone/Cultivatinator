@@ -866,7 +866,7 @@ export function EditForm({
                       : cultureTypes
                 : k === "stage"
                   ? kind === "spawn"
-                    ? { ready: "Ready", colonizing: "Colonizing" }
+                    ? { ready: "Ready for Spawning", colonizing: "Colonizing" }
                     : {
                         ready: "Ready",
                         colonizing: "Colonizing",

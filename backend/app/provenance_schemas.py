@@ -106,6 +106,7 @@ class GrowResult(Input):
 
 
 class EstablishInput(Description):
+    prepared_id: Text | None = None
     origin_date: date | None = None
     material: MaterialInput | None = None
     unknown_strain: bool = False

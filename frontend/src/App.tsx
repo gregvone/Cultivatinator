@@ -1,5 +1,12 @@
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AcquisitionForm, GrowForm } from "./pages/Provenance";
+import {
+  StockPage,
+  RecipesPage,
+  PreparedPage,
+  PreparedDetail,
+  TransactionsPage,
+} from "./pages/PreparationInventory";
 import Inventory from "./pages/Inventory";
 import QuickCreatePage from "./pages/QuickCreate";
 import Shell from "./components/Shell";
@@ -23,6 +30,11 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="quick-create/:operation" element={<QuickCreatePage />} />
           <Route path="inventory" element={<Inventory />} />
+          <Route path="inventory/stock" element={<StockPage />} />
+          <Route path="inventory/recipes" element={<RecipesPage />} />
+          <Route path="inventory/prepared" element={<PreparedPage />} />
+          <Route path="inventory/prepared/:code" element={<PreparedDetail />} />
+          <Route path="inventory/transactions" element={<TransactionsPage />} />
           <Route
             path="inventory/receive-acquisition"
             element={<AcquisitionForm />}

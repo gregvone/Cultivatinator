@@ -4,8 +4,9 @@ from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import text, select, func
+from sqlalchemy import text, select, func, or_
 from ..models import PhysicalCulture, Spawn, FruitingContainer
+from ..preparation_models import MaterialLifecycle
 
 from ..config import VERSION
 from ..database import migration_config
@@ -46,24 +47,28 @@ def health(request: Request):
 def dashboard_summary(request: Request):
     summary = DashboardSummary()
     with request.app.state.engine.connect() as connection:
-        summary.counts.active_cultures = connection.scalar(
-            select(func.count())
-            .select_from(PhysicalCulture)
-            .where(PhysicalCulture.status == "active")
-        )
-        for field, model in [
-            ("spawn_containers", Spawn),
-            ("fruiting_units", FruitingContainer),
+        for field, model, owner in [
+            ("active_cultures", PhysicalCulture, MaterialLifecycle.physical_id),
+            ("spawn_containers", Spawn, MaterialLifecycle.spawn_id),
         ]:
-            setattr(
-                summary.counts,
-                field,
-                connection.scalar(
-                    select(func.count())
-                    .select_from(model)
-                    .where(model.status == "active")
-                ),
+            count = connection.scalar(
+                select(func.count())
+                .select_from(model)
+                .outerjoin(MaterialLifecycle, owner == model.id)
+                .where(
+                    model.status == "active",
+                    or_(
+                        MaterialLifecycle.state.is_(None),
+                        MaterialLifecycle.state == "active",
+                    ),
+                )
             )
+            setattr(summary.counts, field, count)
+        summary.counts.fruiting_units = connection.scalar(
+            select(func.count())
+            .select_from(FruitingContainer)
+            .where(FruitingContainer.status == "active")
+        )
     return summary
 
 

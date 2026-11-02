@@ -163,6 +163,12 @@ class RecordOut(BaseModel):
     strain_name: str | None = None
     strain_identification: Literal["known", "mixed", "partial", "unknown"] | None = None
     contributing_strains: list[StrainReference] = Field(default_factory=list)
+    lifecycle: str = "active"
+    stock_item_id: str | None = None
+    remaining_quantity: Decimal | None = None
+    remaining_unit: str | None = None
+    balance_tracked: bool = False
+    prepared_id: str | None = None
     line_id: str | None = None
     scientific_name: str | None = None
     description: str | None = None

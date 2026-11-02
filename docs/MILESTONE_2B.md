@@ -1,5 +1,8 @@
 # Milestone 2B — lineage, acquisitions and grow provenance
 
+Current behavior and the user-confirmed co-located Debian deployment layout are described in [Milestone 2C.2](MILESTONE_2C2.md). Earlier deferred-operation and separate/unknown checkout-location descriptions in this historical milestone document do not override 2C.2.
+
+
 The cloud implementation checkout is `/workspace/Cultivatinator`. The Debian production data directory is **`/storage/tv/cultivatinator`**. The production checkout and Dockge/Compose configuration directories have not been inspected and must not be assumed to match either path. No production server was accessed or changed.
 
 Current navigation is described in [Milestone 2C.1](MILESTONE_2C1.md): outside acquisitions now live in Inventory, and the catalog is a reference area. The following describes the underlying 2B functionality; no 2B data or API was replaced.

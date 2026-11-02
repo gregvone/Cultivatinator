@@ -135,7 +135,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                     expect(
                         page.get_by_label("Source material", exact=True)
                     ).to_be_visible()
-                    if slug != "spore-print":
+                    if slug == "fruiting-container":
                         expect(
                             page.get_by_text("OPERATION NOT YET AVAILABLE", exact=True)
                         ).to_be_visible()
@@ -247,7 +247,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Milestone 2C.1 browser smoke passed: six entries, read-only deferred actions, source filtering/preselection, Inventory, legacy redirect, clean catalog, real spore collection, 2B FR identity/provenance, desktop/mobile; no page errors"
+                    "Milestone 2C.1 browser smoke passed: six entries, no writes from source selection, spawning still deferred, source filtering/preselection, Inventory, legacy redirect, clean catalog, real spore collection, 2B FR identity/provenance, desktop/mobile; no page errors"
                 )
         finally:
             process.terminate()

@@ -46,7 +46,7 @@ export default function Shell() {
         <div className="sidebar-footer">
           <span className="status-dot" />
           Single-user workspace
-          <small>Milestone 2C.1 / Material Workflows</small>
+          <small>Milestone 2C.2 / Material Workflows</small>
         </div>
       </aside>
       {open && (

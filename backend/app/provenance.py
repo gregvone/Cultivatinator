@@ -311,6 +311,11 @@ def establish(kind: Kind, code: str, data: EstablishInput, request: Request):
         )
     with transaction(request) as session:
         source = record(session, kind, code, active=True)
+        if data.prepared_id and (kind != "spores" or data.material is not None):
+            raise HTTPException(
+                422,
+                "Bind a pending agar establishment from spores without new material",
+            )
         parents, strain_id = [], None
         if kind == "lines":
             if data.unknown_strain:
@@ -373,7 +378,13 @@ def establish(kind: Kind, code: str, data: EstablishInput, request: Request):
             "descendant_established",
             f"Independent {origin_type} culture line {line.id} established",
         )
-        items = physical_material(session, line, data.material)
+        if data.prepared_id:
+            from .preparation import bind_established
+
+            established = bind_established(session, line, data.prepared_id, code)
+            items = [output(session, "physical", established)]
+        else:
+            items = physical_material(session, line, data.material)
         return ReceiveResult(line=output(session, "lines", line), physical=items)
 
 

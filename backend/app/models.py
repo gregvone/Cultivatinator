@@ -308,3 +308,6 @@ class ActivityEvent(OwnerFields, Base):
     )
     event_type: Mapped[str] = mapped_column(String(40), nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
+
+# Alembic and application startup share this metadata registry.
+from . import preparation_models  # noqa: E402,F401

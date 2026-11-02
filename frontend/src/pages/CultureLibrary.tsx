@@ -18,6 +18,7 @@ import {
   title,
 } from "../libraryApi";
 import type { Activity, Kind, LibraryRecord, Photo } from "../libraryApi";
+import { MaterialOperationPanel } from "./PreparationWorkflow";
 import { CreateFromThis } from "./QuickCreate";
 import { LineagePanel } from "./Provenance";
 import StrainIdentity from "../components/StrainIdentity";
@@ -29,6 +30,9 @@ function RecordLink({ record }: { record: LibraryRecord }) {
       {title(record)}{" "}
       <small>
         {record.id} · {record.status}
+        {record.lifecycle && record.lifecycle !== "active"
+          ? ` · ${record.lifecycle}`
+          : ""}
       </small>
     </Link>
   );
@@ -275,6 +279,12 @@ export function CultureLibrary() {
                     : ""}
                 {r.supplier ? ` · ${r.supplier}` : ""}
               </p>
+              {r.balance_tracked && (
+                <p>
+                  Remaining: {r.remaining_quantity ?? "Unknown"}{" "}
+                  {r.remaining_unit}
+                </p>
+              )}
               {r.quantity !== null && (
                 <p>
                   Registered Quantity: {r.quantity} {r.unit}
@@ -580,7 +590,7 @@ export function RecordDetail() {
       )}
       <PageHeader
         title={title(record)}
-        description={`${record.id} · ${kindNames[kind]} · ${record.status}`}
+        description={`${record.id} · ${kindNames[kind]} · ${record.status}${record.lifecycle && record.lifecycle !== "active" ? ` · ${record.lifecycle}` : ""}`}
       />
       {(notice || location.state?.message) && (
         <p className="success-message" role="status">
@@ -613,6 +623,13 @@ export function RecordDetail() {
               <dt>Permanent ID</dt>
               <dd>{record.id}</dd>
             </div>
+            {["physical", "spawn", "spores"].includes(kind) && (
+              <MaterialOperationPanel
+                key={`material/${kind}/${code}`}
+                record={record}
+                onSaved={() => setRevision((v) => v + 1)}
+              />
+            )}
             {kind !== "strains" && (
               <div>
                 <dt>Strain</dt>
@@ -659,8 +676,8 @@ export function RecordDetail() {
           </dl>
           {(kind === "physical" || kind === "spores") && (
             <p className="license-note">
-              Quantities describe initial registration. Usage and remaining
-              balances are not tracked.
+              Initial registration quantities remain descriptive. Explicit
+              source balances and recorded usage are shown separately below.
             </p>
           )}
         </section>

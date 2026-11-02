@@ -9,6 +9,7 @@ import {
 import { Plus } from "lucide-react";
 import { PageHeader, Panel } from "../components/UI";
 import StrainIdentity from "../components/StrainIdentity";
+import { PreparationWorkflow } from "./PreparationWorkflow";
 import { Field } from "./LibraryForms";
 import {
   allLibraryRecords,
@@ -209,9 +210,9 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
       <section className="panel workflow-source">
         <h2>Select source material</h2>
         <p>
-          Active registered records are shown. Viability, remaining balances,
-          preparation, and sterilization are not yet tracked. Confirm that the
-          source is suitable before any future operation.
+          Active sources exclude completed, failed and depleted material. Known
+          source balances are validated at submission; unknown balances remain
+          unknown. Confirm biological suitability before inoculation.
         </p>
         {loading ? (
           <p role="status">Loading source choices…</p>
@@ -282,7 +283,15 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
           </>
         )}
       </section>
-      {operation.deferred ? (
+      {["agar-plate", "lc-syringe", "lc-container", "spawn"].includes(
+        operation.id,
+      ) ? (
+        <PreparationWorkflow
+          key={operation.id + (selected ? sourceKey(selected) : "")}
+          operation={operation.id}
+          source={!loading && !error ? selected : undefined}
+        />
+      ) : operation.deferred ? (
         <section className="panel workflow-source">
           <span className="badge">OPERATION NOT YET AVAILABLE</span>
           <h2>Planned operation</h2>

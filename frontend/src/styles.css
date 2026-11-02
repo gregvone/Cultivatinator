@@ -1177,3 +1177,26 @@ button:disabled {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.ingredient-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+  margin-block: 0.75rem;
+}
+.inventory-nav {
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.preparation-workflow {
+  margin-block: 1rem;
+}
+.workflow-source .library-form {
+  padding: 0;
+}
+@media (max-width: 800px) {
+  .ingredient-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
