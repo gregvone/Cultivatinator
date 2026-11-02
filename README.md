@@ -1,8 +1,10 @@
 # Cultivatinator
 
-A personal mushroom cultivation, culture lineage, and inventory management application for legally cultivated mushrooms. **Milestone 1: Application Foundation** is implemented; cultivation record management is planned.
+A personal mushroom cultivation, culture lineage, and inventory management application for legally cultivated mushrooms. **Milestone 2A: Culture Library & Photo Management** extends the application foundation.
 
-The Industrial Monitoring Console interface includes a dashboard with real API-provided zero counts and empty queues, working section routes, and application information. No demonstration records, login, or future feature controls are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
+The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; unimplemented modules remain zero/empty. No demonstration records or login are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
+
+See [Culture Library operations](docs/MILESTONE_2A.md) for registration, photo limits, API details, validation, and copy-ready update commands for an **existing** installation. Strains are one catalog, with an optional scientific name; there is no required species hierarchy. Spores do not establish culture lines. Starting quantities are not live inventory balances.
 
 ## Stack and structure
 
@@ -19,8 +21,8 @@ Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI 
 sudo install -d -m 0755 /opt/stacks
 sudo git clone https://github.com/gregvone/Cultivatinator.git /opt/stacks/cultivatinator
 cd /opt/stacks/cultivatinator
-# Until this milestone is merged, use its review branch:
-sudo git switch feature/milestone-1-foundation
+# For the Milestone 2A review implementation:
+sudo git switch feature/milestone-2a-culture-library
 sudo install -d -o 10001 -g 10001 -m 0750 /storage/tv/cultivatinator
 sudo docker compose up -d --build --wait
 sudo docker compose ps
@@ -83,7 +85,7 @@ npm test
 npm run build
 ```
 
-`/api/health` verifies connectivity and the current Alembic revision, returning 503 if unhealthy; `/api/dashboard/summary` is the typed zero/empty foundation contract; `/api/app/info` returns safe metadata. Interactive API docs: `/docs`, schema: `/openapi.json`.
+`/api/health` verifies connectivity and the current Alembic revision, returning 503 if unhealthy; `/api/dashboard/summary` counts active physical cultures and keeps unimplemented metrics zero; `/api/app/info` returns safe metadata. Interactive API docs: `/docs`, schema: `/openapi.json`.
 
 ## Troubleshooting
 

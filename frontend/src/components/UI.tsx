@@ -16,7 +16,7 @@ export function PageHeader({
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      <span className="badge">Foundation · v0.1</span>
+      <span className="badge">Culture Library · Milestone 2A</span>
     </header>
   );
 }

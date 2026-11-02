@@ -23,7 +23,7 @@ const cards = [
   {
     key: "active_cultures",
     label: "Active Cultures",
-    detail: "Biological material in the laboratory",
+    detail: "Active registered physical culture containers",
     icon: Dna,
   },
   {
@@ -145,7 +145,7 @@ export default function Dashboard() {
                 <EmptyState
                   icon={Sprout}
                   title="No active cultivation records."
-                  description="Active cultures, spawn containers, and fruiting units will appear here once records are created."
+                  description="Growing cycles will appear here when cultivation workflows are implemented."
                 />
               )}
               <div className="panel-footer">
@@ -170,14 +170,15 @@ export default function Dashboard() {
                 <EmptyState
                   icon={Activity}
                   title="No activity recorded yet."
-                  description="A chronological history of your cultivation work will appear here."
+                  description="Culture Library changes are recorded in each record’s activity history."
                 />
               )}
             </Panel>
           </div>
           <p className="foundation-note">
-            <span className="status-dot" />A clean starting point. Your
-            workspace is ready for the next milestone.
+            <span className="status-dot" />
+            Registered quantities are starting measurements. Transfers and
+            automatic inventory accounting come in a later milestone.
           </p>
         </>
       )}

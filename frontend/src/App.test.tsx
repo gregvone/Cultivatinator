@@ -19,14 +19,16 @@ function mockApi() {
     async (input) =>
       new Response(
         JSON.stringify(
-          String(input).endsWith("app/info")
-            ? {
-                name: "Cultivatinator",
-                version: "0.1.0",
-                environment: "test",
-                storage: "SQLite",
-              }
-            : summary,
+          String(input).includes("/api/library/")
+            ? []
+            : String(input).endsWith("app/info")
+              ? {
+                  name: "Cultivatinator",
+                  version: "0.1.0",
+                  environment: "test",
+                  storage: "SQLite",
+                }
+              : summary,
         ),
         { status: 200 },
       ),

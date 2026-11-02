@@ -1,6 +1,7 @@
 from alembic import context
 from app.config import Settings
 from app.database import Base
+from app import models  # noqa: F401 -- register domain metadata
 from sqlalchemy import engine_from_config, pool
 
 config = context.config

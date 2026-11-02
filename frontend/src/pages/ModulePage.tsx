@@ -1,18 +1,6 @@
 import { navigation } from "../navigation";
 import { EmptyState, PageHeader, Panel } from "../components/UI";
 export const modules = {
-  "culture-library": {
-    title: "Culture Library",
-    description: "The biological identities behind every cultivation cycle.",
-    workspace: "Your culture collection starts here.",
-    features: [
-      "Species and strains",
-      "Genetic culture lines",
-      "Spore sources",
-      "Lineage relationships",
-      "Culture histories",
-    ],
-  },
   laboratory: {
     title: "Laboratory",
     description:
