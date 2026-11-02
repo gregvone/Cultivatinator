@@ -175,6 +175,32 @@ try:
         "materials/" + failed + "/finish",
         {"action": "failed", "reason": "Explicit lifecycle test"},
     )
+    direct_source = request(
+        "/api/library/receive-culture",
+        {"line": {}, "material": {"material_type": "agar_plate"}},
+    )["physical"][0]
+    direct_recipe = command(
+        "recipes",
+        {
+            "name": "Untracked agar formula",
+            "recipe_type": "agar",
+            "batch_yield": 2,
+            "ingredients": [{"name": "Agar", "quantity": "10", "unit": "g"}],
+            "notes": "Retained formula",
+        },
+    )
+    direct_payload = {
+        "request_key": "docker-direct-retry",
+        "material_type": "agar_plate",
+        "recipe_id": direct_recipe["id"],
+        "source_kind": "physical",
+        "source_id": direct_source["id"],
+        "count": 2,
+        "inoculation_date": "2026-11-01",
+        "unit": "plate",
+    }
+    direct_result = command("create", direct_payload)
+    assert all(row["stage"] == "inoculated" for row in direct_result["materials"])
     ledger_before = request("/api/preparation/transactions")
     snapshots_before = request("/api/preparation/materials")
     docker("stop", name)
@@ -205,9 +231,19 @@ try:
     assert request("/api/library/physical/" + lc["id"])["lifecycle"] == "depleted"
     assert request("/api/library/spawn/" + failed)["lifecycle"] == "failed"
     assert command("inoculate", inoc_payload) == inoculated
+    assert command("create", direct_payload) == direct_result
+    assert (
+        request("/api/preparation/recipes/" + direct_recipe["id"])["notes"]
+        == "Retained formula"
+    )
+    assert all(
+        request("/api/library/physical/" + row["id"])["line_id"]
+        == direct_source["line_id"]
+        for row in direct_result["materials"]
+    )
     assert request("/api/preparation/transactions") == ledger_before
     print(
-        "Milestone 2C.2 Docker smoke passed: non-root port 8085, 2B data/photos/FR identity, immutable preparation snapshots and ledger, depletion, one-time release, and idempotency preserved across recreation"
+        "Milestone 2C.2 Docker smoke passed: non-root port 8085, 2B data/photos/FR identity, immutable preparation snapshots and ledger, depletion, one-time release, direct creation without container stock, recipe definitions and idempotency preserved across recreation"
     )
 finally:
     subprocess.run([*DOCKER, "rm", "-f", name], capture_output=True)

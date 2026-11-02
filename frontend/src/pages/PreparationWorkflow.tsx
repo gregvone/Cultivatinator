@@ -288,7 +288,7 @@ export function PreparationForm() {
     </form>
   );
 }
-function InoculationForm({
+export function InoculationForm({
   operation,
   source,
 }: {
@@ -522,7 +522,7 @@ export function MaterialOperationPanel({
   if (!["physical", "spawn", "spores"].includes(record.kind)) return null;
   return (
     <section className="panel workflow-source">
-      <h2>Lifecycle, Preparation & Physical Transfers</h2>
+      <h2>Cultivation & Source History</h2>
       <p>
         Lifecycle: {record.lifecycle || "active"} · Remaining Culture Material:{" "}
         {record.remaining_quantity ?? "Unknown"} {record.remaining_unit || ""}
@@ -547,11 +547,37 @@ export function MaterialOperationPanel({
         )
       )}
       {error && <p role="alert">{error}</p>}
+      {history?.preparation?.snapshot.recipe && (
+        <section>
+          <h3>Recipe: {history.preparation.snapshot.recipe.name}</h3>
+          <p>
+            Inoculated: {history.preparation.source?.date || "Not recorded"}
+          </p>
+          <p>{history.preparation.snapshot.recipe.instructions}</p>
+          <ul>
+            {history.preparation.snapshot.ingredients.map((i, index) => (
+              <li key={i.item_id || index}>
+                {i.name || i.item_id}: {i.quantity} {i.unit}
+              </li>
+            ))}
+          </ul>
+          <p>{history.preparation.snapshot.notes}</p>
+          {history.preparation.snapshot.recipe_id && (
+            <Link
+              to={`/recipes/detail/${history.preparation.snapshot.recipe_id}`}
+            >
+              Open recipe definition
+            </Link>
+          )}
+        </section>
+      )}
       {history?.preparation && (
         <p>
           <Link to={`/inventory/prepared/${history.preparation.id}`}>
-            Preparation {history.preparation.id} ·{" "}
-            {history.preparation.batch_id}
+            {history.preparation.snapshot.workflow === "direct"
+              ? "Recipe & source history"
+              : "Previous preparation"}{" "}
+            {history.preparation.id} · {history.preparation.batch_id}
           </Link>
           {history.preparation.source && (
             <>

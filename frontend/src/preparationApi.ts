@@ -33,6 +33,11 @@ export interface Processing {
   notes: string | null;
 }
 export interface Recipe {
+  description?: string | null;
+  notes?: string | null;
+  updated_at?: string | null;
+  created_at?: string;
+  used?: boolean;
   id: string;
   name: string;
   recipe_type: string;
@@ -62,6 +67,8 @@ export interface Prepared {
     unit: string;
   } | null;
   snapshot: {
+    workflow?: string;
+    recipe_id?: string | null;
     ingredients: Ingredient[];
     recipe: Omit<Recipe, "id" | "revision" | "status"> | null;
     recipe_revision?: number | null;
@@ -150,7 +157,15 @@ export function useInventoryCommand() {
       setBusy(false);
     }
   }
-  return { busy, error, send };
+  return {
+    busy,
+    error,
+    send,
+    reset: () => {
+      prior.current = null;
+      setError("");
+    },
+  };
 }
 export function useInventoryList<T>(path: string) {
   const [data, setData] = useState<T[] | null>(null);

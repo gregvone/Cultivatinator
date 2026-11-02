@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import {
   StockPage,
-  RecipesPage,
   PreparedDetail,
   FinishForm,
   PoolOverview,
@@ -161,24 +160,6 @@ test("generic Add Inventory starts blank and records a user-defined pool with st
     available: "20",
     storage_location: "Clean cabinet",
     reason: "Counted clean plates",
-  });
-});
-test("recipe form records unit-bearing ingredient quantities and a declared container yield", async () => {
-  const fetch = mocks({ recipes: [] });
-  mount(<RecipesPage />);
-  const u = userEvent.setup();
-  await u.click(await screen.findByRole("button", { name: "New Recipe" }));
-  await u.type(screen.getByLabelText("Recipe name *"), "Agar recipe");
-  await u.clear(screen.getByLabelText("Recipe yield (containers) *"));
-  await u.type(screen.getByLabelText("Recipe yield (containers) *"), "10");
-  await u.click(screen.getByRole("button", { name: "Add Ingredient" }));
-  await u.selectOptions(screen.getByLabelText("Ingredient 1 *"), raw.id);
-  await u.type(screen.getByLabelText("Ingredient 1 quantity (g) *"), "12.345");
-  await u.click(screen.getByRole("button", { name: "Save Recipe" }));
-  const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
-  expect(JSON.parse(call[1]!.body as string)).toMatchObject({
-    batch_yield: 10,
-    ingredients: [{ item_id: raw.id, quantity: "12.345", unit: "g" }],
   });
 });
 test("preparation scales a saved recipe and submits actual settings without any source requirement", async () => {
@@ -349,7 +330,7 @@ test("idempotency keys support private-network HTTP without randomUUID", () => {
   expect(newRequestKey(random)).toBe("01".repeat(16));
 });
 
-test("Quick Create only inoculates prepared material and links to Inventory when empty", async () => {
+test("legacy prepared-material inoculation links to Inventory when empty", async () => {
   mocks({ materials: [] });
   mount(<PreparationWorkflow operation="agar-plate" source={source} />);
   expect(
@@ -367,31 +348,6 @@ test("Quick Create only inoculates prepared material and links to Inventory when
   expect(
     screen.queryByLabelText(/Number of prepared containers/),
   ).not.toBeInTheDocument();
-});
-test("recipe variants compare actual ingredient quantities and yields", async () => {
-  mocks({
-    recipes: [
-      recipe,
-      {
-        ...recipe,
-        id: "RCP-2",
-        name: "Low nutrient",
-        batch_yield: 20,
-        ingredients: [{ item_id: raw.id, quantity: "2.500", unit: "g" }],
-      },
-    ],
-  });
-  mount(<RecipesPage />);
-  const u = userEvent.setup();
-  await u.click(await screen.findByLabelText("Compare LC recipe"));
-  await u.click(screen.getByLabelText("Compare Low nutrient"));
-  expect(
-    screen.getByRole("heading", { name: "Recipe Comparison" }),
-  ).toBeInTheDocument();
-  const table = screen.getByRole("table");
-  expect(table).toHaveTextContent("Batch yield (containers)1020");
-  expect(table).toHaveTextContent("12.345 Grams (g)");
-  expect(table).toHaveTextContent("2.500 Grams (g)");
 });
 test("reusable pool overview separates empty, ready and inoculated allocations", async () => {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(

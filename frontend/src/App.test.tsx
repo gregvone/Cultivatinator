@@ -19,7 +19,8 @@ function mockApi() {
     async (input) =>
       new Response(
         JSON.stringify(
-          String(input).includes("/api/library/")
+          String(input).includes("/api/library/") ||
+            String(input).includes("/api/preparation/")
             ? []
             : String(input).endsWith("app/info")
               ? {

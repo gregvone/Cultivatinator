@@ -110,18 +110,34 @@ class Processing(Input):
     notes: Notes | None = None
 
 
+class RecipeIngredient(Input):
+    item_id: Text | None = None
+    name: Text | None = None
+    quantity: Positive
+    unit: StockUnit
+
+    @model_validator(mode="after")
+    def identified(self):
+        if not self.item_id and not self.name:
+            raise ValueError("Give each ingredient a name")
+        return self
+
+
 class RecipeData(Input):
     name: Annotated[Text, Field(min_length=1)]
     recipe_type: Literal["agar", "grain", "lc", "substrate"]
     batch_yield: int = Field(ge=1, le=10000)
-    ingredients: list[Ingredient] = Field(min_length=1, max_length=100)
+    ingredients: list[RecipeIngredient] = Field(min_length=1, max_length=100)
+    description: Notes | None = None
+    notes: Notes | None = None
     instructions: Notes | None = None
     processing: Processing = Field(default_factory=Processing)
     shelf_life_days: int | None = Field(default=None, ge=0, le=3650)
 
     @model_validator(mode="after")
     def valid(self):
-        if len({i.item_id for i in self.ingredients}) != len(self.ingredients):
+        linked = [i.item_id for i in self.ingredients if i.item_id]
+        if len(set(linked)) != len(linked):
             raise ValueError("List each ingredient once")
         return self
 
@@ -199,7 +215,34 @@ class StockOut(Input):
     created_at: str
 
 
+class RecipeAction(Command):
+    expected_revision: int = Field(ge=1)
+
+
+class StockEdit(Command):
+    expected_revision: int = Field(ge=1)
+    name: Annotated[Text, Field(min_length=1)]
+    notes: Notes | None = None
+    storage_location: Text | None = None
+    reason: Annotated[Notes, Field(min_length=1)]
+
+
+class DirectCreation(Command):
+    material_type: MaterialType
+    recipe_id: Text | None = None
+    source_kind: Literal["physical", "spores"]
+    source_id: Text
+    count: int = Field(ge=1, le=100)
+    inoculation_date: date = Field(default_factory=date.today)
+    usage_per_container: Positive | None = None
+    unit: StockUnit = "mL"
+    destination_volume_ml: Quantity | None = None
+    notes: Notes | None = None
+
+
 class RecipeOut(RecipeData):
+    updated_at: str | None = None
+    used: bool = False
     id: str
     revision: int
     status: str

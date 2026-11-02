@@ -49,6 +49,7 @@ export function Field({
         HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
       >,
     ) => set(name, e.target.value),
+    "aria-label": label + (required ? " *" : ""),
     "aria-invalid": !!errors[name],
     "aria-describedby": errors[name] ? `${name}-error` : undefined,
   };

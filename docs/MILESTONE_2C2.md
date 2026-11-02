@@ -1,98 +1,70 @@
-# Milestone 2C.2 — preparation, inoculation and transactional inventory
+# Milestone 2C.2 — direct cultivation and recipes
 
-This increment implements agar, LC containers/syringes and grain spawn jars/bags. Actual spawning and FR tray/substrate allocation remain **2C.3**. It starts from merged PR #4 (`75b0a42`). No production server was accessed, merged or deployed.
+This final workflow redesign supersedes the earlier inventory-first and prepare-first interfaces on `feature/milestone-2c2-preparation` (existing PR #5). Cultivation tracking is the primary workflow. No deployment or merge is part of this task.
 
-The user-confirmed Debian layout is **`/storage/tv/cultivatinator` for the Git checkout, Compose configuration and persistent application storage together**, with that directory mounted at `/data`. Preserve this arrangement, port **8085**, the single-worker application and non-root UID/GID **10001:10001**. Do not interpret older examples that separated checkout/storage as an instruction to move this installation. The cloud development checkout remains `/workspace/Cultivatinator` with its separate ignored native `data/` directory.
+## Quick Create
 
-## Stock and reusable pools
+Choose Agar Plate, Spawn Jar/Bag, LC Container/Jar or LC Syringe. Select a matching active recipe, biological source, number of containers and date; the date defaults to the browser's current local date and can be changed. Add optional notes and measured source usage when applicable. **Saving means preparation, sterilization and inoculation are already complete.** No ingredient inventory, container pool, reservation or separate readiness operation is required.
 
-Inventory offers **+ Add Inventory**, **Stock & Pools**, **Prepared Materials → Prepare Materials**, and **Transactions**, alongside the unchanged outside Receive Acquisition workflow. Add Inventory records actual item names, category, quantity/unit, optional storage location/notes and a required reason. Categories are Reusable Containers, Raw Ingredients, Disposable Supplies, Equipment and Other Supplies. No examples or suggested counts are seeded or prefilled. Empty reusable pools require known whole counts. Grain bags and LC syringes use disposable count-based supplies. Fruiting tray inventory can be recorded, but spawning does not reserve it until 2C.3.
+Agar requires an agar recipe. Spawn uses grain recipes from Spawn Seed. LC jars use LC media recipes; filling a syringe from existing LC does not require a media recipe. Recipe definitions have named ingredients, quantities and units, without requiring stock entries. Existing inventory-linked recipes remain compatible; direct creation never deducts their ingredient stock or fabricates a balance.
 
-Supported weight units are mg, g, kg, weight oz and lb; volume units are mL, L, **US** fluid oz and **US** cups. Each/count and existing specialized counts remain available. Compatible conversions use precise Decimal factors: 1 lb = 453.59237 g, 1 weight oz = 28.349523125 g, 1 US fluid oz = 29.5735295625 mL. Weight and volume never convert into one another. Newly introduced units normalize opening balances to g/mL/count; existing g/kg/mL/L balances retain their unit. Ingredients and measured corrections can use compatible units, with original entered amounts/units retained in the operation audit. Conversion cannot bypass stock checks. Inputs and recipe scaling support three decimal places in the entered unit; converted balances and ledger entries retain all resulting precision.
+One atomic, idempotent operation assigns independent AG/LC/SJ/SB IDs, snapshots the recipe/version and batch quantities, records the inoculation date and exact physical source, and creates inoculated records. A routine transfer preserves its source's culture line. New spawn starts **Colonizing**, with Ready for Spawning still an explicit later edit. Failures roll back every destination, source deduction, snapshot and ID allocation. Retries replay the committed response; Create More starts a distinct request.
 
-Reusable pool tables distinguish Available Empty Containers, prepared Ready, inoculated Active Cultures / Spawn and historical Preparing reservations. For example, 7 empty + 5 ready + 8 active = 20 containers. Totals use only unreleased reservations, not historical preparation counts. Permanent IDs survive equipment reuse; terminal records and their batch snapshots remain accessible.
+The completion screen prominently lists every permanent ID, links to each record and provides Copy IDs plus selectable text for browsers without clipboard access. The ID belongs to the biological record, not a piece of reusable equipment.
 
-- Raw ingredients, consumables and biological source balances may be unknown. Usage is recorded while the remaining balance stays unknown.
-- Reusable pools require a known free count: capacity cannot be safely reserved against an unknown number. Reservations deduct free capacity; one allocation is retained per prepared record until explicit completion/failure.
-- Additions require a positive quantity and reason. Adding to unknown stock leaves it unknown. A documented measured **correction** establishes or changes a balance; source/raw balances may also be corrected back to unknown.
-- Adjustments use the currently read inventory revision. A concurrent change produces 409 rather than overwriting a newer balance. Pool corrections mean **free, unreserved** count, not total owned count.
-- Existing 2A/2B Starting/Registered Quantities remain descriptive. They are never copied into balances. LC jar/syringe details show **Remaining Culture Material** and a reasoned measured correction form. Unknown stays unknown until explicitly measured; a known zero depletes the source. Culture quantities are separate from generic physical supplies.
+Spores create individual pending agar establishments with permanent AG IDs and physical spore provenance, without a genetic-line assertion. Open each pending record and use Register Successful Culture after success is confirmed. Each establishment creates an independent line through the existing workflow.
 
-## Recipes and preparation
+## Recipes workspace
 
-Open **Recipes** in the main navigation to save an agar, grain, LC or substrate-definition recipe with ingredient inventory IDs, quantities/units and a declared yield in **containers**. Optional instructions, processing defaults and shelf life are retained. Editing or archiving a recipe requires its current revision and never rewrites prior batches. Archived recipes remain readable but cannot prepare new material.
+The main Recipes landing page has exactly three category cards: **Agar**, **Spawn Seed**, and **Substrate**. Each opens its own list, with a prominent Add Recipe action, descriptions, links to details and variant comparison. Spawn Seed separates **Grain spawn** and **Liquid culture media** using a subtype filter; no fourth category is introduced. No example recipes are seeded.
 
-Select two or more recipe variants to compare ingredient amounts, yields, processing and shelf life. Substrate definitions support planning only; they cannot prepare materials, deduct substrate or allocate fruiting containers in 2C.2.
+Recipe details display ingredients/units, yield in containers, instructions, processing settings, notes and last update time. Historical recipes without an edit timestamp show that it was not recorded; their original creation time remains available.
 
-**Prepare in Inventory → Prepared Materials → Prepare Materials. Inoculate through Dashboard Quick Create.** Quick Create and Create From This keep their existing URLs and source context, with no preparation toggle or duplicate preparation fields. Empty Quick Create inventory says **No prepared containers available.** and links to the Inventory preparation page.
+- Edit Recipe preserves earlier cultivation/preparation snapshots and uses revision conflict protection.
+- Duplicate Recipe creates an active editable copy with a new recipe ID.
+- Delete Recipe permanently deletes only unused definitions after explicit browser confirmation. An immutable operation audit remains. A used recipe cannot be deleted; Archive hides it from new creation while preserving historical links and snapshots.
+- Substrate definitions support the same management actions, but cannot execute preparation, consumption or fruiting allocation in 2C.2.
 
-Preparation can proceed without a biological source:
+## Growing workspaces
 
-1. Choose type/count (up to 100), matching reusable pool or disposable supply, and a saved recipe or actual manual ingredient quantities. Empty syringe preparation consumes syringe supplies without inventing media ingredients.
-2. Recipe amounts scale by target count/yield; review/edit actual quantities. Scaling uses integer-thousandth previews and Decimal server arithmetic, rounded half-up to three places. A scaled amount below supported precision is rejected; count-based quantities must still be integral.
-3. Record optional preparation date, method (pressure cooker, Instant Pot, pasteurization or custom), minutes, °C, psi, processing notes, batch notes, shelf life and use-by override. With a known preparation date, recipe/batch shelf life derives a use-by date unless explicitly overridden. No date is fabricated if preparation date is unknown.
-4. One transaction checks stock, consumes actual ingredients/disposable supplies, reserves reusable capacity and creates a PB session with individual permanent **AG/LC/SJ/SB** identities.
-5. Saving assumes preparation/sterilization is complete and creates **Ready to Inoculate** records atomically. No separate confirmation is required for new materials. Historical **Preparing** rows retain their explicit readiness action in the list/detail, without recreation, new deductions, snapshot changes or altered timestamps. Expiry is a visible warning, never an automatic discard/failure.
+Laboratory lists active agar, liquid cultures and pending spore establishments. Cultivation lists colonizing jars/bags and spawn ready for use. Filters expose completed, failed and all historical records; IDs, strain, culture line, source, status and recorded dates remain visible. Search by ID, strain or line. Record links retain the existing photo galleries, activity, genetic genealogy and physical provenance, and now show their recipe snapshot/source history directly.
 
-Prepared material has its own table until it has a biological identity. IDs are allocated using the existing sequence and retained on inoculation; a physical record is not assigned a fabricated strain or culture line during media preparation. Batch snapshots preserve original recipe/version, actual ingredient quantities/names, processing/settings and dates, independently of later recipe changes.
+Culture Library remains the reference/catalog area. Existing acquisitions, clones, isolates, spore collection, archive/restore, FR strain identification and legacy URL redirects remain available.
 
-## Inoculation, transfers and filling
+## Optional inventory and LC volumes
 
-Select Ready to Inoculate containers, an eligible existing source, an optional date/notes and per-container source usage. Partial prepared batches remain ready for later use. Known source stock requires measured usage; LC requires a positive measured volume per destination, using mL or a compatible volume unit. Unknown agar/spore usage may remain unmeasured and is recorded as such. Selected count and total usage are displayed before submission.
+Inventory shows actual optional ingredients/supplies immediately after saving, with category, quantity, unit and location. Edit changes name, location and notes without changing the balance; Adjust Quantity records additions or measured corrections with a reason. Accounting/history and old reusable pools are secondary views, not prerequisites for culture creation.
 
-| Destination | Sources |
-| --- | --- |
-| Agar plate | Active usable agar/slant, LC or spores |
-| LC container / jar | Active usable agar/slant or LC |
-| LC syringe | Active usable LC |
-| Spawn jar / bag | Active usable agar/slant or LC |
+Existing precise Decimal conversions remain: mg/g/kg/weight oz/lb, mL/L/US fluid oz/US cups, each/count and specialized counts. Weight never converts to volume. Exact quantity sidecars retain conversion precision in SQLite alongside legacy Numeric projections. Unknown balances remain unknown.
 
-Archived, completed, failed, depleted and zero-known-stock sources are rejected by the backend and omitted from Quick Create. Active registration is not proof of biological viability; the operator still confirms suitability. Exact source kind/ID, date, usage and shared operation are stored for each destination. Routine transfers retain the source's existing strain/line, without genetic-parent or new-line creation. New spawn starts **Colonizing**, not Ready for Spawning. The existing spawn stage edit provides an explicit Ready for Spawning selection later; this is separate from readiness of sterile prepared material.
+LC details retain **Remaining Culture Material** and reasoned measured corrections. Known source balances require measured usage, are checked atomically and are deducted once across the batch. For example, five bags at 4 mL use 20 mL; 100 mL becomes 80 mL. Zero-known LC is Depleted and excluded from source choices. Unknown LC may record unmeasured use for agar/jars/spawn without manufacturing a remaining quantity; filling syringes requires a measured transferred volume. Filled syringes receive that measured opening balance; LC jar destination totals are optional measured values.
 
-Five bags at 5 mL each deduct **25 mL once**, create five independent SB biological records using their prepared IDs and retain the shared session. A failure at any point rolls back every row, deduction, reservation and sequence change. Donor agar remains active after transfer until explicitly completed/failed.
+## Historical preparation compatibility
 
-Filled syringes receive the measured transferred mL as their known opening balance. LC jars may receive a separately measured total destination volume; otherwise their remaining volume stays unknown. A supplied total cannot be less than the measured inoculum, and a syringe's filled volume must equal its transfer volume. No initial legacy quantity is used to manufacture a balance.
+All existing stock, immutable accounting, prepared records, reservations, permanent IDs and snapshots are retained. Previous preparation/accounting links remain accessible from Inventory, Laboratory and Cultivation. Historical Preparing records retain their explicit readiness transition without recreation, new deductions or changed timestamps. **Inoculate Previous Materials** completes ready records using their original IDs and existing allocations. Complete/Failed releases an existing tracked reusable reservation once. Newly created direct records have no container reservation to release.
 
-### Spores are pending establishments
+Internally, direct creation reuses the immutable preparation-batch snapshot and per-destination physical transfer tables in the same transaction. Intermediate material rows are never exposed as a separately required preparation step; successful direct operations commit them as inoculated. No synthetic strains, genetic parents or culture lines are introduced by ordinary transfers.
 
-Inoculating prepared agar from spores records physical inoculation and reserves the plate, but creates **no culture line** and asserts no confirmed genetic parent. On each pending plate's Prepared Material detail, **Register Successful Culture** invokes the existing dedicated Establish Culture operation. Only after success is confirmed does it create an independent CL and bind that plate's existing AG identity. Two plates from one print can establish two independent lines. It rejects binding an unrelated spore source, a failed/completed plate or a plate already established. Existing tissue-clone, isolate and standalone spore establishment workflows remain available.
+## API and migration compatibility
 
-## Depletion, lifecycle and history
+Existing `/api/preparation` and library/provenance APIs remain compatible. Additions include `POST /create`, `GET /growing?workspace=laboratory|cultivation`, recipe detail/delete/duplicate endpoints, and `PUT /stock/{id}` for metadata edits. Recipe ingredients accept either existing stock IDs or independently named ingredients. Historical inventory preparation still requires inventory-linked ingredients because it performs actual deductions; it never guesses stock links for named formulas.
 
-A measured LC balance reaching zero sets **Depleted** automatically and excludes it as a source. It does not silently release its reusable container. A measured corrective adjustment, with reason/revision, can restore a depleted record's availability; unknown balances are never depleted solely from assumed usage.
+Migration **0008_recipes** adds only nullable `preparation_recipes.updated_at`. Prior migrations are unchanged. Existing recipe contents, preparation stages, timestamps, operations, ledger entries, IDs, photographs and lineage are not rewritten. Old recipe and stock request keys retain their original fingerprints. Downgrade guards refuse to discard recorded recipe edit history or operational accounting.
 
-Use **Complete** or **Mark Failed**, with date/reason/notes, on a prepared detail or supported biological physical/spawn detail. These preserve IDs, relationships, photographs and activity, release tracked reusable capacity **once**, and prevent subsequent source use. Terminal source inventory is closed while retaining its last recorded balance; correcting history does not reactivate a completed/failed culture. Archive/restore remains separate and does not release equipment or reset operational lifecycle. Active dashboard culture/spawn counts exclude terminal/depleted material.
-
-Inventory Transactions displays append-only opening/add/correction/consume/reserve/release/usage/closure entries, before/after quantities (including unknown), reasons and operation IDs. Operation sessions also retain full dates/reasons/notes and selected prepared IDs. Record details link back to preparation snapshots and exact physical transfer sources/destinations. Existing galleries work for inoculated physical/spawn records and successfully established plates; uninoculated/pending prepared material has no separate photo storage/gallery. Tracked material types cannot be silently reassigned after preparation/balance tracking begins; ordinary descriptive editing remains available.
-
-## Transaction and compatibility guarantees
-
-- Python `Decimal` preserves compatible-unit conversion precision. Nullable exact text sidecars hold authoritative new balances and ledger quantities in SQLite; legacy Numeric(14,3) columns remain compatibility projections. Historical rows fall back to their original Numeric values, without backfill or ledger updates. All availability, depletion, deduction, adjustment and release decisions read exact balances. Frontend scaling previews use integer thousandths; the server validates actual converted deductions.
-- All command endpoints require a stable `request_key`. `BEGIN IMMEDIATE` serializes reads/decisions/writes. A repeated identical request replays its committed response; reuse with different payloads returns 409. Failed requests commit nothing. The UI retains a key when retrying unchanged input and supports ordinary private-network HTTP without depending on secure-context-only `randomUUID()`.
-- Revision checks protect stock/recipe edits. A unique transfer per prepared record prevents reinoculation under a new key. Terminal lifecycle checks and one reservation-release flag prevent a second release, even with a different key. Immutable SQLite guards protect committed audit records, snapshots and transfer sources.
-- `0005_preparation` adds nine tables: `stock_items`, `stock_transactions`, `inventory_operations`, `preparation_recipes`, `preparation_batches`, `prepared_materials`, `container_reservations`, `material_lifecycles`, `material_transfers`. `0006_history` adds committed-history guards. `0007_inventory` adds optional storage, Equipment/Other categories and nullable exact quantity sidecars, retaining all existing rows, IDs, constraints, history guards and reservations. SQLite rebuilds only the stock table to expand its category constraint and verifies foreign keys afterward. No existing migration is edited. No 2B rows/IDs/photos are rewritten or backfilled into known inventory.
-- Lifecycle and inventory links are additive projections on existing record APIs; archive status and starting quantity fields keep their original meanings. FR known/mixed/partial/unknown strain derivation and genetic/grow provenance remain unchanged. 2C.1 redirects and Inventory acquisition paths remain compatible.
-
-Typed APIs are documented at `/docs`. Inventory/preparation endpoints under `/api/preparation` include `pools` (read-only reconciliation), `stock`, `stock/{id}/adjust`, `recipes`, `recipes/{id}`, `prepare`, `ready`, `inoculate`, `materials`, `materials/{id}`, `materials/{id}/finish`, `records/{kind}/{id}/finish`, `records/{kind}/{id}`, `transactions`, and `operations`. Existing spore establishment adds optional `prepared_id`; it is valid only for a matching pending spore-inoculated agar record.
-
-## Validation commands
+## Validation
 
 ```bash
-cd /workspace/Cultivatinator
-(cd backend && ../.venv/bin/pytest -q && ../.venv/bin/alembic upgrade head && ../.venv/bin/alembic current && ../.venv/bin/alembic check)
+(cd backend && ../.venv/bin/pytest -q)
 (cd frontend && npm test && npm run build)
 .venv/bin/python scripts/browser_smoke.py /usr/bin/chromium
 .venv/bin/python scripts/lineage_browser_smoke.py /usr/bin/chromium
 .venv/bin/python scripts/quick_create_browser_smoke.py /usr/bin/chromium
 .venv/bin/python scripts/preparation_browser_smoke.py /usr/bin/chromium
-# Optional managed-proxy CA build mount; TLS verification stays enabled.
-docker build --secret id=proxy_ca,src=/etc/ssl/certs/ca-certificates.crt -t cultivatinator:milestone-2c2 .
-.venv/bin/python scripts/preparation_docker_smoke.py cultivatinator:milestone-2c2
 ```
 
-Browser tests use separate temporary data directories; Docker smoke uses and removes only its unique disposable container/volume. They never mount Debian data. The 2C.2 browser check also simulates private-network HTTP without `randomUUID`. Docker recreation checks persistent recipes/prepared snapshots, stock, immutable ledger, depletion, one-time release, retry replay and original 2B photos/FR relationships. Final usability-correction validation: **96 backend tests passed** (one existing upstream Starlette/AnyIO deprecation warning), **58 frontend tests passed** across six files, and the production build passed. Fresh/repeated Alembic upgrade, current and schema check passed at **0007_inventory** with no drift; the regression suite also upgrades a populated 0006 database while preserving its legacy Preparing row, reservation, timestamps, immutable ledger/snapshot and old request-key replay. All four browser smoke scripts passed, including generic imperial-unit inventory, recipe variant comparison, Inventory preparation, automatic readiness, partial inoculation, source preselection, exact depletion/correction, pool reconciliation and desktop/mobile layouts. Docker build and non-root recreation/persistence checks passed with retained accounting, lineage, FR identity and photographs. No final test or build failures remain. GitHub API metadata access returned Forbidden in the cloud session; delivery updates the existing PR branch through Git push.
+Validation uses temporary databases, local Chromium and uniquely named disposable Docker resources. No Debian data is accessed. Final verification: **114 backend tests passed**, **71 frontend tests passed** across seven files, and the production build passed. Alembic fresh/repeated upgrade, current and check passed at **0008_recipes** with no schema drift; tests cover populated 0006/0007 upgrades, unchanged historical snapshots and old request-key replay. All four browser suites passed with no page errors, including the full final workflow and mobile layouts. Local Docker build and non-root recreation checks passed for direct records, free-standing recipes, existing prepared material, stock/ledger, photographs, FR identity and lineage. One existing upstream Starlette/AnyIO deprecation warning remains; no final test/build failures remain. GitHub API metadata access returned Forbidden; delivery updates PR #5 through its existing Git branch.
 
-## Safe Debian upgrade and rollback — manual only
+## Debian installation context
 
 The checkout, Compose configuration **and data coexist** at `/storage/tv/cultivatinator`. Do not relocate them, delete directories, run a clean/reset across the checkout, or recursively change ownership of the entire mixed source/data directory. Preserve existing ownership; only application data subdirectories need the existing UID/GID 10001 access. `.dockerignore` now excludes root `database/`, `photos/`, `files/`, and `settings/` from build context, in addition to `data/` and `.env`; it does not remove or move those directories or change the `/data` bind mount.
 
@@ -121,4 +93,4 @@ Rollback requires the **matching pre-upgrade application and stopped-data backup
 
 ## Deferred to 2C.3
 
-Actual spawn-to-bulk consumption, FR tray/substrate allocation, editable spawn/substrate ratios, prepared bulk-substrate accounting, harvest/flush accounting, advanced observations, bulk observations and downstream contamination warnings are not implemented. Tray pools can be configured, not operationally assigned to an invented spawning event. Purchases/supply tracking beyond manual stock additions and the established external-acquisition workflow remain future work. No new services, authentication, synthetic strains, automatic merge or production deployment are introduced.
+Actual spawn-to-bulk operations, fruiting substrate allocation and ratios, harvests/flushes, advanced dated growth observations, contamination propagation and detailed analytics remain deferred. Substrate recipes are definitions only. No production deployment or merge is performed.

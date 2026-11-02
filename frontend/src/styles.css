@@ -1221,3 +1221,15 @@ button:disabled {
 .pool-overview {
   margin: 1rem 0;
 }
+
+.generated-ids {
+  font:
+    600 1.5rem ui-monospace,
+    monospace;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  color: #b9def9;
+}
+.preserve-lines {
+  white-space: pre-wrap;
+}

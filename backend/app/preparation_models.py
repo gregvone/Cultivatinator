@@ -78,6 +78,7 @@ class Recipe(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     recipe_type: Mapped[str] = mapped_column(String(20))
+    updated_at: Mapped[str | None] = mapped_column(String(40))
     contents: Mapped[str] = mapped_column(Text)
     revision: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(16), default="active")

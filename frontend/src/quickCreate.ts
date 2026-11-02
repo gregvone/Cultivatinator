@@ -48,7 +48,7 @@ export const quickCreate = [
     kinds: ["physical"],
     physical: [...agar, ...liquid],
     description:
-      "Select an existing agar or liquid culture for a future inoculation.",
+      "Create inoculated spawn from an existing agar or liquid culture.",
     deferred: null,
   },
   {

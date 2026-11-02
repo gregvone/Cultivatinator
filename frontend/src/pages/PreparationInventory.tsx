@@ -21,7 +21,6 @@ import {
 } from "../preparationApi";
 import type {
   Stock,
-  Recipe,
   Prepared,
   Ledger,
   Ingredient,
@@ -33,9 +32,14 @@ export function InventoryNav() {
   return (
     <nav className="actions inventory-nav" aria-label="Inventory sections">
       <Link to="/inventory">Inventory</Link>
-      <Link to="/inventory/stock">Stock & Pools</Link>
-      <Link to="/inventory/prepared">Prepared Materials</Link>
-      <Link to="/inventory/transactions">Transactions</Link>
+      <Link to="/inventory/stock">Ingredients & Supplies</Link>
+      <details>
+        <summary>Previous preparation & accounting</summary>
+        <div className="actions">
+          <Link to="/inventory/prepared">Previous prepared materials</Link>
+          <Link to="/inventory/transactions">Accounting history</Link>
+        </div>
+      </details>
     </nav>
   );
 }
@@ -358,12 +362,88 @@ function AdjustmentForm({
     </form>
   );
 }
-export function StockPage() {
+function StockMetadataForm({
+  item,
+  onSaved,
+}: {
+  item: Stock;
+  onSaved: () => void;
+}) {
+  const [v, setV] = useState<Values>({
+    name: item.name,
+    storage_location: item.storage_location || "",
+    notes: item.notes || "",
+    reason: "",
+  });
+  const command = useInventoryCommand();
+  return (
+    <form
+      className="library-form panel workflow-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (
+          await command.send(
+            `stock/${item.id}`,
+            {
+              ...v,
+              storage_location: v.storage_location || null,
+              notes: v.notes || null,
+              expected_revision: item.revision,
+            },
+            "PUT",
+          )
+        )
+          onSaved();
+      }}
+    >
+      <h2>Edit {item.name}</h2>
+      <Field
+        name="edit_name"
+        label="Item name"
+        required
+        values={{ edit_name: v.name }}
+        set={(_, x) => setV({ ...v, name: x })}
+      />
+      <Field
+        name="edit_location"
+        label="Storage location"
+        values={{ edit_location: v.storage_location }}
+        set={(_, x) => setV({ ...v, storage_location: x })}
+      />
+      <Field
+        name="edit_notes"
+        label="Item notes"
+        type="textarea"
+        values={{ edit_notes: v.notes }}
+        set={(_, x) => setV({ ...v, notes: x })}
+      />
+      <Field
+        name="edit_reason"
+        label="Edit reason"
+        required
+        values={{ edit_reason: v.reason }}
+        set={(_, x) => setV({ ...v, reason: x })}
+      />
+      {command.error && <p role="alert">{command.error}</p>}
+      <div className="actions">
+        <button className="primary" disabled={command.busy}>
+          Save Item
+        </button>
+      </div>
+    </form>
+  );
+}
+export function StockPage({
+  title = "Ingredients & Supplies",
+}: {
+  title?: string;
+}) {
   const { data, error, reload } = useInventoryList<Stock>("stock");
   const [params] = useSearchParams();
   const [open, setOpen] = useState(false);
   const [initial, setInitial] = useState<Values>({});
   const [adjust, setAdjust] = useState<Stock | null>(null);
+  const [editing, setEditing] = useState<Stock | null>(null);
   const [notice, setNotice] = useState("");
   useEffect(() => {
     if (params.get("add") === "1") setOpen(true);
@@ -392,8 +472,8 @@ export function StockPage() {
     <>
       <InventoryNav />
       <PageHeader
-        title="Stock & Reusable Pools"
-        description="Confirmed balances, unknown stock, and pooled free capacity. Every adjustment and use has an audit entry."
+        title={title}
+        description="Optional stock records. Cultures can be created without registering ingredients or containers."
       />
       {!data ? (
         <Feedback error={error} retry={reload} />
@@ -418,9 +498,12 @@ export function StockPage() {
               + Add Inventory
             </button>
           </div>
-          <PoolOverview
-            key={data.map((s) => `${s.id}:${s.revision}`).join(",")}
-          />
+          <details>
+            <summary>Previous reusable container pools</summary>
+            <PoolOverview
+              key={data.map((s) => `${s.id}:${s.revision}`).join(",")}
+            />
+          </details>
           {open && (
             <StockForm
               key={JSON.stringify(initial)}
@@ -428,6 +511,17 @@ export function StockPage() {
               onSaved={() => {
                 setOpen(false);
                 setNotice("Opening inventory recorded.");
+                reload();
+              }}
+            />
+          )}
+          {editing && (
+            <StockMetadataForm
+              key={editing.id + editing.revision}
+              item={editing}
+              onSaved={() => {
+                setEditing(null);
+                setNotice("Item updated.");
                 reload();
               }}
             />
@@ -458,7 +552,14 @@ export function StockPage() {
                     {item.name} <small>{item.id}</small>
                   </h2>
                   <p>
-                    {item.category} ·{" "}
+                    {{
+                      ingredient: "Raw Ingredients",
+                      consumable: "Disposable Supplies",
+                      reusable: "Reusable Containers",
+                      equipment: "Equipment",
+                      other: "Other Supplies",
+                    }[item.category] || item.category}{" "}
+                    ·{" "}
                     {item.container_type
                       ? materialNames[item.container_type]
                       : ""}{" "}
@@ -484,11 +585,20 @@ export function StockPage() {
                   <div className="actions">
                     <button
                       onClick={() => {
+                        setEditing(item);
+                        setAdjust(null);
+                        setOpen(false);
+                      }}
+                    >
+                      Edit {item.name}
+                    </button>
+                    <button
+                      onClick={() => {
                         setOpen(false);
                         setAdjust(item);
                       }}
                     >
-                      Adjust {item.id}
+                      Adjust Quantity · {item.name}
                     </button>
                     <Link to={`/inventory/transactions?item=${item.id}`}>
                       Transaction history
@@ -654,201 +764,6 @@ export function processingPayload(v: Values) {
     notes: v.processing_notes || null,
   };
 }
-function RecipeForm({
-  stock,
-  recipe,
-  onSaved,
-}: {
-  stock: Stock[];
-  recipe?: Recipe;
-  onSaved: () => void;
-}) {
-  const [v, setV] = useState<Values>({
-    name: recipe?.name || "",
-    recipe_type: recipe?.recipe_type || "agar",
-    batch_yield: String(recipe?.batch_yield || 1),
-    instructions: recipe?.instructions || "",
-    method: recipe?.processing.method || "",
-    duration_minutes: String(recipe?.processing.duration_minutes ?? ""),
-    temperature_c: recipe?.processing.temperature_c || "",
-    pressure_psi: recipe?.processing.pressure_psi || "",
-    processing_notes: recipe?.processing.notes || "",
-    shelf_life_days: String(recipe?.shelf_life_days ?? ""),
-    status: recipe?.status || "active",
-  });
-  const [ingredients, setIngredients] = useState<Ingredient[]>(
-    recipe?.ingredients || [],
-  );
-  const command = useInventoryCommand();
-  const set = (n: string, x: string) => setV({ ...v, [n]: x });
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const r = await command.send<Recipe>(
-      recipe ? `recipes/${recipe.id}` : "recipes",
-      {
-        name: v.name,
-        recipe_type: v.recipe_type,
-        batch_yield: Number(v.batch_yield),
-        instructions: v.instructions || null,
-        processing: processingPayload(v),
-        shelf_life_days: v.shelf_life_days ? Number(v.shelf_life_days) : null,
-        ingredients,
-        ...(recipe
-          ? { expected_revision: recipe.revision, status: v.status }
-          : {}),
-      },
-      recipe ? "PUT" : "POST",
-    );
-    if (r) onSaved();
-  }
-  return (
-    <form className="library-form panel workflow-form" onSubmit={submit}>
-      <h2>{recipe ? `Edit ${recipe.name}` : "New Recipe"}</h2>
-      <Field name="name" label="Recipe name" required values={v} set={set} />
-      <Field
-        name="recipe_type"
-        label="Recipe type"
-        values={v}
-        set={set}
-        options={{
-          agar: "Agar medium",
-          grain: "Grain preparation",
-          lc: "Liquid culture medium",
-          substrate: "Substrate definition",
-        }}
-      />
-      <Field
-        name="batch_yield"
-        label="Recipe yield (containers)"
-        required
-        type="number"
-        values={v}
-        set={set}
-      />
-      <IngredientFields
-        stock={stock}
-        ingredients={ingredients}
-        onChange={setIngredients}
-      />
-      <Field
-        name="instructions"
-        label="Preparation instructions"
-        type="textarea"
-        values={v}
-        set={set}
-      />
-      <ProcessingFields values={v} set={set} />
-      <Field
-        name="shelf_life_days"
-        label="Default shelf life (days, optional)"
-        type="number"
-        values={v}
-        set={set}
-      />
-      {recipe && (
-        <Field
-          name="status"
-          label="Recipe archive status"
-          values={v}
-          set={set}
-          options={{ active: "Active", archived: "Archived" }}
-        />
-      )}
-      {command.error && <p role="alert">{command.error}</p>}
-      <button disabled={command.busy || !ingredients.length}>
-        Save Recipe
-      </button>
-    </form>
-  );
-}
-export function RecipesPage() {
-  const recipes = useInventoryList<Recipe>("recipes");
-  const stock = useInventoryList<Stock>("stock");
-  const [editing, setEditing] = useState<Recipe | null | undefined>();
-  const [comparison, setComparison] = useState<string[]>([]);
-  return (
-    <>
-      <PageHeader
-        title="Recipes"
-        description="Reusable recipes scale by container yield. Editing or archiving never rewrites a historical preparation snapshot."
-      />
-      {!recipes.data || !stock.data ? (
-        <Feedback
-          error={recipes.error || stock.error}
-          retry={() => {
-            recipes.reload();
-            stock.reload();
-          }}
-        />
-      ) : (
-        <>
-          <button className="button primary" onClick={() => setEditing(null)}>
-            New Recipe
-          </button>
-          <p>
-            Save variants and select two or more to compare amounts and yields.
-            Substrate definitions are available for planning; substrate
-            preparation comes in 2C.3.
-          </p>
-          <RecipeComparison
-            recipes={recipes.data.filter((r) => comparison.includes(r.id))}
-            stock={stock.data}
-          />
-          {editing !== undefined && (
-            <RecipeForm
-              key={editing?.id || "new"}
-              recipe={editing || undefined}
-              stock={stock.data}
-              onSaved={() => {
-                setEditing(undefined);
-                recipes.reload();
-              }}
-            />
-          )}
-          <ul className="record-list panel">
-            {recipes.data.map((recipe) => (
-              <li key={recipe.id}>
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={comparison.includes(recipe.id)}
-                    onChange={() =>
-                      setComparison(
-                        comparison.includes(recipe.id)
-                          ? comparison.filter((id) => id !== recipe.id)
-                          : [...comparison, recipe.id],
-                      )
-                    }
-                  />
-                  Compare {recipe.name}
-                </label>
-                <h2>
-                  {recipe.name} · {recipe.id}
-                </h2>
-                <p>
-                  {recipe.recipe_type} · Yield {recipe.batch_yield} containers ·
-                  Revision {recipe.revision} · {recipe.status}
-                </p>
-                <ul>
-                  {recipe.ingredients.map((i) => (
-                    <li key={i.item_id}>
-                      {stock.data?.find((s) => s.id === i.item_id)?.name ||
-                        i.item_id}
-                      : {i.quantity} {i.unit}
-                    </li>
-                  ))}
-                </ul>
-                <button onClick={() => setEditing(recipe)}>
-                  Edit {recipe.id}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </>
-  );
-}
 export function FinishForm({
   path,
   onSaved,
@@ -932,14 +847,16 @@ export function PreparedPage() {
       <InventoryNav />
       <PageHeader
         title="Prepared Materials"
-        description="Prepare sterile materials here, then inoculate them through Quick Create. Ready to Inoculate is separate from colonized spawn readiness."
+        description="Previous prepared materials remain accessible. Complete their existing inoculation here, or create new inoculated material directly through Quick Create."
       />
       {location.state?.message && <p role="status">{location.state.message}</p>}
       <div className="actions">
         <Link className="button primary" to="/inventory/prepared/prepare">
           Prepare Materials
         </Link>
-        <Link to="/">Inoculate through Quick Create</Link>
+        <Link to="/inventory/prepared/inoculate">
+          Inoculate Previous Materials
+        </Link>
       </div>
       {!data ? (
         <Feedback error={error} retry={reload} />
@@ -1084,7 +1001,9 @@ export function PreparedDetail() {
                 been automatically failed.
               </p>
             )}
-            <p>Container allocation: {row.snapshot.container_name}</p>
+            {row.snapshot.container_name && (
+              <p>Container allocation: {row.snapshot.container_name}</p>
+            )}
             <p>
               Recipe snapshot:{" "}
               {row.snapshot.recipe?.name || "Manual preparation"}
@@ -1092,10 +1011,14 @@ export function PreparedDetail() {
                 ? ` · revision ${row.snapshot.recipe_revision}`
                 : ""}
             </p>
-            <h3>Actual ingredient use</h3>
+            <h3>
+              {row.snapshot.workflow === "direct"
+                ? "Recipe amounts for this batch (no inventory deducted)"
+                : "Actual ingredient use"}
+            </h3>
             <ul>
-              {row.snapshot.ingredients.map((i) => (
-                <li key={i.item_id}>
+              {row.snapshot.ingredients.map((i, index) => (
+                <li key={i.item_id || index}>
                   {i.name || i.item_id}: {i.quantity} {i.unit}
                 </li>
               ))}
@@ -1352,81 +1275,6 @@ export function PoolOverview() {
       <Link to="/inventory/prepared">
         View prepared materials and historical batches
       </Link>
-    </section>
-  );
-}
-function RecipeComparison({
-  recipes,
-  stock,
-}: {
-  recipes: Recipe[];
-  stock: Stock[];
-}) {
-  if (recipes.length < 2) return null;
-  const ids = [
-    ...new Set(recipes.flatMap((r) => r.ingredients.map((i) => i.item_id))),
-  ];
-  return (
-    <section className="panel workflow-source">
-      <h2>Recipe Comparison</h2>
-      <div className="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Ingredient / yield</th>
-              {recipes.map((r) => (
-                <th key={r.id}>
-                  {r.name} · revision {r.revision}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th>Type</th>
-              {recipes.map((r) => (
-                <td key={r.id}>{r.recipe_type}</td>
-              ))}
-            </tr>
-            <tr>
-              <th>Batch yield (containers)</th>
-              {recipes.map((r) => (
-                <td key={r.id}>{r.batch_yield}</td>
-              ))}
-            </tr>
-            {ids.map((id) => (
-              <tr key={id}>
-                <th>{stock.find((s) => s.id === id)?.name || id}</th>
-                {recipes.map((r) => {
-                  const i = r.ingredients.find((i) => i.item_id === id);
-                  return (
-                    <td key={r.id}>
-                      {i
-                        ? `${i.quantity} ${stockUnits[i.unit as keyof typeof stockUnits] || i.unit}`
-                        : "—"}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-            <tr>
-              <th>Processing / duration</th>
-              {recipes.map((r) => (
-                <td key={r.id}>
-                  {r.processing.method || "Unspecified"} ·{" "}
-                  {r.processing.duration_minutes ?? "Unknown"} min
-                </td>
-              ))}
-            </tr>
-            <tr>
-              <th>Shelf life (days)</th>
-              {recipes.map((r) => (
-                <td key={r.id}>{r.shelf_life_days ?? "Unknown"}</td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }

@@ -18,7 +18,7 @@ Dashboard Quick Create with six dedicated material entries; context-sensitive ac
 
 ## Implemented — Milestone 2C.2
 
-Explicit stock balances/unknown usage, manual reasoned adjustments, immutable ledger/audit history, pooled reusable capacity and one-time release, generic inventory categories/storage and exact compatible weight/volume conversions (no seeds), dedicated agar/grain/LC/substrate recipe definitions and comparison with historical snapshots, Inventory preparation with individual permanent identities and automatic Ready to Inoculate (legacy Preparing records retain explicit readiness), partial/bulk inoculation/transfers/filling, exact physical source links, preserved routine genetic lines, pending independent spore establishments, measured LC depletion/corrections, lifecycle Complete/Failed controls, inventory/recipe/prepared/history UI and additive migrations. Existing 2B data/photos/FR identity and 2C.1 navigation remain compatible. See [2C.2 scope/operations](MILESTONE_2C2.md).
+Direct one-save inoculated agar/LC/spawn creation from active recipes and eligible sources, automatic local dates, atomic individual permanent IDs and source lineage/provenance, prominent ID copy/open results, independent spore establishments, measured LC depletion/corrections, three-category recipe lists/details/edit/duplicate/delete-unused/archive-used with immutable snapshots, optional visible/editable inventory, Laboratory/Cultivation growing lists and historical prepared-material completion. No required container inventory or ingredient accounting. Existing records, photos, FR identity and migration history remain compatible. See [2C.2 operations](MILESTONE_2C2.md).
 
 ## Approved future requirements — not implemented
 

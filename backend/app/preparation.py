@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .library import transaction, record, allocate, event
-from .models import PhysicalCulture, Spawn
+from .models import PhysicalCulture, Spawn, now
 from .preparation_models import (
     StockItem,
     InventoryOperation,
@@ -28,6 +28,9 @@ from .material_state import lifecycle, material_state
 from .inventory_quantities import balance, convert, compatible, canonical, text_or_none
 from .preparation_schemas import (
     StockInput,
+    StockEdit,
+    RecipeAction,
+    DirectCreation,
     StockAdjustment,
     RecipeInput,
     RecipeEdit,
@@ -104,6 +107,13 @@ def execute(request, data, kind, work):
     for optional in optional_fields:
         if payload.get(optional) is None:
             payload.pop(optional, None)
+    if isinstance(data, (RecipeInput, RecipeEdit)):
+        for field in ("description", "notes"):
+            if payload.get(field) is None:
+                payload.pop(field, None)
+        for ingredient in payload.get("ingredients", []):
+            if ingredient.get("name") is None:
+                ingredient.pop("name", None)
     fingerprint = hashlib.sha256(
         (kind + json.dumps(payload, sort_keys=True)).encode()
     ).hexdigest()
@@ -344,18 +354,43 @@ def transactions(request: Request, item_id: str | None = None):
         return [row_values(r) for r in session.scalars(query)]
 
 
-def recipe_out(row):
+def recipe_out(row, session=None):
+    contents = json.loads(row.contents)
+    if session:
+        for ingredient in contents.get("ingredients", []):
+            if not ingredient.get("name") and ingredient.get("item_id"):
+                item = session.get(StockItem, ingredient["item_id"])
+                ingredient["name"] = item.name if item else ingredient["item_id"]
     return dict(
-        json.loads(row.contents),
+        contents,
         id=row.id,
         revision=row.revision,
         status=row.status,
         created_at=row.created_at,
+        updated_at=row.updated_at,
+        used=(
+            bool(
+                session.scalar(
+                    select(PreparationBatch.id)
+                    .where(PreparationBatch.recipe_id == row.id)
+                    .limit(1)
+                )
+            )
+            if session
+            else False
+        ),
     )
 
 
-def validate_ingredients(session, ingredients):
+def validate_ingredients(session, ingredients, optional_stock=False):
     for ingredient in ingredients:
+        if not ingredient.item_id:
+            if optional_stock:
+                validate_quantity(ingredient.quantity, ingredient.unit)
+                continue
+            fail(
+                "Historical inventory preparation needs linked stock for each ingredient; use Quick Create for direct creation"
+            )
         item = get(session, StockItem, ingredient.item_id)
         if item.category != "ingredient" or item.status != "active":
             fail("Recipe ingredients must reference active raw ingredient inventory")
@@ -370,7 +405,7 @@ def validate_ingredients(session, ingredients):
 def recipes(request: Request):
     with Session(request.app.state.engine) as session:
         return [
-            recipe_out(r)
+            recipe_out(r, session)
             for r in session.scalars(
                 select(Recipe).order_by(Recipe.created_at, Recipe.id)
             )
@@ -380,17 +415,18 @@ def recipes(request: Request):
 @router.post("/recipes", response_model=RecipeOut, status_code=201)
 def add_recipe(data: RecipeInput, request: Request):
     def work(session, op):
-        validate_ingredients(session, data.ingredients)
+        validate_ingredients(session, data.ingredients, optional_stock=True)
         contents = data.model_dump(mode="json", include=set(RecipeData.model_fields))
         row = Recipe(
             id=allocate(session, "RCP"),
             name=data.name,
             recipe_type=data.recipe_type,
             contents=json.dumps(contents),
+            updated_at=now(),
         )
         session.add(row)
         session.flush()
-        return recipe_out(row)
+        return recipe_out(row, session)
 
     return execute(request, data, "recipe_create", work)
 
@@ -401,14 +437,15 @@ def edit_recipe(code: str, data: RecipeEdit, request: Request):
         row = get(session, Recipe, code)
         if row.revision != data.expected_revision:
             fail("Recipe changed; reload before editing", 409)
-        validate_ingredients(session, data.ingredients)
+        validate_ingredients(session, data.ingredients, optional_stock=True)
         row.contents = json.dumps(
             data.model_dump(mode="json", include=set(RecipeData.model_fields))
         )
         row.name, row.recipe_type, row.status = data.name, data.recipe_type, data.status
         row.revision += 1
+        row.updated_at = now()
         session.flush()
-        return recipe_out(row)
+        return recipe_out(row, session)
 
     return execute(request, data, "recipe_edit:" + code, work)
 
@@ -470,6 +507,10 @@ def prepare_materials(session, op, data):
 
         ingredients = []
         for ingredient in (original or {}).get("ingredients", []):
+            if not ingredient.get("item_id"):
+                fail(
+                    "This recipe has untracked ingredients; use Quick Create for direct creation"
+                )
             amount = (
                 D(ingredient["quantity"]) * D(data.count) / D(original["batch_yield"])
             ).quantize(D(".001"), rounding=ROUND_HALF_UP)
@@ -477,7 +518,13 @@ def prepare_materials(session, op, data):
                 fail(
                     "Scaled ingredient is below supported precision; enter actual batch quantities"
                 )
-            ingredients.append(Ingredient(**{**ingredient, "quantity": amount}))
+            ingredients.append(
+                Ingredient(
+                    item_id=ingredient["item_id"],
+                    unit=ingredient["unit"],
+                    quantity=amount,
+                )
+            )
     else:
         ingredients = data.ingredients
     if not ingredients and data.material_type != "lc_syringe":
@@ -675,7 +722,7 @@ def ensure_source_stock(session, op, source, kind, unit):
     return stock
 
 
-def inoculate_materials(session, op, data):
+def inoculate_materials(session, op, data, require_lc_measurement=True):
     rows = [get(session, PreparedMaterial, code) for code in data.prepared_ids]
     if any(r.stage != "ready" for r in rows):
         fail(
@@ -684,8 +731,15 @@ def inoculate_materials(session, op, data):
         )
     for row in rows:
         source = eligible(session, data.source_kind, data.source_id, row.material_type)
+    source_balance = stock_source(session, data.source_kind, data.source_id)
+    needs_measurement = (
+        require_lc_measurement
+        or any(r.material_type == "lc_syringe" for r in rows)
+        or (source_balance is not None and balance(source_balance) is not None)
+    )
     if source.material_type in LIQUID and (
-        not compatible(data.unit, "mL") or data.usage_per_container is None
+        not compatible(data.unit, "mL")
+        or (needs_measurement and data.usage_per_container is None)
     ):
         fail("LC transfers require a measured positive mL amount per container")
     measured_ml = (
@@ -989,4 +1043,208 @@ def pools(request: Request):
                     "total": text_or_none(balance(item) + len(stages)),
                 }
             )
+        return result
+
+
+@router.get("/recipes/{code}", response_model=RecipeOut)
+def recipe_detail(code: str, request: Request):
+    with Session(request.app.state.engine) as session:
+        return recipe_out(get(session, Recipe, code), session)
+
+
+@router.delete("/recipes/{code}")
+def delete_recipe(code: str, data: RecipeAction, request: Request):
+    def work(session, op):
+        row = get(session, Recipe, code)
+        if row.revision != data.expected_revision:
+            fail("Recipe changed; reload before deleting", 409)
+        if recipe_out(row, session)["used"]:
+            fail(
+                "This recipe has historical cultivation or preparation records; archive it instead",
+                409,
+            )
+        session.delete(row)
+        session.flush()
+        return {"id": code, "deleted": True}
+
+    return execute(request, data, "recipe_delete:" + code, work)
+
+
+@router.post("/recipes/{code}/duplicate", response_model=RecipeOut, status_code=201)
+def duplicate_recipe(code: str, data: RecipeAction, request: Request):
+    def work(session, op):
+        original = get(session, Recipe, code)
+        if original.revision != data.expected_revision:
+            fail("Recipe changed; reload before duplicating", 409)
+        contents = json.loads(original.contents)
+        contents["name"] = original.name[:190] + " (copy)"
+        row = Recipe(
+            id=allocate(session, "RCP"),
+            name=contents["name"],
+            recipe_type=original.recipe_type,
+            contents=json.dumps(contents),
+            updated_at=now(),
+        )
+        session.add(row)
+        session.flush()
+        return recipe_out(row, session)
+
+    return execute(request, data, "recipe_duplicate:" + code, work)
+
+
+@router.put("/stock/{code}", response_model=StockOut)
+def edit_stock(code: str, data: StockEdit, request: Request):
+    def work(session, op):
+        item = get(session, StockItem, code)
+        if item.revision != data.expected_revision:
+            fail("Stock changed; reload before editing", 409)
+        item.name, item.notes, item.storage_location = (
+            data.name,
+            data.notes,
+            data.storage_location,
+        )
+        ledger(session, op, item, "edit", D(0), balance(item), data.reason)
+        session.flush()
+        return row_values(item)
+
+    return execute(request, data, "stock_edit:" + code, work)
+
+
+@router.post("/create", response_model=OperationOut, status_code=201)
+def create_inoculated(data: DirectCreation, request: Request):
+    def work(session, op):
+        # A single operation reuses the immutable snapshot and physical-transfer
+        # model. It never reserves containers or consumes ingredient inventory.
+        recipe = get(session, Recipe, data.recipe_id) if data.recipe_id else None
+        if data.material_type != "lc_syringe" and recipe is None:
+            fail("Choose a recipe for this material")
+        if recipe and (
+            recipe.status != "active"
+            or recipe.recipe_type != RECIPE_TYPE[data.material_type]
+        ):
+            fail("Choose an active recipe appropriate for this material")
+        eligible(session, data.source_kind, data.source_id, data.material_type)
+        original = json.loads(recipe.contents) if recipe else None
+        ingredients = []
+        for ingredient in (original or {}).get("ingredients", []):
+            item = (
+                session.get(StockItem, ingredient.get("item_id"))
+                if ingredient.get("item_id")
+                else None
+            )
+            ingredients.append(
+                {
+                    **ingredient,
+                    "name": ingredient.get("name")
+                    or (item.name if item else "Historical ingredient"),
+                    "quantity": str(
+                        (
+                            D(ingredient["quantity"])
+                            * data.count
+                            / original["batch_yield"]
+                        ).quantize(D(".001"), rounding=ROUND_HALF_UP)
+                    ),
+                }
+            )
+        snapshot = {
+            "workflow": "direct",
+            "recipe": original,
+            "recipe_revision": recipe.revision if recipe else None,
+            "recipe_id": recipe.id if recipe else None,
+            "ingredients": ingredients,
+            "count": data.count,
+            "material_type": data.material_type,
+            "processing": (original or {}).get("processing", {}),
+            "preparation_date": data.inoculation_date.isoformat(),
+            "inoculation_date": data.inoculation_date.isoformat(),
+            "notes": data.notes,
+            "container_name": "",
+            "container_item_id": None,
+        }
+        batch = PreparationBatch(
+            id=allocate(session, "PB"),
+            operation_id=op.id,
+            recipe_id=recipe.id if recipe else None,
+            snapshot=json.dumps(snapshot),
+        )
+        session.add(batch)
+        session.flush()
+        ids = []
+        for _ in range(data.count):
+            row = PreparedMaterial(
+                id=allocate(session, PREFIX[data.material_type]),
+                batch_id=batch.id,
+                material_type=data.material_type,
+                stage="ready",
+            )
+            session.add(row)
+            ids.append(row.id)
+        session.flush()
+        transfer = InoculationInput(
+            **data.model_dump(
+                exclude={"request_key", "recipe_id", "material_type", "count"}
+            ),
+            request_key=data.request_key,
+            prepared_ids=ids,
+        )
+        return inoculate_materials(session, op, transfer, require_lc_measurement=False)
+
+    return execute(request, data, "direct_create", work)
+
+
+@router.get("/growing")
+def growing_records(request: Request, workspace: Literal["laboratory", "cultivation"]):
+    from .library import output
+
+    with Session(request.app.state.engine) as session:
+        kind, model = (
+            ("physical", PhysicalCulture)
+            if workspace == "laboratory"
+            else ("spawn", Spawn)
+        )
+        result = []
+        for row in session.scalars(
+            select(model).order_by(model.created_at.desc(), model.id.desc())
+        ):
+            values = output(session, kind, row).model_dump(mode="json")
+            history = None
+            column = (
+                PreparedMaterial.physical_id
+                if kind == "physical"
+                else PreparedMaterial.spawn_id
+            )
+            prepared = session.scalar(select(PreparedMaterial).where(column == row.id))
+            if prepared:
+                history = prepared_out(session, prepared)
+            values["cultivation"] = history
+            result.append(values)
+        if workspace == "laboratory":
+            for row in session.scalars(
+                select(PreparedMaterial).where(
+                    PreparedMaterial.stage.in_(["inoculated", "completed", "failed"]),
+                    PreparedMaterial.physical_id.is_(None),
+                    PreparedMaterial.spawn_id.is_(None),
+                )
+            ):
+                history = prepared_out(session, row)
+                if not history["source"]:
+                    continue
+                result.append(
+                    {
+                        "id": row.id,
+                        "kind": "physical",
+                        "pending_establishment": True,
+                        "material_type": row.material_type,
+                        "status": "active",
+                        "lifecycle": (
+                            row.stage
+                            if row.stage in {"completed", "failed"}
+                            else "active"
+                        ),
+                        "strain_name": None,
+                        "line_id": None,
+                        "created_at": row.created_at,
+                        "cultivation": history,
+                    }
+                )
         return result

@@ -41,6 +41,7 @@ function mockLibrary(empty = false) {
     .mockImplementation(async (input, init) => {
       const url = String(input);
       const method = init?.method || "GET";
+      if (url.includes("/api/preparation/")) return response([]);
       if (url.includes("/api/provenance/"))
         return response({
           origin_type: "external",

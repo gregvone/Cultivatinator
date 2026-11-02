@@ -9,7 +9,7 @@ import {
 import { Plus } from "lucide-react";
 import { PageHeader, Panel } from "../components/UI";
 import StrainIdentity from "../components/StrainIdentity";
-import { PreparationWorkflow } from "./PreparationWorkflow";
+import DirectCreate from "./DirectCreate";
 import { Field } from "./LibraryForms";
 import {
   allLibraryRecords,
@@ -203,110 +203,116 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
   const requested = params.has("source_kind") || params.has("source_id");
   const key = `${params.get("source_kind")}:${params.get("source_id")}`;
   const selected = records.find((record) => sourceKey(record) === key);
+  const sourceControl = (
+    <div className="direct-source">
+      <h2>Select source material</h2>
+      <p>
+        Active sources exclude completed, failed and depleted material. Known
+        source balances are validated at submission; unknown balances remain
+        unknown. Confirm biological suitability before inoculation.
+      </p>
+      {loading ? (
+        <p role="status">Loading source choices…</p>
+      ) : error ? (
+        <div role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={() => setAttempt(attempt + 1)}>
+            Retry sources
+          </button>
+        </div>
+      ) : (
+        <>
+          <label className="field">
+            <span id="workflow-source-label">Source material</span>
+            <select
+              aria-labelledby="workflow-source-label"
+              value={selected ? sourceKey(selected) : ""}
+              onChange={(e) => {
+                const record = records.find(
+                  (r) => sourceKey(r) === e.target.value,
+                );
+                const next = new URLSearchParams(params);
+                if (record) {
+                  next.set("source_kind", record.kind);
+                  next.set("source_id", record.id);
+                } else {
+                  next.delete("source_kind");
+                  next.delete("source_id");
+                }
+                setParams(next, { replace: true });
+              }}
+            >
+              <option value="">Choose a source</option>
+              {records.map((r) => (
+                <option key={sourceKey(r)} value={sourceKey(r)}>
+                  {sourceLabel(r)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {requested && !selected && (
+            <p role="alert">
+              The linked source is unavailable or unsuitable for this operation.
+              Choose another active source.
+            </p>
+          )}
+          {!records.length && (
+            <p>
+              No eligible sources are registered for this operation. Browse
+              existing material in the Culture Library or receive outside
+              material through Inventory.
+            </p>
+          )}
+          {selected && (
+            <div className="source-summary">
+              <h3>Selected source · {selected.id}</h3>
+              <p>
+                <StrainIdentity record={selected} />
+                {selected.line_id &&
+                  ` · Culture line ${selected.line_id}`} ·{" "}
+                {selected.stage || selected.status}
+              </p>
+              <Link to={`/culture-library/${selected.kind}/${selected.id}`}>
+                View source record
+              </Link>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+  const direct = ["agar-plate", "lc-syringe", "lc-container", "spawn"].includes(
+    operation.id,
+  );
   return (
     <>
       <Link to="/">← Dashboard</Link>
       <PageHeader title={operation.title} description={operation.description} />
-      <section className="panel workflow-source">
-        <h2>Select source material</h2>
-        <p>
-          Active sources exclude completed, failed and depleted material. Known
-          source balances are validated at submission; unknown balances remain
-          unknown. Confirm biological suitability before inoculation.
-        </p>
-        {loading ? (
-          <p role="status">Loading source choices…</p>
-        ) : error ? (
-          <div role="alert">
-            <p>{error}</p>
-            <button onClick={() => setAttempt(attempt + 1)}>
-              Retry sources
-            </button>
-          </div>
-        ) : (
-          <>
-            <label className="field">
-              <span id="workflow-source-label">Source material</span>
-              <select
-                aria-labelledby="workflow-source-label"
-                value={selected ? sourceKey(selected) : ""}
-                onChange={(e) => {
-                  const record = records.find(
-                    (r) => sourceKey(r) === e.target.value,
-                  );
-                  const next = new URLSearchParams(params);
-                  if (record) {
-                    next.set("source_kind", record.kind);
-                    next.set("source_id", record.id);
-                  } else {
-                    next.delete("source_kind");
-                    next.delete("source_id");
-                  }
-                  setParams(next, { replace: true });
-                }}
-              >
-                <option value="">Choose a source</option>
-                {records.map((r) => (
-                  <option key={sourceKey(r)} value={sourceKey(r)}>
-                    {sourceLabel(r)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {requested && !selected && (
-              <p role="alert">
-                The linked source is unavailable or unsuitable for this
-                operation. Choose another active source.
-              </p>
-            )}
-            {!records.length && (
-              <p>
-                No eligible sources are registered for this operation. Browse
-                existing material in the Culture Library or receive outside
-                material through Inventory.
-              </p>
-            )}
-            {selected && (
-              <div className="source-summary">
-                <h3>Selected source · {selected.id}</h3>
-                <p>
-                  <StrainIdentity record={selected} />
-                  {selected.line_id &&
-                    ` · Culture line ${selected.line_id}`} ·{" "}
-                  {selected.stage || selected.status}
-                </p>
-                <Link to={`/culture-library/${selected.kind}/${selected.id}`}>
-                  View source record
-                </Link>
-              </div>
-            )}
-          </>
-        )}
-      </section>
-      {["agar-plate", "lc-syringe", "lc-container", "spawn"].includes(
-        operation.id,
-      ) ? (
-        <PreparationWorkflow
-          key={operation.id + (selected ? sourceKey(selected) : "")}
+      {direct ? (
+        <DirectCreate
+          key={operation.id}
           operation={operation.id}
           source={!loading && !error ? selected : undefined}
+          sourceControl={sourceControl}
+          onCreated={() => setAttempt((n) => n + 1)}
         />
-      ) : operation.deferred ? (
-        <section className="panel workflow-source">
-          <span className="badge">OPERATION NOT YET AVAILABLE</span>
-          <h2>Planned operation</h2>
-          <p>{operation.deferred}</p>
-          <p>
-            Routine transfers will retain the existing culture line. Only a
-            dedicated successful establishment creates a new genetic line.
-          </p>
-        </section>
-      ) : !loading && !error && selected ? (
-        <SporePrintForm key={sourceKey(selected)} source={selected} />
       ) : (
-        <p className="feedback">
-          Select a fruiting source to register an already collected print.
-        </p>
+        <>
+          {sourceControl}
+          {operation.deferred ? (
+            <section className="panel workflow-source">
+              <span className="badge">OPERATION NOT YET AVAILABLE</span>
+              <h2>Planned operation</h2>
+              <p>{operation.deferred}</p>
+            </section>
+          ) : !loading && !error && selected ? (
+            <SporePrintForm key={sourceKey(selected)} source={selected} />
+          ) : (
+            <p className="feedback">
+              Select a fruiting source to register an already collected print.
+            </p>
+          )}
+        </>
       )}
       <div className="actions">
         <Link to="/culture-library">Browse Culture Library</Link>
