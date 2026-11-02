@@ -1,0 +1,17 @@
+name: cultivatinator
+services:
+  app:
+    build:
+      context: .
+    image: cultivatinator:local
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8085}:8085"
+    volumes:
+      - "${DATA_DIR:-/storage/tv/cultivatinator}:/data"
+    environment:
+      CULTIVATINATOR_ENVIRONMENT: production
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
