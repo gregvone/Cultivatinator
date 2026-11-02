@@ -13,6 +13,7 @@ import {
   sporeTypes,
   units,
   growTypes,
+  origins,
 } from "../libraryApi";
 import type { LibraryRecord, Provenance } from "../libraryApi";
 
@@ -93,6 +94,7 @@ export function AcquisitionForm() {
   const navigate = useNavigate();
   const [v, setV] = useState<Values>({
     entry_type: "spawn_jar",
+    origin: "purchased",
     strain_mode: "unknown",
     strain_id: "",
     strain_name: "",
@@ -160,7 +162,7 @@ export function AcquisitionForm() {
                 ...acquisition,
                 ...descriptive,
                 supplier_batch: optional(v.supplier_batch),
-                origin: "purchased",
+                origin: v.origin,
               },
             };
         const result = await provenanceApi<{
@@ -222,7 +224,7 @@ export function AcquisitionForm() {
   );
   return (
     <>
-      <Link to="/culture-library">← Culture Library</Link>
+      <Link to="/inventory">← Inventory</Link>
       <PageHeader
         title="Receive Acquisition"
         description="Start tracking at the stage you acquired. Earlier cultivation history stays unknown."
@@ -291,6 +293,15 @@ export function AcquisitionForm() {
                     compatible.map((l) => [l.id, `${title(l)} · ${l.id}`]),
                   ),
                 }}
+              />
+            )}
+            {!spores && !v.existing_line_id && (
+              <Field
+                name="origin"
+                label="Acquisition origin"
+                values={v}
+                set={set}
+                options={origins}
               />
             )}
             <Field
@@ -408,7 +419,7 @@ export function AcquisitionForm() {
                 ? "Confirm acquisition"
                 : "Review acquisition"}
           </button>
-          <Link to="/culture-library">Cancel</Link>
+          <Link to="/inventory">Cancel</Link>
         </div>
       </form>
     </>

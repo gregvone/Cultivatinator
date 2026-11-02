@@ -1,11 +1,17 @@
-import { Link, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AcquisitionForm, GrowForm } from "./pages/Provenance";
+import Inventory from "./pages/Inventory";
+import QuickCreatePage from "./pages/QuickCreate";
 import Shell from "./components/Shell";
 import Dashboard from "./pages/Dashboard";
 import ModulePage, { modules } from "./pages/ModulePage";
 import Settings from "./pages/Settings";
 import { CultureLibrary, RecordDetail } from "./pages/CultureLibrary";
 import { ReceiveForm, StrainForm } from "./pages/LibraryForms";
+function LegacyRedirect({ to }: { to: string }) {
+  const { search, hash } = useLocation();
+  return <Navigate replace to={{ pathname: to, search, hash }} />;
+}
 export default function App() {
   return (
     <>
@@ -15,29 +21,46 @@ export default function App() {
       <Routes>
         <Route element={<Shell />}>
           <Route index element={<Dashboard />} />
-          <Route path="culture-library/acquire" element={<AcquisitionForm />} />
-          <Route path="culture-library/register-grow" element={<GrowForm />} />
-          <Route path="culture-library" element={<CultureLibrary />} />
-          <Route path="culture-library/add-strain" element={<StrainForm />} />
+          <Route path="quick-create/:operation" element={<QuickCreatePage />} />
+          <Route path="inventory" element={<Inventory />} />
           <Route
-            path="culture-library/receive-culture"
-            element={<ReceiveForm />}
+            path="inventory/receive-acquisition"
+            element={<AcquisitionForm />}
           />
+          <Route path="inventory/strains/new" element={<StrainForm />} />
+          <Route path="inventory/receive-culture" element={<ReceiveForm />} />
           <Route
-            path="culture-library/receive-spores"
+            path="inventory/receive-spores"
             element={<ReceiveForm spores />}
           />
+          <Route path="cultivation/register-grow" element={<GrowForm />} />
+          <Route path="culture-library" element={<CultureLibrary />} />
+          {Object.entries({
+            acquire: "/inventory/receive-acquisition",
+            "add-strain": "/inventory/strains/new",
+            "receive-culture": "/inventory/receive-culture",
+            "receive-spores": "/inventory/receive-spores",
+            "register-grow": "/cultivation/register-grow",
+          }).map(([legacy, to]) => (
+            <Route
+              key={legacy}
+              path={`culture-library/${legacy}`}
+              element={<LegacyRedirect to={to} />}
+            />
+          ))}
           <Route
             path="culture-library/:kind/:code"
             element={<RecordDetail />}
           />
-          {(Object.keys(modules) as (keyof typeof modules)[]).map((module) => (
-            <Route
-              key={module}
-              path={module}
-              element={<ModulePage module={module} />}
-            />
-          ))}
+          {(Object.keys(modules) as (keyof typeof modules)[])
+            .filter((module) => module !== "inventory")
+            .map((module) => (
+              <Route
+                key={module}
+                path={module}
+                element={<ModulePage module={module} />}
+              />
+            ))}
           <Route path="settings" element={<Settings />} />
           <Route
             path="*"

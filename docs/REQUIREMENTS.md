@@ -12,6 +12,10 @@ Single Strain Catalog (optional scientific name; no separate species table), ind
 
 Universal acquisitions for culture/spores, colonized spawn jars/bags (SJ/SB, Ready or Colonizing), and acquired GB/FR bags/blocks; explicit line origins and confirmed/possible genetic parents; successful spore-derived lines, tissue clones and selected isolates; manual spore collection; prepared and acquired grow batches; shared-mixture and per-container source allocations; mixed-line/strain warnings; related source/descendant browsing; revision-protected ancestry corrections with previous values retained in history; photos/activity/archive for all new records; real spawn and fruiting dashboard counts. Additive migrations preserve 2A data. Provenance is manual and does not consume source material. See [2B operations](MILESTONE_2B.md).
 
+## Implemented — Milestone 2C.1
+
+Dashboard Quick Create with six dedicated material entries; context-sensitive active source choices and validated source preselection; source-detail Create From This; Inventory-owned external acquisition and strain management; compatible legacy URL redirects; uncluttered Culture Library reference navigation. The existing spore collection endpoint powers New Spore Print. Other operational entries clearly defer execution without new records or consumption. No models, migrations or backend operations changed. See [2C.1](MILESTONE_2C1.md) and the staged [approved future commitments](ROADMAP.md#milestone-2c-staged-delivery).
+
 ## Approved future requirements — not implemented
 
 - Agar preparation and individual plates, growing cultures, liquid culture preparation, transfers, laboratory observations, germination monitoring and failed cloning/establishment attempts. Successful cloning and spore collection are implemented in 2B.

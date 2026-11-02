@@ -1098,3 +1098,82 @@ button:disabled {
 .lineage-panel .record-list a {
   overflow-wrap: anywhere;
 }
+
+/* Quick Create keeps operational entry points separate from the reference catalog. */
+.quick-create-panel {
+  margin-top: 1.5rem;
+}
+.quick-create-intro {
+  padding: 0 1.25rem;
+  color: var(--text-secondary, #9aaec5);
+}
+.quick-create-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.5rem 1.25rem 1.25rem;
+}
+.quick-create-action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem;
+  min-height: 5rem;
+  border: 1px solid #3b4b5d;
+  border-radius: 0.5rem;
+  background: #202d3d;
+  color: #edf3fa;
+  text-decoration: none;
+}
+.quick-create-action:hover {
+  border-color: #65aeef;
+  background: #263548;
+}
+.quick-create-action svg {
+  flex-shrink: 0;
+  color: #65aeef;
+}
+.workflow-source,
+.workflow-form {
+  padding: 1.25rem;
+  margin-block: 1rem;
+}
+.workflow-source h2,
+.workflow-form h2 {
+  margin-top: 0;
+}
+.source-summary {
+  margin-top: 1rem;
+  border-left: 3px solid #65aeef;
+  padding: 0.25rem 1rem;
+  overflow-wrap: anywhere;
+}
+.workflow-source .field select {
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+.create-from-this {
+  margin-block: 1rem;
+  border: 1px solid #3b4b5d;
+  border-radius: 0.5rem;
+  padding: 0.8rem 1rem;
+  background: #1b2837;
+}
+.create-from-this summary {
+  cursor: pointer;
+  color: #65aeef;
+  font-weight: 600;
+}
+.create-from-this .actions {
+  margin-top: 0.8rem;
+}
+@media (max-width: 900px) {
+  .quick-create-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .quick-create-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
