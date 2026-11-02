@@ -19,6 +19,7 @@ import {
 } from "../libraryApi";
 import type { Activity, Kind, LibraryRecord, Photo } from "../libraryApi";
 import { LineagePanel } from "./Provenance";
+import StrainIdentity from "../components/StrainIdentity";
 import { EditForm } from "./LibraryForms";
 
 function RecordLink({ record }: { record: LibraryRecord }) {
@@ -276,7 +277,7 @@ export function CultureLibrary() {
             <li key={r.id}>
               <RecordLink record={r} />
               <p>
-                {r.strain_name || "Unknown strain"} ·{" "}
+                <StrainIdentity record={r} /> ·{" "}
                 {r.material_type
                   ? (
                       {
@@ -654,7 +655,9 @@ export function RecordDetail() {
             {kind !== "strains" && (
               <div>
                 <dt>Strain</dt>
-                <dd>{record.strain_name || "Unknown"}</dd>
+                <dd>
+                  <StrainIdentity record={record} />
+                </dd>
               </div>
             )}
             {Object.entries(labels)

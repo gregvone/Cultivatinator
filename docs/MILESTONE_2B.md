@@ -21,6 +21,14 @@ On a spore source, **Establish Culture** registers a successfully established in
 
 Detail panels distinguish genetic parents, possible parents, original spores, tissue/collection sources, grow membership and physical contributions. Related records link in both directions, including archived sources and descendants. Primary strain photo cards remain unchanged. New records reuse existing photo limits, thumbnails, covers, archive/restore and activity logging. Dashboard spawn/fruiting counts now reflect active records, without fabricating monitoring data.
 
+## Fruiting-container strain identification correction
+
+FR properties and listings derive strain identity on every read from their existing physical sources. Shared mixtures use the batch sources; specific allocations use only that individual container's allocated spawn. Acquired fruiting material uses its acquired culture line. Several lines with one common strain display that strain; different known strains display **Mixed Strains** and the contributing names, without implying hybridization. Known and unknown sources display **Partial identification**, including the known names and an explicit unknown-source label. No identifiable strain displays **Unknown**. Known contributing strains link to their catalog records and are also accessible through provenance links. Existing mixed-line and mixed-strain warnings are retained.
+
+The API adds `strain_identification` (`known`, `mixed`, `partial`, `unknown`) and `contributing_strains` (deduplicated ID/name references). Existing `strain_id`/`strain_name` are populated only for a complete single-strain identity; mixed, partial and unknown identities keep those nullable fields empty. Resolution is shared with provenance browsing and includes archived sources. No database migration, backfill, new strain, culture line, or parent relationship is needed; previously registered FR records benefit immediately.
+
+Correction validation: **53 backend tests passed**, **23 frontend tests passed**, and the TypeScript/Vite production build passed. Backend cases cover shared/specific allocations, common strains across distinct lines, mixed/partial/unknown identities, acquired material, and a historical FR record read after restart with all database rows unchanged. One existing upstream Starlette/AnyIO deprecation warning remains.
+
 ## Schema and invariants
 
 `0003_lineage` adds `spawn`, `grow_batches`, `batch_sources`, `fruiting_containers`, `fruiting_sources`, `spore_collections`, `line_origins` and `line_parents`. It extends the existing photo/event owner foreign keys and exactly-one-owner check to spawn, batch and fruiting owners, preserving existing rows and IDs. Cover uniqueness is enforced separately for every owner type. `0004_acquisition` adds nullable container/batch supplier metadata.

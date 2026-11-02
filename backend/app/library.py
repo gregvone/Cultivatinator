@@ -23,6 +23,7 @@ from .models import (
     SporeSource,
     Strain,
 )
+from .provenance_sources import fruiting_strain_identity
 from .library_schemas import (
     ActivityOut,
     EditRecord,
@@ -132,6 +133,8 @@ def output(session, kind, row):
         values["strain_id"] = strain_id
     if strain_id:
         values["strain_name"] = session.get(Strain, strain_id).name
+    if kind == "fruiting":
+        values.update(fruiting_strain_identity(session, row))
     cover = session.scalar(
         select(PhotoAttachment).where(
             getattr(PhotoAttachment, OWNER[kind]) == row.id,

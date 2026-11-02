@@ -17,6 +17,7 @@ from .models import (
     LineOrigin,
     LineParent,
 )
+from .provenance_sources import spawn_sources, source_lines
 from .library import (
     transaction,
     allocate,
@@ -197,27 +198,6 @@ def acquire(data: AcquisitionInput, request: Request):
         return AcquisitionResult(
             line=output(session, "lines", line), records=items, batch=batch_out
         )
-
-
-def spawn_sources(session, batch, fruiting=None):
-    if fruiting and batch.allocation_mode == "specific":
-        ids = session.scalars(
-            select(FruitingSource.spawn_id).where(
-                FruitingSource.fruiting_id == fruiting.id
-            )
-        ).all()
-    else:
-        ids = session.scalars(
-            select(BatchSource.spawn_id).where(BatchSource.batch_id == batch.id)
-        ).all()
-    return [record(session, "spawn", code) for code in ids]
-
-
-def source_lines(session, batch, fruiting=None):
-    ids = {s.line_id for s in spawn_sources(session, batch, fruiting)}
-    if batch.line_id:
-        ids.add(batch.line_id)
-    return [record(session, "lines", code) for code in sorted(ids)]
 
 
 def mixing(lines):
@@ -510,6 +490,12 @@ def describe(session, kind, code):
             result.warnings.append("Source allocation unknown; no parent inferred")
         for line in lines:
             link("Physical provenance · culture line", "lines", line)
+            if line.strain_id:
+                link(
+                    "Contributing strain · physical provenance",
+                    "strains",
+                    record(session, "strains", line.strain_id),
+                )
         for source in spawn_sources(session, batch, fruiting):
             link("Physical source · spawn", "spawn", source)
 

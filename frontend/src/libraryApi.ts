@@ -25,6 +25,8 @@ export interface LibraryRecord {
   allocation_mode?: string | null;
   strain_id: string | null;
   strain_name: string | null;
+  strain_identification?: "known" | "mixed" | "partial" | "unknown" | null;
+  contributing_strains?: { id: string; name: string }[];
   line_id: string | null;
   scientific_name: string | null;
   description: string | null;

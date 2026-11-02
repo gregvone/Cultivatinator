@@ -147,6 +147,11 @@ class PhotoOut(BaseModel):
     thumbnail_url: str
 
 
+class StrainReference(BaseModel):
+    id: str
+    name: str
+
+
 class RecordOut(BaseModel):
     id: str
     kind: Kind
@@ -156,6 +161,8 @@ class RecordOut(BaseModel):
     created_at: str
     strain_id: str | None = None
     strain_name: str | None = None
+    strain_identification: Literal["known", "mixed", "partial", "unknown"] | None = None
+    contributing_strains: list[StrainReference] = Field(default_factory=list)
     line_id: str | None = None
     scientific_name: str | None = None
     description: str | None = None
