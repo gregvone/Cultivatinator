@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from .api.routes import router
 from .library import router as library_router
 from .photos import router as photo_router
+from .provenance import router as provenance_router
 from .config import VERSION, Settings
 from .database import initialize, make_engine
 
@@ -30,6 +31,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.engine = engine
     app.include_router(router)
+    app.include_router(provenance_router)
     app.include_router(library_router)
     app.include_router(photo_router)
 

@@ -9,6 +9,7 @@ import {
 } from "../components/UI";
 import {
   cultureTypes,
+  growTypes,
   kindNames,
   libraryApi,
   allLibraryRecords,
@@ -17,6 +18,8 @@ import {
   title,
 } from "../libraryApi";
 import type { Activity, Kind, LibraryRecord, Photo } from "../libraryApi";
+import { LineagePanel } from "./Provenance";
+import StrainIdentity from "../components/StrainIdentity";
 import { EditForm } from "./LibraryForms";
 
 function RecordLink({ record }: { record: LibraryRecord }) {
@@ -89,6 +92,12 @@ export function CultureLibrary() {
         description="Your strains, acquired culture lines, and spore sources. Every container has its own identity."
       />
       <div className="actions library-actions">
+        <Link className="button" to="/culture-library/acquire">
+          Receive Acquisition
+        </Link>
+        <Link className="button" to="/culture-library/register-grow">
+          Register Grow Provenance
+        </Link>
         <Link className="button primary" to="/culture-library/add-strain">
           + Add Strain
         </Link>
@@ -137,7 +146,7 @@ export function CultureLibrary() {
             <option value="all">All records</option>
           </select>
         </label>
-        {kind !== "strains" && (
+        {!["strains", "batches", "fruiting"].includes(kind) && (
           <label className="field">
             <span>Strain filter</span>
             <select
@@ -268,13 +277,14 @@ export function CultureLibrary() {
             <li key={r.id}>
               <RecordLink record={r} />
               <p>
-                {r.strain_name || "Unknown strain"} ·{" "}
+                <StrainIdentity record={r} /> ·{" "}
                 {r.material_type
                   ? (
-                      { ...cultureTypes, ...sporeTypes } as Record<
-                        string,
-                        string
-                      >
+                      {
+                        ...cultureTypes,
+                        ...sporeTypes,
+                        ...growTypes,
+                      } as Record<string, string>
                     )[r.material_type]
                   : r.origin
                     ? origins[r.origin as keyof typeof origins]
@@ -524,7 +534,8 @@ export function RecordDetail() {
       live = false;
     };
   }, [kind, code, revision]);
-  if (loading && !record) return <LoadingState />;
+  if (loading && (!record || record.id !== code || record.kind !== kind))
+    return <LoadingState />;
   if (error)
     return <ErrorState error={error} retry={() => setRevision(revision + 1)} />;
   if (!record) return null;
@@ -562,6 +573,9 @@ export function RecordDetail() {
     storage_location: "Storage location",
     purchase_price: "Purchase price per container",
     notes: "Notes",
+    stage: "Stage",
+    batch_origin: "Batch origin",
+    allocation_mode: "Allocation mode",
   };
   return (
     <>
@@ -641,11 +655,13 @@ export function RecordDetail() {
             {kind !== "strains" && (
               <div>
                 <dt>Strain</dt>
-                <dd>{record.strain_name || "Unknown"}</dd>
+                <dd>
+                  <StrainIdentity record={record} />
+                </dd>
               </div>
             )}
             {Object.entries(labels)
-              .filter(([k]) => record[k as keyof LibraryRecord] !== null)
+              .filter(([k]) => record[k as keyof LibraryRecord] != null)
               .map(([k, label]) => (
                 <div key={k}>
                   <dt>{label}</dt>
@@ -654,10 +670,11 @@ export function RecordDetail() {
                       ? `${record.quantity} ${record.unit || ""}`
                       : k === "material_type"
                         ? (
-                            { ...cultureTypes, ...sporeTypes } as Record<
-                              string,
-                              string
-                            >
+                            {
+                              ...cultureTypes,
+                              ...sporeTypes,
+                              ...growTypes,
+                            } as Record<string, string>
                           )[record.material_type!]
                         : String(record[k as keyof LibraryRecord])}
                   </dd>
@@ -686,6 +703,13 @@ export function RecordDetail() {
             </p>
           )}
         </section>
+      )}
+      {kind !== "strains" && (
+        <LineagePanel
+          key={`lineage/${kind}/${code}`}
+          record={record}
+          onChange={() => setRevision((v) => v + 1)}
+        />
       )}
       <PhotoGallery
         key={`${kind}/${code}`}
