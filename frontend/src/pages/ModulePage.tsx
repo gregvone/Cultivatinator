@@ -65,15 +65,16 @@ export default function ModulePage({
           <>
             <span className="badge">GROW PROVENANCE FOUNDATION</span>
             <p>
-              Register acquired spawn and fruiting material, document grow
-              batches, and follow individual containers in the Culture Library.
-              Preparation, consumption, and harvesting remain planned.
+              Document known grow provenance and follow individual containers in
+              the Culture Library. Use Dashboard Quick Create for material
+              workflows and Inventory for outside acquisitions. Preparation,
+              consumption, and harvesting remain planned.
             </p>
             <div className="actions">
-              <Link className="button" to="/culture-library/acquire">
-                Receive Acquisition
+              <Link className="button" to="/inventory">
+                Open Inventory
               </Link>
-              <Link className="button" to="/culture-library/register-grow">
+              <Link className="button" to="/cultivation/register-grow">
                 Register Grow Provenance
               </Link>
               <Link className="button" to="/culture-library">

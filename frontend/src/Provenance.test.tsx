@@ -74,6 +74,7 @@ test("universal acquisition preserves values through review and posts inline str
   await u.selectOptions(screen.getByLabelText("Strain selection"), "new");
   await u.type(screen.getByLabelText("Strain name *"), "New Oyster");
   await u.type(screen.getByLabelText("Supplier / source"), "Supplier A");
+  await u.selectOptions(screen.getByLabelText("Acquisition origin"), "gifted");
   await u.click(screen.getByRole("button", { name: "Review acquisition" }));
   expect(screen.getByText(/genetic ancestry unknown/)).toBeInTheDocument();
   await u.click(screen.getByRole("button", { name: "Back" }));
@@ -89,7 +90,7 @@ test("universal acquisition preserves values through review and posts inline str
     stage: "ready",
     count: 1,
     inline_strain: { name: "New Oyster" },
-    line: { supplier: "Supplier A" },
+    line: { supplier: "Supplier A", origin: "gifted" },
   });
   expect(screen.getByText(/New Oyster/)).toBeInTheDocument();
 });

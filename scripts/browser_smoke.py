@@ -64,7 +64,8 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-browser-") as temp:
                 expect(
                     page.get_by_text("Your strain catalog starts here.")
                 ).to_be_visible()
-                page.get_by_role("link", name="+ Add Strain").click()
+                page.get_by_role("link", name="Open Inventory", exact=True).click()
+                page.get_by_role("link", name="Add Strain", exact=True).click()
                 page.get_by_label("Strain name *", exact=True).fill(
                     "Browser verification strain"
                 )
@@ -102,7 +103,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-browser-") as temp:
                     page.get_by_role("button", name="Open photograph 1")
                 ).to_be_visible()
                 expect(page.locator(".photo-grid figure")).to_have_count(1)
-                page.get_by_role("link", name="Receive Culture", exact=True).click()
+                page.goto(base + "/inventory/receive-culture?strain=STR-0001")
                 page.get_by_role("button", name="Continue", exact=True).click()
                 page.get_by_label("Supplier / source").fill("Browser supplier")
                 page.get_by_role("button", name="Continue", exact=True).click()

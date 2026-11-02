@@ -1,8 +1,10 @@
 # Cultivatinator
 
-A personal mushroom cultivation, culture lineage, and inventory management application for legally cultivated mushrooms. **Milestone 2B: Genetic Lineage, Universal Acquisitions & Grow Provenance** builds on the Culture Library and photo foundation.
+A personal mushroom cultivation, culture lineage, and inventory management application for legally cultivated mushrooms. **Milestone 2C.1: Dashboard Quick Create & Culture Library Redesign** builds on the completed lineage and provenance foundation.
 
 The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; spawn and fruiting counts reflect active registered records; monitoring and unimplemented modules remain empty. No demonstration records or login are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
+
+See [Milestone 2C.1 navigation and scope](docs/MILESTONE_2C1.md): use Dashboard Quick Create for material-specific source selection, Inventory → Receive Acquisition for outside material, and Culture Library for browsing records and relationships. Spore-print collection uses the existing working operation; preparation, transfers, inoculation and actual spawning are clearly deferred without creating records. Legacy acquisition URLs redirect to Inventory.
 
 See [Milestone 2B operations and safe upgrade](docs/MILESTONE_2B.md) for universal acquisitions, successful establishments, explicit ancestry, manual grow sources and allocation, spore collection, schema/API details, and backup/rollback precautions. Manual provenance never consumes spawn or marks it Used. Production data is `/storage/tv/cultivatinator`; discover the actual Git and Compose directories separately. No production update is automatic.
 
@@ -23,8 +25,8 @@ Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI 
 sudo install -d -m 0755 /opt/stacks
 sudo git clone https://github.com/gregvone/Cultivatinator.git /opt/stacks/cultivatinator
 cd /opt/stacks/cultivatinator
-# For the Milestone 2B review implementation:
-sudo git switch feature/milestone-2b-lineage
+# For the Milestone 2C.1 review implementation:
+sudo git switch feature/milestone-2c1-quick-create
 sudo install -d -o 10001 -g 10001 -m 0750 /storage/tv/cultivatinator
 sudo docker compose up -d --build --wait
 sudo docker compose ps

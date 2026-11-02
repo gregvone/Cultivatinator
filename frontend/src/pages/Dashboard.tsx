@@ -1,3 +1,4 @@
+import { QuickCreateSection } from "./QuickCreate";
 import { Link } from "react-router-dom";
 import {
   Dna,
@@ -29,13 +30,13 @@ const cards = [
   {
     key: "spawn_containers",
     label: "Spawn Containers",
-    detail: "Jars and bags in production",
+    detail: "Active registered spawn jars and bags",
     icon: Container,
   },
   {
     key: "fruiting_units",
     label: "Fruiting Units",
-    detail: "Units in the growing cycle",
+    detail: "Active registered fruiting containers",
     icon: Sprout,
   },
   {
@@ -144,8 +145,8 @@ export default function Dashboard() {
               ) : (
                 <EmptyState
                   icon={Sprout}
-                  title="No active cultivation records."
-                  description="Growing cycles will appear here when cultivation workflows are implemented."
+                  title="Growing-cycle monitoring is planned."
+                  description="Browse registered spawn, grow batches, and fruiting containers in the Culture Library. Operational monitoring comes in a later stage."
                 />
               )}
               <div className="panel-footer">
@@ -182,6 +183,7 @@ export default function Dashboard() {
           </p>
         </>
       )}
+      <QuickCreateSection />
     </>
   );
 }

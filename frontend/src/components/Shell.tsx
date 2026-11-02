@@ -10,7 +10,10 @@ export default function Shell() {
       (item) =>
         item.path === location.pathname ||
         (item.path !== "/" && location.pathname.startsWith(item.path + "/")),
-    )?.title ?? "Workspace";
+    )?.title ??
+    (location.pathname.startsWith("/quick-create/")
+      ? "Quick Create"
+      : "Workspace");
   return (
     <div className="shell">
       <aside
@@ -43,7 +46,7 @@ export default function Shell() {
         <div className="sidebar-footer">
           <span className="status-dot" />
           Single-user workspace
-          <small>Milestone 2A / Culture Library</small>
+          <small>Milestone 2C.1 / Material Workflows</small>
         </div>
       </aside>
       {open && (

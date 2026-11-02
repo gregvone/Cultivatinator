@@ -18,6 +18,7 @@ import {
   title,
 } from "../libraryApi";
 import type { Activity, Kind, LibraryRecord, Photo } from "../libraryApi";
+import { CreateFromThis } from "./QuickCreate";
 import { LineagePanel } from "./Provenance";
 import StrainIdentity from "../components/StrainIdentity";
 import { EditForm } from "./LibraryForms";
@@ -89,25 +90,8 @@ export function CultureLibrary() {
     <>
       <PageHeader
         title="Culture Library"
-        description="Your strains, acquired culture lines, and spore sources. Every container has its own identity."
+        description="Browse strains, cultures, spores, photographs, and source relationships. Create from the dashboard or a source record; receive outside material in Inventory."
       />
-      <div className="actions library-actions">
-        <Link className="button" to="/culture-library/acquire">
-          Receive Acquisition
-        </Link>
-        <Link className="button" to="/culture-library/register-grow">
-          Register Grow Provenance
-        </Link>
-        <Link className="button primary" to="/culture-library/add-strain">
-          + Add Strain
-        </Link>
-        <Link className="button" to="/culture-library/receive-culture">
-          Receive Culture
-        </Link>
-        <Link className="button" to="/culture-library/receive-spores">
-          Receive Spores
-        </Link>
-      </div>
       <div className="library-tabs" role="group" aria-label="Library views">
         {(Object.keys(kindNames) as Kind[]).map((k) => (
           <button
@@ -219,12 +203,12 @@ export function CultureLibrary() {
                 ? "Your strain catalog starts here."
                 : "No matching records."
             }
-            description="Add a strain, receive an acquisition, or adjust your search and filters."
+            description="Browse reference records or adjust your search and filters. Receive outside material and manage strains in Inventory."
           />
           {kind === "strains" && (
             <div className="empty-action">
-              <Link className="button primary" to="/culture-library/add-strain">
-                Add Strain
+              <Link className="button primary" to="/inventory">
+                Open Inventory
               </Link>
             </div>
           )}
@@ -608,31 +592,8 @@ export function RecordDetail() {
         <button disabled={busy} onClick={() => void statusChange()}>
           {record.status === "active" ? "Archive record" : "Restore record"}
         </button>
-        {kind === "strains" && record.status === "active" && (
-          <>
-            <Link
-              className="button"
-              to={`/culture-library/receive-culture?strain=${code}`}
-            >
-              Receive Culture
-            </Link>
-            <Link
-              className="button"
-              to={`/culture-library/receive-spores?strain=${code}`}
-            >
-              Receive Spores
-            </Link>
-          </>
-        )}
-        {kind === "lines" && record.status === "active" && (
-          <Link
-            className="button"
-            to={`/culture-library/receive-culture?line=${code}${record.strain_id ? `&strain=${record.strain_id}` : ""}`}
-          >
-            Add physical containers
-          </Link>
-        )}
       </div>
+      <CreateFromThis record={record} />
       {editing ? (
         <EditForm
           key={record.id}

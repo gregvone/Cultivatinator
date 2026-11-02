@@ -2,6 +2,8 @@
 
 The cloud implementation checkout is `/workspace/Cultivatinator`. The Debian production data directory is **`/storage/tv/cultivatinator`**. The production checkout and Dockge/Compose configuration directories have not been inspected and must not be assumed to match either path. No production server was accessed or changed.
 
+Current navigation is described in [Milestone 2C.1](MILESTONE_2C1.md): outside acquisitions now live in Inventory, and the catalog is a reference area. The following describes the underlying 2B functionality; no 2B data or API was replaced.
+
 ## Registration and navigation
 
 Use **Receive Acquisition** in Culture Library or Cultivation. Select LC syringe/jar, agar plate/slant, spores, colonized spawn jar/bag, ready-to-fruit bag/block, or the existing other-culture/spore options. Choose an existing strain, create one inline, or leave it unknown. Review preserves values with Back. Supplier, reference, batch, date, quantity, notes and location are optional; attach photographs after creation on individual record detail pages. Other fruiting container types are available in grow registration.

@@ -49,7 +49,7 @@ test("dashboard loads backend zero counts and all empty states", async () => {
     expect(await screen.findByTestId(key)).toHaveTextContent("0");
   for (const text of [
     "No items currently require attention.",
-    "No active cultivation records.",
+    "Growing-cycle monitoring is planned.",
     "No activity recorded yet.",
     "No environmental observations available.",
   ])
