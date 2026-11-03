@@ -59,6 +59,7 @@ class FruitingFlush(Base):
     pinning_date: Mapped[str | None] = mapped_column(String(10))
     pinning_notes: Mapped[str | None] = mapped_column(Text)
     fruiting_date: Mapped[str | None] = mapped_column(String(10))
+    fruiting_notes: Mapped[str | None] = mapped_column(Text)
 
 
 class HarvestEntry(Base):
@@ -146,3 +147,23 @@ class PinningPhoto(Base):
     )
     fruiting_id: Mapped[str] = mapped_column(String(32))
     flush_number: Mapped[int] = mapped_column(Integer)
+
+
+class JournalPhoto(Base):
+    __tablename__ = "journal_photos"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["fruiting_id", "flush_number"],
+            ["fruiting_flushes.fruiting_id", "fruiting_flushes.number"],
+        ),
+        CheckConstraint(
+            "(event_type = 'fruiting' AND flush_number IS NOT NULL) OR (event_type = 'completed' AND flush_number IS NULL)"
+        ),
+        Index("ix_journal_photos_event", "fruiting_id", "event_type", "flush_number"),
+    )
+    photo_id: Mapped[str] = mapped_column(
+        ForeignKey("photo_attachments.id", ondelete="CASCADE"), primary_key=True
+    )
+    fruiting_id: Mapped[str] = mapped_column(ForeignKey("fruiting_runs.fruiting_id"))
+    event_type: Mapped[str] = mapped_column(String(20))
+    flush_number: Mapped[int | None] = mapped_column(Integer)

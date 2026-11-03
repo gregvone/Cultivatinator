@@ -63,6 +63,7 @@ export interface FruitingDetail {
     pinning_date: string | null;
     pinning_notes?: string | null;
     fruiting_date: string | null;
+    fruiting_notes?: string | null;
   })[];
   environment: Environment | null;
   environment_changes: {

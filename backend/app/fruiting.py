@@ -458,6 +458,7 @@ def transition(code: str, data: StageAction, request: Request):
         elif data.action == "fruiting" and run.stage == "pinning":
             run.stage = "fruiting"
             flush.fruiting_date = action_date
+            flush.fruiting_notes = data.notes
             container.stage = "fruiting"
         elif data.action == "next_flush" and run.stage == "harvest":
             run.current_flush += 1
@@ -705,3 +706,70 @@ def upload_pinning_photo(
     with Session(request.app.state.engine) as session:
         pinning_event(session, code, number)
     return store_upload("fruiting", code, request, file, pinning_flush=number)
+
+
+def journal_event(session, code, event_type, number=None):
+    record(session, "fruiting", code)
+    if event_type == "fruiting":
+        flush = session.get(FruitingFlush, (code, number))
+        if flush is None:
+            raise HTTPException(404, "Flush not found")
+        if flush.fruiting_date is None:
+            raise HTTPException(409, "Fruiting has not been recorded for this flush")
+        return flush
+    run = session.get(FruitingRun, code)
+    if run is None or run.completed_date is None:
+        raise HTTPException(409, "Grow completion has not been recorded")
+    return run
+
+
+def journal_photos(code, request, event_type, number=None):
+    from .fruiting_models import JournalPhoto
+
+    with Session(request.app.state.engine) as session:
+        journal_event(session, code, event_type, number)
+        return [
+            photo_out(p)
+            for p in session.scalars(
+                select(PhotoAttachment)
+                .join(JournalPhoto, JournalPhoto.photo_id == PhotoAttachment.id)
+                .where(
+                    JournalPhoto.fruiting_id == code,
+                    JournalPhoto.event_type == event_type,
+                    JournalPhoto.flush_number == number,
+                )
+                .order_by(PhotoAttachment.created_at, PhotoAttachment.id)
+            )
+        ]
+
+
+@router.get("/records/{code}/flushes/{number}/fruiting/photos")
+def fruiting_photos(code: str, request: Request, number: int = Path(ge=1)):
+    return journal_photos(code, request, "fruiting", number)
+
+
+@router.post("/records/{code}/flushes/{number}/fruiting/photos", status_code=201)
+def upload_fruiting_photo(
+    code: str, request: Request, file: UploadFile, number: int = Path(ge=1)
+):
+    from .photos import store_upload
+
+    with Session(request.app.state.engine) as session:
+        journal_event(session, code, "fruiting", number)
+    return store_upload(
+        "fruiting", code, request, file, journal_type="fruiting", journal_flush=number
+    )
+
+
+@router.get("/records/{code}/completion/photos")
+def completion_photos(code: str, request: Request):
+    return journal_photos(code, request, "completed")
+
+
+@router.post("/records/{code}/completion/photos", status_code=201)
+def upload_completion_photo(code: str, request: Request, file: UploadFile):
+    from .photos import store_upload
+
+    with Session(request.app.state.engine) as session:
+        journal_event(session, code, "completed")
+    return store_upload("fruiting", code, request, file, journal_type="completed")

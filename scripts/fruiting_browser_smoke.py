@@ -165,16 +165,47 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                         "buffer": image.getvalue(),
                     }
 
-                def action(label, day, photos=None):
+                def action(label, day, photos=None, retry=False):
                     page.get_by_role("button", name=label, exact=True).click()
                     page.get_by_label("Stage date *", exact=True).fill(day)
                     if photos:
                         page.get_by_label(
-                            "Pinning photos (optional)", exact=True
+                            (
+                                "Fruiting photos (optional)"
+                                if label == "Mark Fruiting"
+                                else (
+                                    "Grow Completed photos (optional)"
+                                    if label == "Finish Grow"
+                                    else "Pinning photos (optional)"
+                                )
+                            ),
+                            exact=True,
                         ).set_input_files([picture(name) for name in photos])
                     page.get_by_role(
                         "button", name="Save Grow Status", exact=True
                     ).click()
+                    if retry:
+                        expect(
+                            page.get_by_text(
+                                "retry.png: Simulated photo upload failure", exact=True
+                            )
+                        ).to_be_visible()
+                        expect(
+                            page.get_by_text("Grow Completed saved.", exact=True)
+                        ).to_be_visible()
+                        assert not current()["record"]["label_occupied"]
+                        page.get_by_role(
+                            "button", name="Retry remaining photos", exact=True
+                        ).click()
+                        expect(
+                            page.get_by_role(
+                                "button", name="Retry remaining photos", exact=True
+                            )
+                        ).to_have_count(0)
+                        history = page.request.get(
+                            base + f"/api/library/fruiting/{code}/activity"
+                        ).json()
+                        assert sum(e["event_type"] == "complete" for e in history) == 1
 
                 def current():
                     return page.request.get(
@@ -205,7 +236,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                         "button", name="Open photograph 1", exact=True
                     )
                 ).to_be_visible()
-                action("Mark Fruiting", "2026-01-05")
+                action(
+                    "Mark Fruiting", "2026-01-05", ["fruit-one.png", "fruit-two.png"]
+                )
                 expect(
                     page.get_by_text("Current Status: Fruiting", exact=True)
                 ).to_be_visible()
@@ -368,7 +401,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                     )
                     == 2
                 )
-                action("Mark Fruiting", "2026-01-12")
+                action("Mark Fruiting", "2026-01-12", ["fruit-flush-two.png"])
                 expect(
                     page.get_by_text("Current Status: Fruiting", exact=True)
                 ).to_be_visible()
@@ -395,10 +428,51 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                 assert current()["run"]["environment_snapshot"]["humidity"] == "85"
                 assert current()["environment"]["humidity"] == "90"
                 assert current()["record"]["label_occupied"]
-                action("Finish Grow", "2026-01-17")
+                failed_uploads.clear()
+                page.route("**/api/fruiting/records/*/completion/photos", fail_once)
+                action(
+                    "Finish Grow",
+                    "2026-01-17",
+                    ["completed-one.png", "retry.png"],
+                    retry=True,
+                )
                 expect(
                     page.get_by_text("Current Status: Completed", exact=True)
                 ).to_be_visible()
+                for event, count in [
+                    ("flushes/1/pinning", 2),
+                    ("flushes/2/pinning", 1),
+                    ("flushes/1/fruiting", 2),
+                    ("flushes/2/fruiting", 1),
+                    ("completion", 2),
+                ]:
+                    assert (
+                        len(
+                            page.request.get(
+                                base + f"/api/fruiting/records/{code}/{event}/photos"
+                            ).json()
+                        )
+                        == count
+                    )
+                for name, count in [
+                    ("Fruiting — 2026-01-05", 2),
+                    ("Fruiting — 2026-01-12", 1),
+                    ("Grow Completed — 2026-01-17", 2),
+                ]:
+                    section = page.get_by_role(
+                        "heading", name=name, exact=True
+                    ).locator("..")
+                    expect(
+                        section.get_by_role(
+                            "button", name="Open photograph 1", exact=True
+                        )
+                    ).to_be_visible()
+                    assert (
+                        section.get_by_role(
+                            "button", name="Open photograph", exact=False
+                        ).count()
+                        == count
+                    )
                 result = current()
                 assert result["results"]["wet_grams"] == "230.000"
                 assert result["results"]["dry_grams"] == "18.000"
@@ -466,7 +540,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Milestone 2C.3 browser smoke passed: one spawn to three F labels, dated stages, two flushes, multiple harvests, subjective potency, inline Pinning/Next Flush/Harvest photos, exact multi-photo uploads, safe failed-upload retry, later dry weights, original/current environment, explicit completion, totals/timing, label reuse/history, desktop/mobile; no page errors"
+                    "Milestone 2C.3 browser smoke passed: one spawn to three F labels, dated stages, two flushes, multiple harvests, subjective potency, inline Pinning/Next Flush/Fruiting/Harvest/Finish Grow photos, exact multi-photo uploads, safe failed-upload retry, later dry weights, original/current environment, explicit completion, totals/timing, label reuse/history, desktop/mobile; no page errors"
                 )
 
         finally:

@@ -111,8 +111,14 @@ function mock(stage = "colonizing") {
         if (path.endsWith("/stage")) {
           if (payload.action === "next_flush") data.run!.current_flush++;
           const number = data.run!.current_flush;
-          data.run!.stage = "pinning";
-          data.record.fruiting_stage = "pinning";
+          const newStage =
+            payload.action === "complete"
+              ? "completed"
+              : payload.action === "fruiting"
+                ? "fruiting"
+                : "pinning";
+          data.run!.stage = newStage;
+          data.record.fruiting_stage = newStage;
           let flush = data.flushes.find((f) => f.number === number);
           if (!flush) {
             flush = {
@@ -124,8 +130,17 @@ function mock(stage = "colonizing") {
             };
             data.flushes.push(flush);
           }
-          flush.pinning_date = payload.action_date;
-          flush.pinning_notes = payload.notes;
+          if (payload.action === "fruiting") {
+            flush.fruiting_date = payload.action_date;
+            flush.fruiting_notes = payload.notes;
+          } else if (payload.action === "complete") {
+            data.run!.completed_date = payload.action_date;
+            data.run!.closing_notes = payload.notes;
+            data.record.label_occupied = false;
+          } else {
+            flush.pinning_date = payload.action_date;
+            flush.pinning_notes = payload.notes;
+          }
           result = data;
         } else {
           const entry = {
@@ -277,18 +292,26 @@ test("two harvests entered with photos keep separate directly visible galleries"
   }
 });
 
-test.each(["pinning", "next_flush", "harvest"])(
-  "%s photo failure retries only remaining files, even if history refresh fails",
-  async (kind) => {
+test.each(
+  ["pinning", "next_flush", "harvest", "fruiting", "complete"].flatMap((kind) =>
+    [false, true].map((offline) => ({ kind, offline })),
+  ),
+)(
+  "$kind photo failure retries only remaining files (history offline: $offline)",
+  async ({ kind, offline }) => {
     const initial =
-      kind === "pinning"
-        ? "colonizing"
-        : kind === "next_flush"
+      kind === "fruiting"
+        ? "pinning"
+        : kind === "complete"
           ? "harvest"
-          : "fruiting";
+          : kind === "pinning"
+            ? "colonizing"
+            : kind === "next_flush"
+              ? "harvest"
+              : "fruiting";
     const { fetch, state } = mock(initial);
     state.failFile = "retry.png";
-    state.offlineOnFailure = true;
+    state.offlineOnFailure = offline;
     mount(initial);
     const user = userEvent.setup();
     await user.click(
@@ -298,14 +321,22 @@ test.each(["pinning", "next_flush", "harvest"])(
             ? "Mark Pinning"
             : kind === "next_flush"
               ? "Next Flush"
-              : "Record Harvest",
+              : kind === "fruiting"
+                ? "Mark Fruiting"
+                : kind === "complete"
+                  ? "Finish Grow"
+                  : "Record Harvest",
       }),
     );
     await user.upload(
       screen.getByLabelText(
         kind === "harvest"
           ? "Harvest photos (optional)"
-          : "Pinning photos (optional)",
+          : kind === "fruiting"
+            ? "Fruiting photos (optional)"
+            : kind === "complete"
+              ? "Grow Completed photos (optional)"
+              : "Pinning photos (optional)",
       ),
       [file("saved.png"), file("retry.png")],
     );
@@ -320,16 +351,29 @@ test.each(["pinning", "next_flush", "harvest"])(
     expect(screen.getByRole("status")).toHaveTextContent(
       kind === "harvest"
         ? "Harvest HR-0001 saved."
-        : `Pinning saved for flush ${kind === "next_flush" ? 2 : 1}.`,
+        : kind === "complete"
+          ? "Grow Completed saved."
+          : kind === "fruiting"
+            ? "Fruiting saved for flush 1."
+            : `Pinning saved for flush ${kind === "next_flush" ? 2 : 1}.`,
     );
     expect(
       screen.getByLabelText(
         kind === "harvest" ? "Harvest date *" : "Stage date *",
       ),
     ).toBeDisabled();
-    expect(
-      (await screen.findAllByText(/Connection unavailable/)).length,
-    ).toBeGreaterThan(0);
+    if (offline)
+      expect(
+        (await screen.findAllByText(/Connection unavailable/)).length,
+      ).toBeGreaterThan(0);
+    else
+      await waitFor(() =>
+        expect(
+          screen.getByText(
+            `Current Status: ${kind === "complete" ? "Completed" : kind === "fruiting" ? "Fruiting" : kind === "harvest" ? "Harvest" : "Pinning"}`,
+          ),
+        ).toBeInTheDocument(),
+      );
     const removal = screen.getByRole("button", { name: "Remove retry.png" });
     expect(removal).toBeEnabled();
     state.offline = false;
@@ -363,7 +407,9 @@ test.each(["pinning", "next_flush", "harvest"])(
     expect(String(photoPosts[2][0])).toBe(
       kind === "harvest"
         ? "/api/fruiting/harvests/HR-0001/photos"
-        : `/api/fruiting/records/FR-0001/flushes/${kind === "next_flush" ? 2 : 1}/pinning/photos`,
+        : kind === "complete"
+          ? "/api/fruiting/records/FR-0001/completion/photos"
+          : `/api/fruiting/records/FR-0001/flushes/${kind === "next_flush" ? 2 : 1}/${kind === "fruiting" ? "fruiting" : "pinning"}/photos`,
     );
   },
 );
@@ -424,4 +470,98 @@ test("later pinning-photo additions and removals never submit stage changes", as
   );
   expect(state.data.flushes[0].pinning_date).toBe("2026-01-03");
   expect(stagePosts(fetch)).toHaveLength(0);
+});
+
+test.each(["fruiting", "complete"])(
+  "%s saves with optional photos and exposes a later-edit gallery",
+  async (kind) => {
+    const initial = kind === "fruiting" ? "pinning" : "harvest";
+    const { fetch, state } = mock(initial);
+    // Fruiting photos must use the actual current flush, including later flushes.
+    state.data.run!.current_flush = 2;
+    state.data.flushes.push({ ...state.data.flushes[0], number: 2 });
+    mount(initial);
+    const user = userEvent.setup();
+    const label = kind === "fruiting" ? "Mark Fruiting" : "Finish Grow";
+    const name = kind === "fruiting" ? "Fruiting" : "Grow Completed";
+    await user.click(await screen.findByRole("button", { name: label }));
+    await user.type(
+      screen.getByLabelText("Stage notes (optional)"),
+      "Journal notes",
+    );
+    await user.upload(screen.getByLabelText(`${name} photos (optional)`), [
+      file("one.png"),
+      file("two.png"),
+    ]);
+    await user.click(screen.getByRole("button", { name: "Save Grow Status" }));
+    const heading = await screen.findByRole("heading", {
+      name: new RegExp(`${name} — 20`),
+    });
+    const section = heading.closest("section")!;
+    await waitFor(() =>
+      expect(
+        within(section).getAllByRole("button", { name: /Open photograph/ }),
+      ).toHaveLength(2),
+    );
+    expect(within(section).getByText("Journal notes")).toBeInTheDocument();
+    const path =
+      kind === "fruiting"
+        ? "/api/fruiting/records/FR-0001/flushes/2/fruiting/photos"
+        : "/api/fruiting/records/FR-0001/completion/photos";
+    expect(
+      fetch.mock.calls
+        .filter(([, init]) => init?.body instanceof FormData)
+        .map(([url]) => url),
+    ).toEqual([path, path]);
+    const date =
+      kind === "fruiting"
+        ? state.data.flushes[1].fruiting_date
+        : state.data.run!.completed_date;
+    await user.upload(
+      within(section).getByLabelText("Attach photographs"),
+      file("later.png"),
+    );
+    await waitFor(() =>
+      expect(
+        within(section).getAllByRole("button", { name: /Open photograph/ }),
+      ).toHaveLength(3),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await user.click(
+      within(section).getAllByRole("button", { name: "Remove" })[0],
+    );
+    await waitFor(() =>
+      expect(
+        within(section).getAllByRole("button", { name: /Open photograph/ }),
+      ).toHaveLength(2),
+    );
+    expect(stagePosts(fetch)).toHaveLength(1);
+    expect(
+      kind === "fruiting"
+        ? state.data.flushes[1].fruiting_date
+        : state.data.run!.completed_date,
+    ).toBe(date);
+  },
+);
+
+test.each(["fruiting", "complete"])("%s needs no photos", async (kind) => {
+  const initial = kind === "fruiting" ? "pinning" : "harvest";
+  const { fetch } = mock(initial);
+  mount(initial);
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", {
+      name: kind === "fruiting" ? "Mark Fruiting" : "Finish Grow",
+    }),
+  );
+  await user.click(screen.getByRole("button", { name: "Save Grow Status" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("button", { name: "Save Grow Status" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(stagePosts(fetch)).toHaveLength(1);
+  expect(
+    fetch.mock.calls.filter(([, init]) => init?.body instanceof FormData),
+  ).toHaveLength(0);
 });

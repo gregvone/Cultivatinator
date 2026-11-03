@@ -324,4 +324,5 @@ from .fruiting_models import (
     FruitingEnvironmentChange,
     HarvestPhoto,
     PinningPhoto,
+    JournalPhoto,
 )  # noqa: E402,F401

@@ -635,10 +635,18 @@ function GrowStageForm({
   const command = useInventoryCommand("fruiting");
   const uploads = usePhotoUploads();
   const pinning = action === "pinning" || action === "next_flush";
+  const photoEvent = pinning || action === "fruiting" || action === "complete";
+  const eventName = pinning
+    ? "Pinning"
+    : action === "fruiting"
+      ? "Fruiting"
+      : "Grow Completed";
   async function uploadRemaining(target: FruitingDetail) {
     const number = target.run!.current_flush;
     const complete = await uploads.upload(
-      `records/${id}/flushes/${number}/pinning/photos`,
+      action === "complete"
+        ? `records/${id}/completion/photos`
+        : `records/${id}/flushes/${number}/${pinning ? "pinning" : "fruiting"}/photos`,
     );
     if (complete) onSaved();
     else onRecordSaved();
@@ -656,7 +664,7 @@ function GrowStageForm({
       notes: value.notes || null,
     });
     if (result) {
-      if (!pinning) {
+      if (!photoEvent) {
         onSaved();
         return;
       }
@@ -685,19 +693,25 @@ function GrowStageForm({
           set={(name, text) => setValue({ ...value, [name]: text })}
         />
       </fieldset>
-      {pinning && (
+      {photoEvent && (
         <PhotoSelection
           uploads={uploads}
-          label="Pinning photos (optional)"
+          label={`${eventName} photos (optional)`}
           disabled={command.busy}
         />
       )}
       {saved && (
         <p role="status">
-          <strong>Pinning saved for flush {saved.run!.current_flush}.</strong>{" "}
+          <strong>
+            {eventName} saved
+            {action === "complete"
+              ? ""
+              : ` for flush ${saved.run!.current_flush}`}
+            .
+          </strong>{" "}
           {uploads.items.some((item) => item.state === "failed")
             ? "Some photos failed. Retry the remaining files; the stage and date will not be saved again."
-            : "Photographs are uploaded separately from the saved Pinning event."}
+            : `Photographs are uploaded separately from the saved ${eventName} event.`}
         </p>
       )}
       {action === "complete" && (
@@ -823,9 +837,11 @@ export function FruitingPanel({
         </p>
       )}
       <p>Spawning date: {data.run?.spawning_date || "Not recorded"}</p>
-      {data.run?.completed_date && <p>Completed: {data.run.completed_date}</p>}
+
       {data.run?.failed_date && <p>Failed: {data.run.failed_date}</p>}
-      {data.run?.closing_notes && <p>{data.run.closing_notes}</p>}
+      {data.run?.failed_date && data.run.closing_notes && (
+        <p>{data.run.closing_notes}</p>
+      )}
       {data.legacy && (
         <p>
           Legacy registration: earlier stages, quantities, recipes and
@@ -862,7 +878,7 @@ export function FruitingPanel({
           </button>
         )}
       </div>
-      {action && active && (
+      {action && (
         <GrowStageForm
           key={action}
           id={record.id}
@@ -983,7 +999,20 @@ export function FruitingPanel({
               />
             )}
           </section>
-          <p>Fruiting: {f.fruiting_date || "Not recorded"}</p>
+          <section className="fruiting-history">
+            <h4>Fruiting — {f.fruiting_date || "Not recorded"}</h4>
+            {f.fruiting_notes && <p>{f.fruiting_notes}</p>}
+            {f.fruiting_date && (
+              <PhotoGallery
+                kind="fruiting"
+                code={record.id}
+                fruitingFlush={f.number}
+                onChange={reload}
+                refreshToken={revision}
+                compact
+              />
+            )}
+          </section>
           <p>
             Measured wet: {quantity(f.wet_grams)} · Measured dry:{" "}
             {quantity(f.dry_grams)}
@@ -1000,6 +1029,20 @@ export function FruitingPanel({
             ))}
         </section>
       ))}
+      {data.run?.completed_date && (
+        <section className="completion-history">
+          <h3>Grow Completed — {data.run.completed_date}</h3>
+          {data.run.closing_notes && <p>{data.run.closing_notes}</p>}
+          <PhotoGallery
+            kind="fruiting"
+            code={record.id}
+            completion
+            onChange={reload}
+            refreshToken={revision}
+            compact
+          />
+        </section>
+      )}
     </section>
   );
 }

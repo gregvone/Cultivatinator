@@ -358,11 +358,34 @@ try:
 
     pinning_one = [pinning_photo(1), pinning_photo(1)]
     pinning_two = pinning_photo(2)
+
+    def journal_photo(event):
+        req = urllib.request.Request(
+            base + f"/api/fruiting/records/{grow_id}/{event}/photos",
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+        with urllib.request.urlopen(req) as response:
+            return json.load(response)
+
+    journal_images = {
+        event: [journal_photo(event), journal_photo(event)]
+        for event in ["flushes/1/fruiting", "flushes/2/fruiting"]
+    }
+    fruit_command(
+        f"records/{grow_id}/stage",
+        {"action": "complete", "action_date": "2026-01-17"},
+        "docker-finish-grow",
+    )
+    journal_images["completion"] = [
+        journal_photo("completion"),
+        journal_photo("completion"),
+    ]
     grow_before = request(f"/api/fruiting/records/{grow_id}")
     harvest_history_before = request(
         f"/api/fruiting/harvests/{harvest_one['id']}/history"
     )
-    assert grow_before["record"]["label_occupied"]
+    assert not grow_before["record"]["label_occupied"]
     assert grow_before["results"]["wet_grams"] == "230.000"
     assert grow_before["results"]["dry_grams"] == "18.000"
     assert grow_before["run"]["environment_snapshot"]["humidity"] == "85"
@@ -450,6 +473,15 @@ try:
         p["id"]
         for p in request(f"/api/fruiting/records/{grow_id}/flushes/2/pinning/photos")
     ] == [pinning_two["id"]]
+    for event, images in journal_images.items():
+        assert {
+            p["id"] for p in request(f"/api/fruiting/records/{grow_id}/{event}/photos")
+        } == {p["id"] for p in images}
+        for photo in images:
+            with urllib.request.urlopen(base + photo["url"]) as response:
+                assert response.read() == png.getvalue()
+            with urllib.request.urlopen(base + photo["thumbnail_url"]) as response:
+                assert response.status == 200 and response.read()
     for pin in [*pinning_one, pinning_two]:
         with urllib.request.urlopen(base + pin["url"]) as response:
             assert response.read() == png.getvalue()
@@ -481,7 +513,7 @@ try:
         f"records/{other_grow}/stage", {"action": "failed", "action_date": "2026-01-17"}
     )
     print(
-        "Milestones 2C.2/2C.3 Docker smoke passed: non-root port 8085, 2B data/photos/FR identity, immutable preparation snapshots and ledger, depletion, one-time release, direct creation without container stock, recipe definitions, LC default/inherited media and idempotency, operational single-source grows, flushes, harvest edits/history/photos, environment snapshots and explicit label release preserved across recreation"
+        "Milestones 2C.2/2C.3 Docker smoke passed: non-root port 8085, 2B data/photos/FR identity, immutable preparation snapshots and ledger, depletion, one-time release, direct creation without container stock, recipe definitions, LC default/inherited media and idempotency, operational single-source grows, flushes, harvest edits/history/photos, exact Fruiting/completion photos and originals/thumbnails, environment snapshots and explicit label release preserved across recreation"
     )
 finally:
     subprocess.run([*DOCKER, "rm", "-f", name], capture_output=True)

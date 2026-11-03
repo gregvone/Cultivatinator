@@ -36,6 +36,8 @@ export default function PhotoGallery({
   onChange,
   harvestId,
   pinningFlush,
+  fruitingFlush,
+  completion = false,
   compact = false,
   refreshToken = 0,
 }: {
@@ -44,6 +46,8 @@ export default function PhotoGallery({
   onChange: () => void;
   harvestId?: string;
   pinningFlush?: number;
+  fruitingFlush?: number;
+  completion?: boolean;
   compact?: boolean;
   refreshToken?: number;
 }) {
@@ -52,7 +56,11 @@ export default function PhotoGallery({
     ? `harvests/${harvestId}/photos`
     : pinningFlush != null
       ? `records/${code}/flushes/${pinningFlush}/pinning/photos`
-      : null;
+      : fruitingFlush != null
+        ? `records/${code}/flushes/${fruitingFlush}/fruiting/photos`
+        : completion
+          ? `records/${code}/completion/photos`
+          : null;
   const photoPath = scopedPath || `${kind}/${code}/photos`;
   const namespace = scopedPath ? "fruiting" : "library";
   async function upload(files?: File[]) {
