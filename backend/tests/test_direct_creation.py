@@ -141,6 +141,13 @@ def test_direct_bulk_no_inventory_permanent_ids_lineage_snapshot_and_date(
         "physical"
     ][0]
     r = recipe(client, recipe_type)
+    if material == "lc_jar":
+        post(
+            client,
+            "lc-default",
+            {"recipe_id": r["id"], "expected_revision": r["revision"]},
+            200,
+        )
     result = create(
         client,
         material,

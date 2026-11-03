@@ -327,35 +327,36 @@ test("spore print uses collection endpoint and retains values on rejection", asy
     name: "Collected print",
   });
 });
-test("Inventory owns acquisition and management while Culture Library stays clean", async () => {
+test("Acquisitions receives outside material and Culture Library owns Add Strain", async () => {
   mock();
   mount("/culture-library");
   const u = userEvent.setup();
   await screen.findByRole("searchbox");
+  expect(
+    screen.queryByRole("link", { name: "Inventory" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Add Strain" })).toHaveAttribute(
+    "href",
+    "/culture-library/add-strain",
+  );
   for (const name of [
     "Receive Acquisition",
     "Receive Culture",
     "Receive Spores",
     "Register Grow Provenance",
-    "+ Add Strain",
   ])
     expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
-  await u.click(screen.getByRole("link", { name: "Inventory" }));
+  await u.click(screen.getByRole("link", { name: "Acquisitions" }));
   expect(
-    screen.getByRole("link", { name: "Receive Acquisition" }),
-  ).toHaveAttribute("href", "/inventory/receive-acquisition");
-  expect(screen.getByRole("link", { name: "Add Strain" })).toHaveAttribute(
-    "href",
-    "/inventory/strains/new",
-  );
+    screen.queryByRole("link", { name: "Add Strain" }),
+  ).not.toBeInTheDocument();
   await u.click(screen.getByRole("link", { name: "Receive Acquisition" }));
   expect(await screen.findByLabelText("Acquired material")).toBeInTheDocument();
 });
 test.each([
-  ["acquire", "/inventory/receive-acquisition"],
-  ["add-strain", "/inventory/strains/new"],
-  ["receive-culture", "/inventory/receive-culture"],
-  ["receive-spores", "/inventory/receive-spores"],
+  ["acquire", "/acquisitions/receive"],
+  ["receive-culture", "/acquisitions/receive-culture"],
+  ["receive-spores", "/acquisitions/receive-spores"],
   ["register-grow", "/cultivation/register-grow"],
 ])("legacy %s redirects with context preserved", async (legacy, to) => {
   mock();
@@ -383,3 +384,44 @@ test("Recipes has a main navigation workspace and its legacy URL preserves conte
     "/recipes",
   );
 });
+
+test.each([
+  ["/inventory/receive-acquisition", "/acquisitions/receive"],
+  ["/inventory/receive-culture", "/acquisitions/receive-culture"],
+  ["/inventory/receive-spores", "/acquisitions/receive-spores"],
+  ["/inventory/strains/new", "/culture-library/add-strain"],
+])("old %s preserves query context when redirecting", async (from, to) => {
+  mock();
+  mount(`${from}?strain=STR-0001&line=CL-0001`);
+  await waitFor(() =>
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      `${to}?strain=STR-0001&line=CL-0001`,
+    ),
+  );
+});
+test.each(["agar-plate", "lc-container", "lc-syringe", "spawn"])(
+  "LC Create From This opens %s with the actual physical source preselected",
+  async (operation) => {
+    mock();
+    mount("/culture-library/physical/LC-0001");
+    const u = userEvent.setup();
+    await u.click(await screen.findByText("Create From This"));
+    const op = quickCreate.find((op) => op.id === operation)!;
+    await u.click(screen.getByRole("link", { name: op.title }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Source material")).toHaveValue(
+        "physical:LC-0001",
+      ),
+    );
+    expect(screen.getByLabelText("Current route")).toHaveTextContent(
+      `/quick-create/${operation}?source_kind=physical&source_id=LC-0001`,
+    );
+    if (operation.startsWith("lc-"))
+      expect(
+        screen.queryByLabelText(/LC media recipe/),
+      ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Inventory" }),
+    ).not.toBeInTheDocument();
+  },
+);

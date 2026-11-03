@@ -43,7 +43,7 @@ export default function LegacyInoculation() {
         title="Inoculate Previous Materials"
         description="Complete ready materials that were already prepared in the earlier workflow. Their permanent IDs and previous deductions are retained."
       />
-      <Link to="/inventory/prepared">Back to prepared materials</Link>
+      <Link to="/history/materials">Back to prepared materials</Link>
       <label className="field">
         <span>Destination material</span>
         <select

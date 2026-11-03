@@ -1,55 +1,58 @@
-# Milestone 2C.2 — direct cultivation and recipes
+# Milestone 2C.2 — final cultivation-focused simplification
 
-This final workflow redesign supersedes the earlier inventory-first and prepare-first interfaces on `feature/milestone-2c2-preparation` (existing PR #5). Cultivation tracking is the primary workflow. No deployment or merge is part of this task.
+This revision supersedes the earlier 2C.2 inventory and three-category recipe interfaces on `feature/milestone-2c2-preparation` (existing PR #5). Cultivatinator tracks cultures and cultivation history; no Inventory workspace, empty equipment setup, prepared-material creation or ingredient accounting is required in the normal interface.
 
-## Quick Create
+## Navigation and acquisitions
 
-Choose Agar Plate, Spawn Jar/Bag, LC Container/Jar or LC Syringe. Select a matching active recipe, biological source, number of containers and date; the date defaults to the browser's current local date and can be changed. Add optional notes and measured source usage when applicable. **Saving means preparation, sterilization and inoculation are already complete.** No ingredient inventory, container pool, reservation or separate readiness operation is required.
+Main navigation now provides **Acquisitions** in place of Inventory. Receive Acquisition uses the existing universal backend for outside cultures, agar, LC, spores, spawn and ready-to-fruit material, preserving supplier, origin, acquisition date, strain and source relationships. Receiving outside material does not claim that the user prepared or inoculated it.
 
-Agar requires an agar recipe. Spawn uses grain recipes from Spawn Seed. LC jars use LC media recipes; filling a syringe from existing LC does not require a media recipe. Recipe definitions have named ingredients, quantities and units, without requiring stock entries. Existing inventory-linked recipes remain compatible; direct creation never deducts their ingredient stock or fabricates a balance.
+**Add Strain** is a single clear action in Culture Library and creates only a reference identity. The library retains its catalog, genealogy, provenance, photographs, edit/archive and history interfaces.
 
-One atomic, idempotent operation assigns independent AG/LC/SJ/SB IDs, snapshots the recipe/version and batch quantities, records the inoculation date and exact physical source, and creates inoculated records. A routine transfer preserves its source's culture line. New spawn starts **Colonizing**, with Ready for Spawning still an explicit later edit. Failures roll back every destination, source deduction, snapshot and ID allocation. Retries replay the committed response; Create More starts a distinct request.
+Legacy acquisition URLs, including `/inventory/receive-acquisition`, `/culture-library/acquire` and typed receive-culture/receive-spores URLs, redirect to Acquisitions with query/hash context retained. Old strain URLs redirect to Culture Library. Old prepared-material URLs redirect to historical material pages. Generic Inventory/stock URLs no longer expose supply management.
 
-The completion screen prominently lists every permanent ID, links to each record and provides Copy IDs plus selectable text for browsers without clipboard access. The ID belongs to the biological record, not a piece of reusable equipment.
+## Four recipe categories
 
-Spores create individual pending agar establishments with permanent AG IDs and physical spore provenance, without a genetic-line assertion. Open each pending record and use Register Successful Culture after success is confirmed. Each establishment creates an independent line through the existing workflow.
+Recipes has exactly **LC Media**, **Agar**, **Spawn Seed** and **Substrate**. Agar, grain and substrate have independent lists, descriptions, details, comparison, add/edit/duplicate, delete-unused confirmation and archive-used controls. Ingredients are named quantities with common weight/count/volume units and do not require inventory links. Detail pages show category, description, ingredient amounts/units, yield, instructions, processing, notes and creation/update dates.
 
-## Recipes workspace
+Used definitions retain immutable cultivation/preparation snapshots. Editing or archiving cannot change past formulations. An unused non-default recipe can be permanently deleted after confirmation; used recipes are archived instead. Prior recipes and their IDs remain intact.
 
-The main Recipes landing page has exactly three category cards: **Agar**, **Spawn Seed**, and **Substrate**. Each opens its own list, with a prominent Add Recipe action, descriptions, links to details and variant comparison. Spawn Seed separates **Grain spawn** and **Liquid culture media** using a subtype filter; no fourth category is introduced. No example recipes are seeded.
+## One designated default LC Media recipe
 
-Recipe details display ingredients/units, yield in containers, instructions, processing settings, notes and last update time. Historical recipes without an edit timestamp show that it was not recorded; their original creation time remains available.
+LC Media opens its designated default formula directly. If none is configured, **Set Up LC Media** leads to a blank formulation; no ingredients are invented. Save the formula and explicitly choose **Use as Default LC Media**. Existing LC definitions remain available for designation through the management link. Only one active default is designated at a time, with atomic revision-checked selection.
 
-- Edit Recipe preserves earlier cultivation/preparation snapshots and uses revision conflict protection.
-- Duplicate Recipe creates an active editable copy with a new recipe ID.
-- Delete Recipe permanently deletes only unused definitions after explicit browser confirmation. An immutable operation audit remains. A used recipe cannot be deleted; Archive hides it from new creation while preserving historical links and snapshots.
-- Substrate definitions support the same management actions, but cannot execute preparation, consumption or fruiting allocation in 2C.2.
+New LC jars/containers automatically use the designated default and save its exact recipe/version snapshot. Their form has **no media recipe selector**. If setup is missing, the form links to LC Media and waits for one-time configuration. Editing the default changes future operations only. Archiving it clears the designation and requires a new active default for subsequent jars. A designated default cannot be silently retyped or permanently deleted.
 
-## Growing workspaces
+Filled LC syringes have **no recipe input and no default-setup requirement**. They retain culture identity and the source LC's actual immutable media snapshot/version where known, including when the definition is later edited, replaced or archived. They record media transfer, no ingredient consumption, no new media processing and no media preparation date. An acquired source without recorded formulation remains unknown; the current default is never used to invent its past medium.
 
-Laboratory lists active agar, liquid cultures and pending spore establishments. Cultivation lists colonizing jars/bags and spawn ready for use. Filters expose completed, failed and all historical records; IDs, strain, culture line, source, status and recorded dates remain visible. Search by ID, strain or line. Record links retain the existing photo galleries, activity, genetic genealogy and physical provenance, and now show their recipe snapshot/source history directly.
+## Quick Create and permanent IDs
 
-Culture Library remains the reference/catalog area. Existing acquisitions, clones, isolates, spore collection, archive/restore, FR strain identification and legacy URL redirects remain available.
+Save after material is already prepared, sterilized and inoculated. Agar selects an active agar recipe and compatible source. Spawn chooses Jar/Bag, a grain Spawn Seed recipe and an eligible agar/LC source. LC jars choose a source, count and optional measured starting volume; default media is automatic. Syringes choose an LC source, count and measured transferred volume. Local dates populate automatically and can be overridden. Notes and appropriate source usage remain available.
 
-## Optional inventory and LC volumes
+Every destination receives its own AG/LC/SJ/SB permanent ID through the existing allocator. Bulk creation is atomic; a failure rolls back all destinations, balances and ID allocations. Repeated submissions replay the committed result, even after a default recipe changes. Create More starts a distinct request. Completion prominently shows all IDs with copy/selectable-text and individual-record links.
 
-Inventory shows actual optional ingredients/supplies immediately after saving, with category, quantity, unit and location. Edit changes name, location and notes without changing the balance; Adjust Quantity records additions or measured corrections with a reason. Accounting/history and old reusable pools are secondary views, not prerequisites for culture creation.
+**Create From This** on LC and agar records opens the appropriate Quick Create entry with the exact physical source preselected. Compatible sources/recipes are filtered, LC jars use the default automatically, and syringes never request media selection. Ordinary transfers preserve the genetic culture line and record exact physical source provenance. Spores remain independent pending establishments until the existing successful-culture workflow creates each line. New spawn starts **Colonizing**; Ready for Spawning is a later explicit action.
 
-Existing precise Decimal conversions remain: mg/g/kg/weight oz/lb, mL/L/US fluid oz/US cups, each/count and specialized counts. Weight never converts to volume. Exact quantity sidecars retain conversion precision in SQLite alongside legacy Numeric projections. Unknown balances remain unknown.
+Spore-print collection remains unchanged. Actual spawning/fruiting execution remains deferred.
 
-LC details retain **Remaining Culture Material** and reasoned measured corrections. Known source balances require measured usage, are checked atomically and are deducted once across the batch. For example, five bags at 4 mL use 20 mL; 100 mL becomes 80 mL. Zero-known LC is Depleted and excluded from source choices. Unknown LC may record unmeasured use for agar/jars/spawn without manufacturing a remaining quantity; filling syringes requires a measured transferred volume. Filled syringes receive that measured opening balance; LC jar destination totals are optional measured values.
+## LC remaining volume
 
-## Historical preparation compatibility
+LC jar/syringe details show **Remaining Culture Material** and a measured correction form with a reason. No Inventory visit is needed. Known source balances require measured usage, validate sufficient stock and deduct once across the bulk operation. Five bags at 5 mL deduct 25 mL; 100 mL becomes 75 mL. Zero-known LC becomes Depleted and cannot be reused. Corrections can restore a measured or unknown balance without reviving completed/failed cultures.
 
-All existing stock, immutable accounting, prepared records, reservations, permanent IDs and snapshots are retained. Previous preparation/accounting links remain accessible from Inventory, Laboratory and Cultivation. Historical Preparing records retain their explicit readiness transition without recreation, new deductions or changed timestamps. **Inoculate Previous Materials** completes ready records using their original IDs and existing allocations. Complete/Failed releases an existing tracked reusable reservation once. Newly created direct records have no container reservation to release.
+Unknown balances remain unknown. Filled syringes receive measured transferred volume; LC jar starting totals are optional measured quantities. Precise Decimal compatible-unit conversion, immutable usage audit, revision checks and idempotency remain functional independently of media-recipe selection. Initial acquisition quantities are never silently imported as remaining volume.
 
-Internally, direct creation reuses the immutable preparation-batch snapshot and per-destination physical transfer tables in the same transaction. Intermediate material rows are never exposed as a separately required preparation step; successful direct operations commit them as inoculated. No synthetic strains, genetic parents or culture lines are introduced by ordinary transfers.
+## Growing workspaces and historical compatibility
 
-## API and migration compatibility
+Laboratory lists active agar, LC and pending spore establishments. Cultivation lists colonizing jars/bags and ready spawn. Search/filter controls include completed, failed and archived history; rows show permanent IDs, known strain/line, source, recipe, dates and lifecycle. Record details retain photographs, history, genealogy and source/recipe snapshots.
 
-Existing `/api/preparation` and library/provenance APIs remain compatible. Additions include `POST /create`, `GET /growing?workspace=laboratory|cultivation`, recipe detail/delete/duplicate endpoints, and `PUT /stock/{id}` for metadata edits. Recipe ingredients accept either existing stock IDs or independently named ingredients. Historical inventory preparation still requires inventory-linked ingredients because it performs actual deductions; it never guesses stock links for named formulas.
+Historical preparation data remains accessible through record history and `/history/materials`; old URLs redirect. Existing Preparing rows can transition to Ready without new deductions or altered timestamps; previously ready material can complete its existing inoculation using original IDs. Historical Complete/Failed releases tracked reservations once. Normal direct creation has no container reservations. Generic supply management and new preparation screens are absent from application navigation.
 
-Migration **0008_recipes** adds only nullable `preparation_recipes.updated_at`. Prior migrations are unchanged. Existing recipe contents, preparation stages, timestamps, operations, ledger entries, IDs, photographs and lineage are not rewritten. Old recipe and stock request keys retain their original fingerprints. Downgrade guards refuse to discard recorded recipe edit history or operational accounting.
+Existing accounting tables/APIs, transactions, preparation batches, reservations, snapshots and migrations are preserved, with no destructive reset. LC accounting continues using the existing precise ledger internally. These compatibility records do not impose new inventory requirements.
+
+## API and migration changes
+
+**0009_lc_default** adds only a singleton table referencing the explicitly designated LC recipe. No recipe is seeded, auto-selected or rewritten, and migrations 0005–0008 remain unchanged. SQLite enforces a single default row; the API requires an active LC definition and matching revision. Configured defaults persist across restarts and are protected from accidental destructive downgrade.
+
+`GET/POST /api/preparation/lc-default` reads/designates the default. Direct LC jar creation requires it; an explicitly supplied legacy recipe ID must match it. Syringe creation resolves the source's recorded medium instead of selecting a recipe. Existing request keys replay committed results and historical recipe snapshots remain unchanged. Historical preparation APIs remain available without adding a default requirement to previously prepared material.
 
 ## Validation
 
@@ -62,7 +65,7 @@ Migration **0008_recipes** adds only nullable `preparation_recipes.updated_at`. 
 .venv/bin/python scripts/preparation_browser_smoke.py /usr/bin/chromium
 ```
 
-Validation uses temporary databases, local Chromium and uniquely named disposable Docker resources. No Debian data is accessed. Final verification: **114 backend tests passed**, **71 frontend tests passed** across seven files, and the production build passed. Alembic fresh/repeated upgrade, current and check passed at **0008_recipes** with no schema drift; tests cover populated 0006/0007 upgrades, unchanged historical snapshots and old request-key replay. All four browser suites passed with no page errors, including the full final workflow and mobile layouts. Local Docker build and non-root recreation checks passed for direct records, free-standing recipes, existing prepared material, stock/ledger, photographs, FR identity and lineage. One existing upstream Starlette/AnyIO deprecation warning remains; no final test/build failures remain. GitHub API metadata access returned Forbidden; delivery updates PR #5 through its existing Git branch.
+All checks use temporary local databases and disposable Docker resources. Final verification passed: **122 backend tests**, **79 frontend tests** across seven files, the production build, fresh/repeated Alembic upgrade/current/check at **0009_lc_default** with no schema drift, and all four browser smoke suites. Browser checks exercise all four LC Create From This actions, default setup, selector-free LC creation, inherited syringe media, 100 mL → 75 mL usage, Acquisitions, Add Strain, old URL redirects, historical prepared records, photographs/lineage and mobile layouts with no page errors. Local Docker build and non-root recreation/persistence checks passed, including the default designation, inherited media, balances, idempotent replay and existing FR/photos/history. Obsolete tests for generic Inventory/new-preparation UI were replaced; historical accounting compatibility tests remain. One existing upstream Starlette/AnyIO deprecation warning remains; no final test or build failures remain. GitHub API metadata access returned Forbidden, so PR delivery is verified through its existing Git branch. No Debian data is accessed.
 
 ## Debian installation context
 
@@ -93,4 +96,4 @@ Rollback requires the **matching pre-upgrade application and stopped-data backup
 
 ## Deferred to 2C.3
 
-Actual spawn-to-bulk operations, fruiting substrate allocation and ratios, harvests/flushes, advanced dated growth observations, contamination propagation and detailed analytics remain deferred. Substrate recipes are definitions only. No production deployment or merge is performed.
+Actual spawning, spawn-to-bulk consumption, fruiting substrate allocation/ratios, flushes/harvests, advanced observations, contamination propagation and detailed cultivation metrics remain deferred. Substrate definitions are fully manageable now. No merge or deployment is performed.

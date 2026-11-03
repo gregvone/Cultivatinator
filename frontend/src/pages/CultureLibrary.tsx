@@ -94,8 +94,13 @@ export function CultureLibrary() {
     <>
       <PageHeader
         title="Culture Library"
-        description="Browse strains, cultures, spores, photographs, and source relationships. Create from the dashboard or a source record; receive outside material in Inventory."
+        description="Browse strains, cultures, spores, photographs, and source relationships. Create from the dashboard or a source record; receive outside material in Acquisitions."
       />
+      <div className="actions">
+        <Link className="button primary" to="/culture-library/add-strain">
+          Add Strain
+        </Link>
+      </div>
       <div className="library-tabs" role="group" aria-label="Library views">
         {(Object.keys(kindNames) as Kind[]).map((k) => (
           <button
@@ -207,12 +212,12 @@ export function CultureLibrary() {
                 ? "Your strain catalog starts here."
                 : "No matching records."
             }
-            description="Browse reference records or adjust your search and filters. Receive outside material and manage strains in Inventory."
+            description="Browse reference records or adjust your search and filters. Receive outside material in Acquisitions, or add a reference strain here."
           />
           {kind === "strains" && (
             <div className="empty-action">
-              <Link className="button primary" to="/inventory">
-                Open Inventory
+              <Link className="button primary" to="/acquisitions">
+                Receive outside material
               </Link>
             </div>
           )}

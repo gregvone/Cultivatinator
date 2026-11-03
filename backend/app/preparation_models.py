@@ -85,6 +85,15 @@ class Recipe(Base):
     created_at: Mapped[str] = mapped_column(String(40), default=now)
 
 
+class LCMediaDefault(Base):
+    __tablename__ = "lc_media_default"
+    __table_args__ = (CheckConstraint("id = 1"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipe_id: Mapped[str] = mapped_column(
+        ForeignKey("preparation_recipes.id"), unique=True
+    )
+
+
 class PreparationBatch(Base):
     __tablename__ = "preparation_batches"
     id: Mapped[str] = mapped_column(String(32), primary_key=True)

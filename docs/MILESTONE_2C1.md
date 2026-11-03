@@ -1,5 +1,7 @@
 # Milestone 2C.1 — Quick Create and reference browsing
 
+Current navigation is superseded by [the final 2C.2 simplification](MILESTONE_2C2.md): Acquisitions replaces Inventory, Add Strain belongs to Culture Library, and old URLs redirect with context preserved. The notes below describe the earlier 2C.1 milestone.
+
 Current behavior and the user-confirmed co-located Debian deployment layout are described in [Milestone 2C.2](MILESTONE_2C2.md). Earlier deferred-operation and separate/unknown checkout-location descriptions in this historical milestone document do not override 2C.2.
 
 

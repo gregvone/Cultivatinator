@@ -96,7 +96,15 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
 
                 def add_recipe(category, name, recipe_type=None):
                     page.goto(base + "/recipes/" + category)
-                    page.get_by_role("link", name="Add Recipe", exact=True).click()
+                    page.get_by_role(
+                        "link",
+                        name=(
+                            "Set Up LC Media"
+                            if category == "lc-media"
+                            else "Add Recipe"
+                        ),
+                        exact=True,
+                    ).click()
                     page.get_by_label("Recipe name *", exact=True).fill(name)
                     if recipe_type:
                         page.get_by_label("Recipe type").select_option(recipe_type)
@@ -125,13 +133,28 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     )
 
                 page.goto(base + "/recipes")
-                for category in ("Agar", "Spawn Seed", "Substrate"):
+                for category in ("LC Media", "Agar", "Spawn Seed", "Substrate"):
                     expect(
                         page.get_by_role("heading", name=category, exact=True)
                     ).to_be_visible()
                 agar = add_recipe("agar", "Standard Agar")
                 grain = add_recipe("spawn-seed", "Standard Grain", "grain")
-                media = add_recipe("spawn-seed", "LC Medium", "lc")
+                media = add_recipe("lc-media", "LC Medium", "lc")
+                page.get_by_role(
+                    "button", name="Use as Default LC Media", exact=True
+                ).click()
+                expect(
+                    page.get_by_text(
+                        "Default LC Media · automatically used for new LC containers",
+                        exact=True,
+                    )
+                ).to_be_visible()
+                assert (
+                    page.request.get(base + "/api/preparation/lc-default").json()[
+                        "recipe"
+                    ]["id"]
+                    == media["id"]
+                )
                 substrate = add_recipe("substrate", "Substrate definition")
                 page.get_by_role("button", name="Duplicate Recipe", exact=True).click()
                 expect(
@@ -154,31 +177,55 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     for r in page.request.get(base + "/api/preparation/recipes").json()
                 )
                 page.goto(base + "/recipes/spawn-seed")
-                page.get_by_label("Recipe subtype").select_option("lc")
-                expect(
-                    page.get_by_role("link", name="LC Medium", exact=True)
-                ).to_be_visible()
                 expect(
                     page.get_by_role("link", name="Standard Grain", exact=True)
+                ).to_be_visible()
+                expect(
+                    page.get_by_role("link", name="LC Medium", exact=True)
                 ).to_have_count(0)
+                expect(page.get_by_label("Recipe subtype")).to_have_count(0)
                 # No ingredients or reusable containers have been registered.
                 assert all(
                     s["category"] == "source"
                     for s in page.request.get(base + "/api/preparation/stock").json()
                 )
 
-                def direct(operation, recipe_id, count, usage=None, material_type=None):
-                    page.goto(
-                        base
-                        + f"/quick-create/{operation}?source_kind=physical&source_id={source['id']}"
-                    )
+                def direct(
+                    operation,
+                    recipe_id,
+                    count,
+                    usage=None,
+                    material_type=None,
+                    starting_volume=None,
+                    source_code=None,
+                ):
+                    source_code = source_code or source["id"]
+                    page.goto(base + "/culture-library/physical/" + source_code)
+                    page.get_by_text("Create From This", exact=True).click()
+                    page.get_by_role(
+                        "link",
+                        name={
+                            "agar-plate": "New Agar Plate",
+                            "spawn": "New Spawn Jar / Bag",
+                            "lc-container": "New LC Container / Jar",
+                            "lc-syringe": "New LC Syringe",
+                        }[operation],
+                        exact=True,
+                    ).click()
                     if material_type:
                         page.get_by_label("Material type").select_option(material_type)
-                    if recipe_id:
+                    if operation in {"agar-plate", "spawn"}:
                         page.locator("#recipe_id").select_option(recipe_id)
+                    else:
+                        expect(page.locator("#recipe_id")).to_have_count(0)
+                    if starting_volume:
+                        page.get_by_label(
+                            "Measured total volume per destination (mL, optional)",
+                            exact=True,
+                        ).fill(starting_volume)
                     expect(
                         page.get_by_label("Source material", exact=True)
-                    ).to_have_value("physical:" + source["id"])
+                    ).to_have_value("physical:" + source_code)
                     page.get_by_label("Number of containers *", exact=True).fill(
                         str(count)
                     )
@@ -244,17 +291,38 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     page.get_by_role("button", name="Copy IDs", exact=True).click()
                     return ids
 
-                plates = direct("agar-plate", agar["id"], 3, "2")
-                bags = direct("spawn", grain["id"], 5, "4", "spawn_bag")
-                jars = direct("spawn", grain["id"], 2, "3", "spawn_jar")
-                lc = direct("lc-container", media["id"], 1, "2")
-                syringes = direct("lc-syringe", None, 2, "5")
+                bags = direct("spawn", grain["id"], 5, "5", "spawn_bag")
                 assert (
                     page.request.get(
                         base + "/api/library/physical/" + source["id"]
                     ).json()["remaining_quantity"]
-                    == "56.000"
+                    == "75.000"
                 )
+                plates = direct("agar-plate", agar["id"], 3, "2")
+                jars = direct("spawn", grain["id"], 2, "3", "spawn_jar")
+                lc = direct("lc-container", None, 1, "2", starting_volume="100")
+                syringes = direct("lc-syringe", None, 2, "5", source_code=lc[0])
+                assert (
+                    page.request.get(
+                        base + "/api/library/physical/" + source["id"]
+                    ).json()["remaining_quantity"]
+                    == "61.000"
+                )
+                assert (
+                    page.request.get(base + "/api/library/physical/" + lc[0]).json()[
+                        "remaining_quantity"
+                    ]
+                    == "90.000"
+                )
+                for code in syringes:
+                    snapshot = page.request.get(
+                        base + "/api/preparation/materials/" + code
+                    ).json()["snapshot"]
+                    assert snapshot["recipe"]["name"] == "LC Medium"
+                    assert (
+                        snapshot["media_origin"] == "source_transfer"
+                        and snapshot["ingredients"] == []
+                    )
                 assert len(page.request.get(base + "/api/library/lines").json()) == 1
                 assert all(
                     r["stage"] == "colonizing"
@@ -302,35 +370,21 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 expect(
                     page.get_by_text("Agar · Agar · Archived", exact=False)
                 ).to_be_visible()
-                # Optional stock is visible immediately and can be edited without changing its balance.
-                page.goto(base + "/inventory")
-                page.get_by_role("button", name="+ Add Inventory", exact=True).click()
-                page.get_by_label("Inventory name *", exact=True).fill("Grain supply")
-                page.get_by_label("Inventory unit").select_option("lb")
-                page.get_by_label(
-                    "Confirmed available quantity (blank = unknown)", exact=True
-                ).fill("2")
-                page.get_by_label("Storage location (optional)", exact=True).fill(
-                    "Shelf A"
-                )
-                page.get_by_label("Opening balance reason *", exact=True).fill(
-                    "Purchased"
-                )
-                page.get_by_role("button", name="Add Inventory", exact=True).click()
+                # Inventory is absent; outside material has a dedicated workspace.
+                page.goto(base + "/acquisitions")
                 expect(
-                    page.get_by_role("button", name="Edit Grain supply", exact=True)
+                    page.get_by_role("link", name="Receive Acquisition", exact=True)
                 ).to_be_visible()
-                page.get_by_role("button", name="Edit Grain supply", exact=True).click()
-                page.get_by_label("Item name *", exact=True).fill("Measured grain")
-                page.get_by_label("Storage location", exact=True).fill("Shelf B")
-                page.get_by_label("Edit reason *", exact=True).fill(
-                    "Corrected label and location"
-                )
-                page.get_by_role("button", name="Save Item", exact=True).click()
                 expect(
-                    page.get_by_role("button", name="Edit Measured grain", exact=True)
+                    page.get_by_role("link", name="Inventory", exact=True)
+                ).to_have_count(0)
+                expect(
+                    page.get_by_role("button", name="+ Add Inventory", exact=True)
+                ).to_have_count(0)
+                page.goto(base + "/culture-library")
+                expect(
+                    page.get_by_role("link", name="Add Strain", exact=True)
                 ).to_be_visible()
-                expect(page.get_by_text("Storage: Shelf B", exact=True)).to_be_visible()
                 # A previous prepared-material operation can still finish using its original ID.
                 from uuid import uuid4
 
@@ -351,10 +405,15 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                         "reason": "Historical pool",
                     },
                 )
-                raw = next(
-                    s
-                    for s in page.request.get(base + "/api/preparation/stock").json()
-                    if s["name"] == "Measured grain"
+                raw = operation(
+                    "stock",
+                    {
+                        "name": "Historical ingredient",
+                        "category": "ingredient",
+                        "unit": "g",
+                        "available": "100",
+                        "reason": "Existing test history",
+                    },
                 )
                 old = operation(
                     "prepare",
@@ -367,7 +426,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                         ],
                     },
                 )["materials"][0]
-                page.goto(base + "/inventory/prepared/inoculate")
+                page.goto(base + "/history/materials/inoculate")
                 page.get_by_label("Source material").select_option(
                     "physical:" + source["id"]
                 )
@@ -389,7 +448,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     "/recipes/spawn-seed",
                     "/laboratory",
                     "/cultivation",
-                    "/inventory",
+                    "/acquisitions",
                     "/quick-create/agar-plate",
                 ):
                     page.goto(base + path)
@@ -403,7 +462,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Final 2C.2 workflow browser smoke passed: three recipe categories and LC subtype, duplicate/delete/archive, direct agar/spawn/LC/syringe creation, permanent IDs, lineage, LC balance, growing views, visible/editable optional stock, historical prepared inoculation, desktop/mobile; no page errors"
+                    "Final 2C.2 workflow browser smoke passed: four recipe categories and default LC Media, duplicate/delete/archive, direct agar/spawn/LC/syringe creation, permanent IDs, lineage, LC balance, growing views, Acquisitions and no Inventory workspace, LC Create From This, historical prepared inoculation, desktop/mobile; no page errors"
                 )
 
         finally:

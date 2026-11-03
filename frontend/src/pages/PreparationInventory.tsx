@@ -30,16 +30,10 @@ import type {
 type Values = Record<string, string>;
 export function InventoryNav() {
   return (
-    <nav className="actions inventory-nav" aria-label="Inventory sections">
-      <Link to="/inventory">Inventory</Link>
-      <Link to="/inventory/stock">Ingredients & Supplies</Link>
-      <details>
-        <summary>Previous preparation & accounting</summary>
-        <div className="actions">
-          <Link to="/inventory/prepared">Previous prepared materials</Link>
-          <Link to="/inventory/transactions">Accounting history</Link>
-        </div>
-      </details>
+    <nav className="actions" aria-label="Historical records">
+      <Link to="/laboratory">Laboratory</Link>
+      <Link to="/cultivation">Cultivation</Link>
+      <Link to="/history/materials">Earlier material records</Link>
     </nav>
   );
 }
@@ -851,10 +845,7 @@ export function PreparedPage() {
       />
       {location.state?.message && <p role="status">{location.state.message}</p>}
       <div className="actions">
-        <Link className="button primary" to="/inventory/prepared/prepare">
-          Prepare Materials
-        </Link>
-        <Link to="/inventory/prepared/inoculate">
+        <Link to="/history/materials/inoculate">
           Inoculate Previous Materials
         </Link>
       </div>
@@ -898,7 +889,7 @@ export function PreparedPage() {
                     Select {row.id} for readiness confirmation
                   </label>
                 )}
-                <Link to={`/inventory/prepared/${row.id}`}>
+                <Link to={`/history/materials/${row.id}`}>
                   {row.id} · {materialNames[row.material_type]}
                 </Link>
                 <p>
@@ -1001,6 +992,12 @@ export function PreparedDetail() {
                 been automatically failed.
               </p>
             )}
+            {row.snapshot.media_origin === "source_transfer" && (
+              <p>
+                Media provenance inherited from {row.snapshot.media_source_id};
+                no new preparation or ingredient use is claimed.
+              </p>
+            )}
             {row.snapshot.container_name && (
               <p>Container allocation: {row.snapshot.container_name}</p>
             )}
@@ -1011,13 +1008,25 @@ export function PreparedDetail() {
                 ? ` · revision ${row.snapshot.recipe_revision}`
                 : ""}
             </p>
+            {row.snapshot.media_origin === "source_transfer" &&
+              row.snapshot.recipe && (
+                <p>
+                  Inherited formulation yield: {row.snapshot.recipe.batch_yield}{" "}
+                  containers.
+                </p>
+              )}
             <h3>
-              {row.snapshot.workflow === "direct"
-                ? "Recipe amounts for this batch (no inventory deducted)"
-                : "Actual ingredient use"}
+              {row.snapshot.media_origin === "source_transfer"
+                ? "Inherited media formula (not newly prepared)"
+                : row.snapshot.workflow === "direct"
+                  ? "Recipe amounts for this batch (no inventory deducted)"
+                  : "Actual ingredient use"}
             </h3>
             <ul>
-              {row.snapshot.ingredients.map((i, index) => (
+              {(row.snapshot.media_origin === "source_transfer"
+                ? row.snapshot.recipe?.ingredients || []
+                : row.snapshot.ingredients
+              ).map((i, index) => (
                 <li key={i.item_id || index}>
                   {i.name || i.item_id}: {i.quantity} {i.unit}
                 </li>
@@ -1272,7 +1281,7 @@ export function PoolOverview() {
           </tbody>
         </table>
       </div>
-      <Link to="/inventory/prepared">
+      <Link to="/history/materials">
         View prepared materials and historical batches
       </Link>
     </section>

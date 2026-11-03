@@ -224,7 +224,7 @@ export function AcquisitionForm() {
   );
   return (
     <>
-      <Link to="/inventory">← Inventory</Link>
+      <Link to="/acquisitions">← Acquisitions</Link>
       <PageHeader
         title="Receive Acquisition"
         description="Start tracking at the stage you acquired. Earlier cultivation history stays unknown."
@@ -419,7 +419,7 @@ export function AcquisitionForm() {
                 ? "Confirm acquisition"
                 : "Review acquisition"}
           </button>
-          <Link to="/inventory">Cancel</Link>
+          <Link to="/acquisitions">Cancel</Link>
         </div>
       </form>
     </>

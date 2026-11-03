@@ -140,7 +140,7 @@ export function PreparationForm() {
       notes: v.notes || null,
     });
     if (r)
-      navigate("/inventory/prepared", {
+      navigate("/history/materials", {
         state: {
           message: `${r.materials.length} containers prepared and Ready to Inoculate.`,
         },
@@ -341,7 +341,7 @@ export function InoculationForm({
       notes: v.notes || null,
     });
     if (r)
-      navigate("/inventory/prepared", {
+      navigate("/history/materials", {
         state: {
           message: `${r.materials.length} containers inoculated or filled in one operation.`,
         },
@@ -382,9 +382,7 @@ export function InoculationForm({
       {!allowed.length ? (
         <p>
           No prepared containers available.{" "}
-          <Link to="/inventory/prepared/prepare">
-            Inventory → Prepared Materials → Prepare Materials
-          </Link>
+          <Link to="/">Create new inoculated material from Quick Create</Link>
         </p>
       ) : (
         <fieldset>
@@ -531,31 +529,45 @@ export function MaterialOperationPanel({
         Balances are explicitly measured or remain unknown; initial registration
         quantities are preserved separately.
       </p>
-      {record.kind === "physical" && record.material_type?.startsWith("lc_") ? (
-        <CultureBalanceForm record={record} onSaved={onSaved} />
-      ) : (
-        ["physical", "spores"].includes(record.kind) && (
-          <Link
-            to={
-              record.stock_item_id
-                ? `/inventory/stock?item=${record.stock_item_id}`
-                : `/inventory/stock?source_kind=${record.kind}&source_id=${record.id}`
-            }
-          >
-            Correct Remaining Culture Material
-          </Link>
-        )
-      )}
+      {record.kind === "physical" &&
+        record.material_type?.startsWith("lc_") && (
+          <CultureBalanceForm record={record} onSaved={onSaved} />
+        )}
       {error && <p role="alert">{error}</p>}
+      {history?.preparation?.snapshot.media_origin === "source_transfer" && (
+        <p>
+          Media transferred from{" "}
+          <Link
+            to={`/culture-library/physical/${history.preparation.snapshot.media_source_id}`}
+          >
+            {history.preparation.snapshot.media_source_id}
+          </Link>
+          .{" "}
+          {history.preparation.snapshot.recipe
+            ? "The original media formulation is retained below."
+            : "The media formulation was not recorded for this source."}{" "}
+          No new media preparation is recorded.
+        </p>
+      )}
       {history?.preparation?.snapshot.recipe && (
         <section>
           <h3>Recipe: {history.preparation.snapshot.recipe.name}</h3>
+          {history.preparation.snapshot.media_origin === "source_transfer" && (
+            <p>
+              Inherited formulation yield:{" "}
+              {history.preparation.snapshot.recipe.batch_yield} containers.
+              Amounts below describe the original formula, not new preparation.
+            </p>
+          )}
           <p>
             Inoculated: {history.preparation.source?.date || "Not recorded"}
           </p>
           <p>{history.preparation.snapshot.recipe.instructions}</p>
           <ul>
-            {history.preparation.snapshot.ingredients.map((i, index) => (
+            {(history.preparation.snapshot.media_origin === "source_transfer"
+              ? history.preparation.snapshot.recipe.ingredients
+              : history.preparation.snapshot.ingredients
+            ).map((i, index) => (
               <li key={i.item_id || index}>
                 {i.name || i.item_id}: {i.quantity} {i.unit}
               </li>
@@ -573,7 +585,7 @@ export function MaterialOperationPanel({
       )}
       {history?.preparation && (
         <p>
-          <Link to={`/inventory/prepared/${history.preparation.id}`}>
+          <Link to={`/history/materials/${history.preparation.id}`}>
             {history.preparation.snapshot.workflow === "direct"
               ? "Recipe & source history"
               : "Previous preparation"}{" "}
@@ -598,7 +610,7 @@ export function MaterialOperationPanel({
           <ul>
             {history.destinations.map((row) => (
               <li key={row.id}>
-                <Link to={`/inventory/prepared/${row.id}`}>
+                <Link to={`/history/materials/${row.id}`}>
                   {row.id} · {row.source?.operation_id}
                 </Link>
               </li>

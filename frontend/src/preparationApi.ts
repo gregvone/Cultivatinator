@@ -33,6 +33,7 @@ export interface Processing {
   notes: string | null;
 }
 export interface Recipe {
+  is_lc_default?: boolean;
   description?: string | null;
   notes?: string | null;
   updated_at?: string | null;
@@ -68,6 +69,8 @@ export interface Prepared {
   } | null;
   snapshot: {
     workflow?: string;
+    media_origin?: "prepared" | "source_transfer" | null;
+    media_source_id?: string | null;
     recipe_id?: string | null;
     ingredients: Ingredient[];
     recipe: Omit<Recipe, "id" | "revision" | "status"> | null;
@@ -167,12 +170,16 @@ export function useInventoryCommand() {
     },
   };
 }
-export function useInventoryList<T>(path: string) {
+export function useInventoryList<T>(path: string, enabled = true) {
   const [data, setData] = useState<T[] | null>(null);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let live = true;
+    if (!enabled) {
+      setData([]);
+      return;
+    }
     setError("");
     preparationApi<T[]>(path)
       .then((v) => {
@@ -184,7 +191,7 @@ export function useInventoryList<T>(path: string) {
     return () => {
       live = false;
     };
-  }, [path, revision]);
+  }, [path, revision, enabled]);
   return { data, error, reload: () => setRevision((v) => v + 1) };
 }
 // Preview arithmetic uses integer thousandths, never floating-point balances.
@@ -230,4 +237,30 @@ export interface Pool {
   other_reserved: number;
   reserved: number;
   total: string;
+}
+
+export function useLCMediaDefault(enabled = true) {
+  const [data, setData] = useState<Recipe | null | undefined>();
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    if (!enabled) {
+      setData(null);
+      return;
+    }
+    setData(undefined);
+    setError("");
+    preparationApi<{ recipe: Recipe | null }>("lc-default")
+      .then((v) => {
+        if (live) setData(v.recipe || null);
+      })
+      .catch((e) => {
+        if (live) setError(e.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, [enabled, attempt]);
+  return { data, error, reload: () => setAttempt((n) => n + 1) };
 }

@@ -75,7 +75,6 @@ export default function Growing({
             Historical grow provenance
           </Link>
         )}
-        <Link to="/inventory/prepared">Previous prepared materials</Link>
       </div>
       <label className="field">
         <span>Show records</span>
@@ -125,7 +124,7 @@ export default function Growing({
               <Link
                 to={
                   r.pending_establishment
-                    ? `/inventory/prepared/${r.id}`
+                    ? `/history/materials/${r.id}`
                     : `/culture-library/${r.kind}/${r.id}`
                 }
               >
@@ -165,7 +164,7 @@ export default function Growing({
             {r.cultivation?.snapshot.recipe && (
               <p>
                 Recipe: {r.cultivation.snapshot.recipe.name} ·{" "}
-                <Link to={`/inventory/prepared/${r.id}`}>
+                <Link to={`/history/materials/${r.id}`}>
                   View recipe snapshot and source history
                 </Link>
               </p>

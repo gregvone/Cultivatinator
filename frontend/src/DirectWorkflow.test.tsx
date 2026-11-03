@@ -6,13 +6,13 @@ import {
   RecipeList,
   RecipeDetail,
   RecipeEditor,
+  LCMediaPage,
 } from "./pages/Recipes";
 import DirectCreate from "./pages/DirectCreate";
 import Growing from "./pages/Growing";
-import { StockPage } from "./pages/PreparationInventory";
 import { localToday } from "./libraryApi";
 import type { LibraryRecord } from "./libraryApi";
-import type { Recipe, Stock } from "./preparationApi";
+import type { Recipe } from "./preparationApi";
 const processing = {
   method: null,
   duration_minutes: null,
@@ -80,10 +80,10 @@ function mock(recipes: Recipe[] = [formula]) {
 function mount(ui: React.ReactNode, path = "/") {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
 }
-test("Recipes landing has exactly three category cards without seeded examples", () => {
+test("Recipes landing has exactly four category cards without seeded examples", () => {
   mount(<RecipesHome />);
-  expect(screen.getAllByRole("link")).toHaveLength(3);
-  for (const category of ["Agar", "Spawn Seed", "Substrate"])
+  expect(screen.getAllByRole("link")).toHaveLength(4);
+  for (const category of ["LC Media", "Agar", "Spawn Seed", "Substrate"])
     expect(
       screen.getByRole("heading", { name: category, level: 2 }),
     ).toBeInTheDocument();
@@ -108,16 +108,19 @@ test.each([
     );
   },
 );
-test("Spawn Seed distinguishes LC media from grain and filters variants", async () => {
+test("Spawn Seed lists grain recipes separately from LC Media", async () => {
   mock([
     { ...formula, name: "Grain", recipe_type: "grain" },
-    { ...formula, id: "RCP-2", name: "LC Media", recipe_type: "lc" },
+    { ...formula, id: "RCP-2", name: "Historical LC", recipe_type: "lc" },
   ]);
   mount(<RecipeList category="spawn-seed" />);
-  await screen.findByRole("link", { name: "Grain" });
-  await userEvent.selectOptions(screen.getByLabelText("Recipe subtype"), "lc");
-  expect(screen.queryByRole("link", { name: "Grain" })).not.toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "LC Media" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("link", { name: "Grain" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "Historical LC" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Recipe subtype")).not.toBeInTheDocument();
 });
 test("recipe creation uses named ingredients without stock and retains editable notes", async () => {
   const fetch = mock();
@@ -277,56 +280,6 @@ test("spawn creation selects jar or bag with grain recipes and uses stable retry
     usage_per_container: "4",
   });
 });
-test("inventory additions stay visible and item edits preserve measured quantity", async () => {
-  let rows: Stock[] = [];
-  const fetch = vi
-    .spyOn(globalThis, "fetch")
-    .mockImplementation(async (input, init) => {
-      const path = new URL(String(input), "http://test").pathname;
-      if (init?.method === "POST") {
-        rows = [
-          {
-            id: "INV-1",
-            name: "Coir",
-            category: "ingredient",
-            available: "1.000",
-            unit: "kg",
-            revision: 1,
-            status: "active",
-            storage_location: "Shelf A",
-          } as Stock,
-        ];
-        return response(rows[0], 201);
-      }
-      if (init?.method === "PUT") {
-        rows = [
-          { ...rows[0], name: "Coir block", storage_location: "Shelf B" },
-        ];
-        return response(rows[0]);
-      }
-      return response(path.endsWith("/stock") ? rows : []);
-    });
-  mount(<StockPage />);
-  const u = userEvent.setup();
-  await u.click(await screen.findByRole("button", { name: "+ Add Inventory" }));
-  await u.type(screen.getByLabelText("Inventory name *"), "Coir");
-  await u.type(screen.getByLabelText("Opening balance reason *"), "Purchased");
-  await u.click(screen.getByRole("button", { name: "Add Inventory" }));
-  expect(
-    await screen.findByRole("heading", { name: /Coir INV-1/ }),
-  ).toBeInTheDocument();
-  await u.click(screen.getByRole("button", { name: "Edit Coir" }));
-  await u.clear(screen.getByLabelText("Item name *"));
-  await u.type(screen.getByLabelText("Item name *"), "Coir block");
-  await u.type(screen.getByLabelText("Edit reason *"), "Corrected label");
-  await u.click(screen.getByRole("button", { name: "Save Item" }));
-  expect(
-    await screen.findByRole("heading", { name: /Coir block INV-1/ }),
-  ).toBeInTheDocument();
-  expect(fetch.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(
-    true,
-  );
-});
 test("Cultivation lists source, recipe, dates and filters completed spawn", async () => {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(
     response([
@@ -448,4 +401,160 @@ test("editing a legacy ingredient unit makes it independent of optional stock", 
   expect(JSON.parse(call[1]!.body as string).ingredients).toEqual([
     { item_id: null, name: "Agar", quantity: "10", unit: "mL" },
   ]);
+});
+
+test("LC containers automatically apply the default without a recipe selector", async () => {
+  const media = {
+    ...formula,
+    id: "RCP-LC",
+    name: "Default media",
+    recipe_type: "lc",
+    is_lc_default: true,
+  };
+  const fetch = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input, init) => {
+      const path = String(input);
+      if (init?.method === "POST")
+        return response(
+          { materials: [{ id: "LC-0011", physical_id: "LC-0011" }] },
+          201,
+        );
+      if (path.endsWith("lc-default")) return response({ recipe: media });
+      return response([]);
+    });
+  mount(
+    <DirectCreate
+      operation="lc-container"
+      source={source}
+      sourceControl={<p>LC source preselected</p>}
+    />,
+  );
+  expect(
+    await screen.findByText(/LC Media: Default media/),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("combobox", { name: /recipe/i }),
+  ).not.toBeInTheDocument();
+  const u = userEvent.setup();
+  await u.type(
+    screen.getByLabelText(
+      "Measured total volume per destination (mL, optional)",
+    ),
+    "100",
+  );
+  await u.click(
+    screen.getByRole("button", { name: "Create LC container / jar" }),
+  );
+  const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
+  expect(JSON.parse(call[1]!.body as string)).toMatchObject({
+    recipe_id: null,
+    material_type: "lc_jar",
+    source_id: source.id,
+    destination_volume_ml: "100",
+  });
+  expect(
+    fetch.mock.calls.some(([input]) => String(input).endsWith("/recipes")),
+  ).toBe(false);
+});
+test("LC syringe has no media input or default setup requirement", async () => {
+  const fetch = mock();
+  mount(
+    <DirectCreate
+      operation="lc-syringe"
+      source={source}
+      sourceControl={<p>LC source preselected</p>}
+    />,
+  );
+  expect(
+    screen.queryByRole("combobox", { name: /recipe/i }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "Set Up LC Media" }),
+  ).not.toBeInTheDocument();
+  const u = userEvent.setup();
+  await u.type(screen.getByLabelText("Source usage per container *"), "5");
+  await u.click(screen.getByRole("button", { name: "Create LC syringe" }));
+  const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
+  expect(JSON.parse(call[1]!.body as string)).toMatchObject({
+    recipe_id: null,
+    material_type: "lc_syringe",
+    usage_per_container: "5",
+  });
+  expect(
+    fetch.mock.calls.some(([input]) =>
+      /lc-default|\/recipes$/.test(String(input)),
+    ),
+  ).toBe(false);
+});
+test("missing LC default gives one-time setup without inventing media", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(response({ recipe: null }));
+  mount(
+    <DirectCreate
+      operation="lc-container"
+      source={source}
+      sourceControl={<p>Source</p>}
+    />,
+  );
+  expect(
+    await screen.findByRole("link", { name: "Set Up LC Media" }),
+  ).toHaveAttribute("href", "/recipes/lc-media");
+  expect(
+    screen.getByRole("button", { name: "Create LC container / jar" }),
+  ).toBeDisabled();
+  expect(
+    screen.queryByRole("combobox", { name: /recipe/i }),
+  ).not.toBeInTheDocument();
+});
+test("LC Media category opens the designated formula directly", async () => {
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+    String(input).endsWith("lc-default")
+      ? response({
+          recipe: {
+            ...formula,
+            id: "RCP-LC",
+            name: "Default Media",
+            recipe_type: "lc",
+            is_lc_default: true,
+          },
+        })
+      : response({
+          ...formula,
+          id: "RCP-LC",
+          name: "Default Media",
+          recipe_type: "lc",
+          is_lc_default: true,
+        }),
+  );
+  mount(<LCMediaPage />);
+  expect(
+    await screen.findByRole("heading", { name: "Default Media", level: 1 }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Default LC Media · automatically used/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: /Manage LC Media definitions/ }),
+  ).toHaveAttribute("href", "/recipes/lc-media/manage");
+});
+test("historical LC formulas can be explicitly designated as default", async () => {
+  const media = { ...formula, name: "Existing LC", recipe_type: "lc" };
+  const fetch = mock([media]);
+  mount(
+    <Routes>
+      <Route path="/recipes/detail/:code" element={<RecipeDetail />} />
+    </Routes>,
+    "/recipes/detail/RCP-1",
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Use as Default LC Media" }),
+  );
+  const call = fetch.mock.calls.find(
+    ([input, init]) =>
+      String(input).endsWith("lc-default") && init?.method === "POST",
+  )!;
+  expect(JSON.parse(call[1]!.body as string)).toMatchObject({
+    recipe_id: formula.id,
+    expected_revision: 1,
+  });
 });

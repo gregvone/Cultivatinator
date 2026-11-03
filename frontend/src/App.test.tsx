@@ -76,7 +76,7 @@ test("all navigation routes work, including safe settings metadata", async () =>
     "Culture Library",
     "Laboratory",
     "Cultivation",
-    "Inventory",
+    "Acquisitions",
     "Reports",
     "Settings",
     "Dashboard",
@@ -131,7 +131,7 @@ test("mobile navigation opens and closes on route selection", async () => {
   expect(
     screen.getByRole("button", { name: "Close navigation" }),
   ).toHaveAttribute("aria-expanded", "true");
-  await userEvent.click(screen.getByRole("link", { name: "Inventory" }));
+  await userEvent.click(screen.getByRole("link", { name: "Acquisitions" }));
   expect(
     screen.getByRole("button", { name: "Open navigation" }),
   ).toHaveAttribute("aria-expanded", "false");

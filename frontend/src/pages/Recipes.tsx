@@ -9,20 +9,28 @@ import {
   useInventoryCommand,
   useInventoryList,
   stockUnits,
+  useLCMediaDefault,
 } from "../preparationApi";
 import type { Recipe, Ingredient } from "../preparationApi";
 export const recipeCategories = {
+  "lc-media": { name: "LC Media", types: ["lc"] },
   agar: { name: "Agar", types: ["agar"] },
-  "spawn-seed": { name: "Spawn Seed", types: ["grain", "lc"] },
+  "spawn-seed": { name: "Spawn Seed", types: ["grain"] },
   substrate: { name: "Substrate", types: ["substrate"] },
 };
 export const recipeCategory = (type: string) =>
-  type === "agar" ? "agar" : type === "substrate" ? "substrate" : "spawn-seed";
+  type === "lc"
+    ? "lc-media"
+    : type === "agar"
+      ? "agar"
+      : type === "substrate"
+        ? "substrate"
+        : "spawn-seed";
 export const recipeTypeName = (type: string) =>
   ({
     agar: "Agar",
     grain: "Grain spawn",
-    lc: "Liquid culture media",
+    lc: "LC Media",
     substrate: "Substrate",
   })[type] || type;
 export function RecipeNav() {
@@ -42,7 +50,7 @@ export function RecipesHome() {
     <>
       <PageHeader
         title="Recipes"
-        description="Choose a recipe category. Formulas do not require ingredient inventory."
+        description="Choose a recipe category to browse and manage your cultivation formulas."
       />
       <div className="quick-create-grid">
         {Object.entries(recipeCategories).map(([key, c]) => (
@@ -53,11 +61,13 @@ export function RecipesHome() {
           >
             <h2>{c.name}</h2>
             <p>
-              {key === "agar"
-                ? "Agar media formulations"
-                : key === "spawn-seed"
-                  ? "Grain spawn recipes and a separate liquid culture media subtype"
-                  : "Substrate definitions for future fruiting operations"}
+              {key === "lc-media"
+                ? "One designated default formulation for new LC containers"
+                : key === "agar"
+                  ? "Agar media formulations"
+                  : key === "spawn-seed"
+                    ? "Grain spawn formulations"
+                    : "Substrate definitions for future fruiting operations"}
             </p>
           </Link>
         ))}
@@ -71,13 +81,10 @@ export function RecipeList({
   category: keyof typeof recipeCategories;
 }) {
   const recipes = useInventoryList<Recipe>("recipes");
-  const [subtype, setSubtype] = useState("all");
   const [compare, setCompare] = useState<string[]>([]);
   const group = recipeCategories[category];
-  const rows = (recipes.data || []).filter(
-    (r) =>
-      group.types.includes(r.recipe_type) &&
-      (subtype === "all" || subtype === r.recipe_type),
+  const rows = (recipes.data || []).filter((r) =>
+    group.types.includes(r.recipe_type),
   );
   const selected = rows.filter((r) => compare.includes(r.id));
   return (
@@ -88,18 +95,8 @@ export function RecipeList({
         description="Browse formulations, open a recipe to edit or duplicate it, or select variants to compare."
       />
       <Link className="button primary" to={`/recipes/${category}/new`}>
-        Add Recipe
+        {category === "lc-media" ? "Set Up LC Media" : "Add Recipe"}
       </Link>
-      {category === "spawn-seed" && (
-        <label className="field">
-          <span>Recipe subtype</span>
-          <select value={subtype} onChange={(e) => setSubtype(e.target.value)}>
-            <option value="all">All Spawn Seed recipes</option>
-            <option value="grain">Grain spawn only</option>
-            <option value="lc">Liquid culture media only</option>
-          </select>
-        </label>
-      )}
       {recipes.error && (
         <p role="alert">
           {recipes.error}
@@ -197,9 +194,15 @@ export function useRecipe(code?: string) {
   }, [code, attempt]);
   return { recipe, error, reload: () => setAttempt((v) => v + 1) };
 }
-export function RecipeDetail() {
+export function RecipeDetail({
+  recipeCode,
+  onChanged,
+}: {
+  recipeCode?: string;
+  onChanged?: () => void;
+}) {
   const { code } = useParams();
-  const data = useRecipe(code);
+  const data = useRecipe(recipeCode || code);
   const command = useInventoryCommand();
   const navigate = useNavigate();
   const r = data.recipe;
@@ -233,6 +236,7 @@ export function RecipeDetail() {
             id: undefined,
             updated_at: undefined,
             used: undefined,
+            is_lc_default: undefined,
             created_at: undefined,
             revision: undefined,
             status: "archived",
@@ -240,8 +244,10 @@ export function RecipeDetail() {
           },
           "PUT",
         )
-      )
+      ) {
         data.reload();
+        onChanged?.();
+      }
     }
   }
   return (
@@ -284,6 +290,7 @@ export function RecipeDetail() {
             <p>{r.processing.notes}</p>
             <h2>Notes</h2>
             <p>{r.notes || "None"}</p>
+            <p>Created: {new Date(r.created_at || "").toLocaleString()}</p>
             <p>
               Last updated:{" "}
               {r.updated_at
@@ -303,22 +310,44 @@ export function RecipeDetail() {
               >
                 Duplicate Recipe
               </button>
-              {r.used ? (
-                r.status !== "archived" && (
-                  <button
-                    disabled={command.busy}
-                    onClick={() => action("archive")}
-                  >
-                    Archive Recipe
-                  </button>
-                )
-              ) : (
+              {r.status !== "archived" && (
+                <button
+                  disabled={command.busy}
+                  onClick={() => action("archive")}
+                >
+                  Archive Recipe
+                </button>
+              )}
+              {!r.used && !r.is_lc_default && (
                 <button
                   disabled={command.busy}
                   onClick={() => action("delete")}
                 >
                   Delete Recipe
                 </button>
+              )}
+              {r.recipe_type === "lc" &&
+                r.status === "active" &&
+                !r.is_lc_default && (
+                  <button
+                    disabled={command.busy}
+                    onClick={async () => {
+                      if (
+                        await command.send("lc-default", {
+                          recipe_id: r.id,
+                          expected_revision: r.revision,
+                        })
+                      )
+                        navigate("/recipes/lc-media");
+                    }}
+                  >
+                    Use as Default LC Media
+                  </button>
+                )}
+              {r.is_lc_default && (
+                <span>
+                  Default LC Media · automatically used for new LC containers
+                </span>
               )}
             </div>
             {r.used && (
@@ -419,7 +448,7 @@ function RecipeForm({
     <>
       <PageHeader
         title={recipe ? "Edit Recipe" : "Add Recipe"}
-        description="Record your formulation. Ingredient inventory is optional and no stock is deducted."
+        description="Record your formulation, ingredients and preparation instructions."
       />
       <form className="library-form panel workflow-form" onSubmit={save}>
         <Field name="name" label="Recipe name" required values={v} set={set} />
@@ -561,6 +590,40 @@ function RecipeForm({
           </Link>
         </div>
       </form>
+    </>
+  );
+}
+
+export function LCMediaPage() {
+  const media = useLCMediaDefault();
+  if (media.error)
+    return (
+      <p role="alert">
+        {media.error}
+        <button onClick={media.reload}>Retry LC Media</button>
+      </p>
+    );
+  if (media.data === undefined) return <p role="status">Loading LC Media…</p>;
+  return media.data ? (
+    <>
+      <div className="actions">
+        <Link to="/recipes/lc-media/manage">
+          Manage LC Media definitions / change default
+        </Link>
+      </div>
+      <RecipeDetail recipeCode={media.data.id} onChanged={media.reload} />
+    </>
+  ) : (
+    <>
+      <section className="panel workflow-source">
+        <h2>Set Up LC Media</h2>
+        <p>
+          Define your formula once, then designate it as the default. Existing
+          LC recipes are preserved below; open one to make it the default. No
+          formulation is supplied automatically.
+        </p>
+      </section>
+      <RecipeList category="lc-media" />
     </>
   );
 }

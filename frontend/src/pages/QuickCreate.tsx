@@ -260,7 +260,7 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
             <p>
               No eligible sources are registered for this operation. Browse
               existing material in the Culture Library or receive outside
-              material through Inventory.
+              material through Acquisitions.
             </p>
           )}
           {selected && (
@@ -316,7 +316,7 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
       )}
       <div className="actions">
         <Link to="/culture-library">Browse Culture Library</Link>
-        <Link to="/inventory">Outside material belongs in Inventory</Link>
+        <Link to="/acquisitions">Receive outside material in Acquisitions</Link>
       </div>
     </>
   );

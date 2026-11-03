@@ -215,6 +215,11 @@ class StockOut(Input):
     created_at: str
 
 
+class LCMediaSelection(Command):
+    recipe_id: Text
+    expected_revision: int = Field(ge=1)
+
+
 class RecipeAction(Command):
     expected_revision: int = Field(ge=1)
 
@@ -241,6 +246,7 @@ class DirectCreation(Command):
 
 
 class RecipeOut(RecipeData):
+    is_lc_default: bool = False
     updated_at: str | None = None
     used: bool = False
     id: str

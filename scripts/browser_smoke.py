@@ -64,7 +64,6 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-browser-") as temp:
                 expect(
                     page.get_by_text("Your strain catalog starts here.")
                 ).to_be_visible()
-                page.get_by_role("link", name="Open Inventory", exact=True).click()
                 page.get_by_role("link", name="Add Strain", exact=True).click()
                 page.get_by_label("Strain name *", exact=True).fill(
                     "Browser verification strain"

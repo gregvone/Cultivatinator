@@ -172,7 +172,7 @@ export function StrainForm() {
   }
   return (
     <>
-      <Link to="/inventory">← Inventory</Link>
+      <Link to="/culture-library">← Culture Library</Link>
       <PageHeader
         title="Add Strain"
         description="Create a catalog entry. A strain can exist without cultures or spores."
@@ -188,7 +188,7 @@ export function StrainForm() {
           <button className="primary" disabled={busy}>
             {busy ? "Saving…" : "Create strain"}
           </button>
-          <Link to="/inventory">Cancel</Link>
+          <Link to="/culture-library">Cancel</Link>
         </div>
       </form>
     </>
@@ -397,7 +397,7 @@ export function ReceiveForm({ spores = false }: { spores?: boolean }) {
       : line;
   return (
     <>
-      <Link to="/inventory">← Inventory</Link>
+      <Link to="/acquisitions">← Acquisitions</Link>
       <PageHeader
         title={spores ? "Receive Spores" : "Receive Culture"}
         description={
@@ -717,7 +717,7 @@ export function ReceiveForm({ spores = false }: { spores?: boolean }) {
                     ? "Confirm registration"
                     : "Continue"}
               </button>
-              <Link to="/inventory">Cancel</Link>
+              <Link to="/acquisitions">Cancel</Link>
             </div>
           </form>
         </FormErrors.Provider>

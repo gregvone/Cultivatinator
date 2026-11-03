@@ -18,7 +18,7 @@ Dashboard Quick Create with six dedicated material entries; context-sensitive ac
 
 ## Implemented — Milestone 2C.2
 
-Direct one-save inoculated agar/LC/spawn creation from active recipes and eligible sources, automatic local dates, atomic individual permanent IDs and source lineage/provenance, prominent ID copy/open results, independent spore establishments, measured LC depletion/corrections, three-category recipe lists/details/edit/duplicate/delete-unused/archive-used with immutable snapshots, optional visible/editable inventory, Laboratory/Cultivation growing lists and historical prepared-material completion. No required container inventory or ingredient accounting. Existing records, photos, FR identity and migration history remain compatible. See [2C.2 operations](MILESTONE_2C2.md).
+Direct one-save inoculated agar/LC/spawn creation, automatic dates and permanent IDs, exact source lineage/provenance, measured LC accounting on culture details, four recipe categories with immutable snapshots and full management, one designated automatic LC default, inherited syringe media, Acquisitions navigation, Add Strain in Culture Library and growing Laboratory/Cultivation views. Inventory and equipment/ingredient setup are removed from the normal interface; historical records/APIs/migrations remain compatible. Existing photos, mixed FR identity, genealogy and archived history are preserved. See [2C.2 operations](MILESTONE_2C2.md).
 
 ## Approved future requirements — not implemented
 

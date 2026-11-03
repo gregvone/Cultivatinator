@@ -11,6 +11,7 @@ import {
   stockUnits,
   useInventoryCommand,
   useInventoryList,
+  useLCMediaDefault,
 } from "../preparationApi";
 import type { Prepared, Recipe } from "../preparationApi";
 export default function DirectCreate({
@@ -24,7 +25,11 @@ export default function DirectCreate({
   sourceControl: ReactNode;
   onCreated?: () => void;
 }) {
-  const recipes = useInventoryList<Recipe>("recipes");
+  const recipes = useInventoryList<Recipe>(
+    "recipes",
+    operation === "agar-plate" || operation === "spawn",
+  );
+  const media = useLCMediaDefault(operation === "lc-container");
   const command = useInventoryCommand();
   const first =
     {
@@ -85,7 +90,10 @@ export default function DirectCreate({
     if (!source) return;
     const r = await command.send<{ materials: Prepared[] }>("create", {
       material_type: v.material_type,
-      recipe_id: v.recipe_id || null,
+      recipe_id:
+        v.material_type === "agar_plate" || v.material_type.startsWith("spawn_")
+          ? v.recipe_id || null
+          : null,
       source_kind: source.kind,
       source_id: source.id,
       count: Number(v.count),
@@ -115,7 +123,7 @@ export default function DirectCreate({
                 to={
                   r.physical_id || r.spawn_id
                     ? `/culture-library/${r.physical_id ? "physical" : "spawn"}/${r.id}`
-                    : `/inventory/prepared/${r.id}`
+                    : `/history/materials/${r.id}`
                 }
               >
                 Open {r.id}
@@ -171,8 +179,8 @@ export default function DirectCreate({
       <h2>Create inoculated material</h2>
       <p>
         Save after preparation, sterilization and inoculation are complete.
-        Every container gets its own permanent ID. No container or ingredient
-        inventory is required.
+        Every container gets its own permanent ID. No empty equipment setup is
+        required.
       </p>
       {operation === "spawn" && (
         <Field
@@ -183,40 +191,65 @@ export default function DirectCreate({
           options={{ spawn_jar: "Spawn Jar", spawn_bag: "Spawn Bag" }}
         />
       )}
-      <Field
-        name="recipe_id"
-        label={
-          type === "agar"
-            ? "Agar recipe"
-            : type === "grain"
-              ? "Spawn Seed recipe"
-              : "LC media recipe"
-        }
-        required={v.material_type !== "lc_syringe"}
-        values={v}
-        set={set}
-        options={{
-          "":
-            v.material_type === "lc_syringe"
-              ? "No media recipe — filling from existing LC"
-              : "Choose an active recipe",
-          ...Object.fromEntries(allowed.map((r) => [r.id, r.name])),
-        }}
-      />
-      {recipes.error && (
-        <p role="alert">
-          {recipes.error}
-          <button type="button" onClick={recipes.reload}>
-            Retry recipes
-          </button>
-        </p>
+      {(type === "agar" || type === "grain") && (
+        <>
+          <Field
+            name="recipe_id"
+            label={type === "agar" ? "Agar recipe" : "Spawn Seed recipe"}
+            required
+            values={v}
+            set={set}
+            options={{
+              "": "Choose an active recipe",
+              ...Object.fromEntries(allowed.map((r) => [r.id, r.name])),
+            }}
+          />
+          {recipes.error && (
+            <p role="alert">
+              {recipes.error}
+              <button type="button" onClick={recipes.reload}>
+                Retry recipes
+              </button>
+            </p>
+          )}
+          {recipes.data && !allowed.length && (
+            <p>
+              No matching active recipes.{" "}
+              <Link to={`/recipes/${type === "agar" ? "agar" : "spawn-seed"}`}>
+                Add Recipe
+              </Link>
+            </p>
+          )}
+        </>
       )}
-      {recipes.data && !allowed.length && v.material_type !== "lc_syringe" && (
+      {v.material_type === "lc_jar" && (
+        <>
+          {media.error ? (
+            <p role="alert">
+              {media.error}
+              <button type="button" onClick={media.reload}>
+                Retry LC Media
+              </button>
+            </p>
+          ) : media.data === undefined ? (
+            <p role="status">Loading default LC Media…</p>
+          ) : media.data ? (
+            <p>
+              LC Media: {media.data.name} · automatically applied.{" "}
+              <Link to="/recipes/lc-media">View default formula</Link>
+            </p>
+          ) : (
+            <p>
+              Configure your LC Media formula once before creating LC
+              containers. <Link to="/recipes/lc-media">Set Up LC Media</Link>
+            </p>
+          )}
+        </>
+      )}
+      {v.material_type === "lc_syringe" && (
         <p>
-          No matching active recipes.{" "}
-          <Link to={`/recipes/${type === "agar" ? "agar" : "spawn-seed"}`}>
-            Add Recipe
-          </Link>
+          Media provenance is inherited from the selected LC source where known.
+          Filling a syringe does not prepare new media.
         </p>
       )}
       {sourceControl}
@@ -294,8 +327,9 @@ export default function DirectCreate({
           disabled={
             command.busy ||
             !source ||
-            (v.material_type !== "lc_syringe" &&
-              !allowed.some((r) => r.id === v.recipe_id))
+            ((type === "agar" || type === "grain") &&
+              !allowed.some((r) => r.id === v.recipe_id)) ||
+            (v.material_type === "lc_jar" && !media.data)
           }
         >
           {command.busy

@@ -1,14 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { PreparedDetail, FinishForm } from "./pages/PreparationInventory";
 import {
-  StockPage,
-  PreparedDetail,
-  FinishForm,
-  PoolOverview,
-} from "./pages/PreparationInventory";
-import {
-  PreparationForm,
   PreparationWorkflow,
   MaterialOperationPanel,
 } from "./pages/PreparationWorkflow";
@@ -113,92 +107,6 @@ test("quantity previews use exact integer thousandths and match server half-up s
   expect(scaleQuantity("12.345", 5, 10)).toBe("6.173");
   expect(scaleQuantity("99999999999.999", 1)).toBe("99999999999.999");
   expect(scaleQuantity("invalid", 5)).toBe("");
-});
-test("generic Add Inventory starts blank and records a user-defined pool with storage", async () => {
-  const fetch = mocks({ stocks: [] });
-  mount(<StockPage />);
-  const u = userEvent.setup();
-  await u.click(await screen.findByRole("button", { name: "+ Add Inventory" }));
-  expect(screen.queryByText(/Configure 20/)).not.toBeInTheDocument();
-  expect(screen.getByLabelText("Inventory name *")).toHaveValue("");
-  await u.selectOptions(
-    screen.getByLabelText("Inventory category"),
-    "reusable",
-  );
-  expect(screen.getByLabelText("Confirmed free container count *")).toHaveValue(
-    null,
-  );
-  expect(
-    fetch.mock.calls.every(
-      ([, init]) => !init?.method || init.method === "GET",
-    ),
-  ).toBe(true);
-  await u.type(screen.getByLabelText("Inventory name *"), "My plates");
-  await u.selectOptions(
-    screen.getByLabelText("Container supply type *"),
-    "agar_plate",
-  );
-  await u.type(screen.getByLabelText("Confirmed free container count *"), "20");
-  await u.type(
-    screen.getByLabelText("Storage location (optional)"),
-    "Clean cabinet",
-  );
-  await u.type(
-    screen.getByLabelText("Opening balance reason *"),
-    "Counted clean plates",
-  );
-  await u.click(screen.getByRole("button", { name: "Add Inventory" }));
-  await waitFor(() =>
-    expect(fetch.mock.calls.some(([, init]) => init?.method === "POST")).toBe(
-      true,
-    ),
-  );
-  const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
-  expect(JSON.parse(call[1]!.body as string)).toMatchObject({
-    category: "reusable",
-    container_type: "agar_plate",
-    available: "20",
-    storage_location: "Clean cabinet",
-    reason: "Counted clean plates",
-  });
-});
-test("preparation scales a saved recipe and submits actual settings without any source requirement", async () => {
-  const fetch = mocks();
-  mount(<PreparationForm />);
-  const u = userEvent.setup();
-  const count = await screen.findByLabelText(
-    "Number of prepared containers (1–100) *",
-  );
-  await u.selectOptions(
-    screen.getByLabelText("Preparation container type"),
-    "lc_jar",
-  );
-  await u.clear(count);
-  await u.type(count, "5");
-  await u.selectOptions(
-    screen.getByLabelText("Reusable pool or disposable supply *"),
-    pool.id,
-  );
-  await u.selectOptions(
-    screen.getByLabelText("Saved recipe (optional)"),
-    recipe.id,
-  );
-  expect(screen.getByLabelText("Ingredient 1 quantity (g) *")).toHaveValue(
-    6.173,
-  );
-  await u.selectOptions(
-    screen.getByLabelText("Processing method"),
-    "instant_pot",
-  );
-  await u.click(screen.getByRole("button", { name: "Prepare Materials" }));
-  const call = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
-  expect(call[0]).toBe("/api/preparation/prepare");
-  expect(JSON.parse(call[1]!.body as string)).toMatchObject({
-    count: 5,
-    material_type: "lc_jar",
-    ingredients: [{ quantity: "6.173" }],
-    processing: { method: "instant_pot" },
-  });
 });
 test("partial bulk inoculation calculates 25mL, preserves source context and retries with the same idempotency key", async () => {
   const fetch = mocks();
@@ -330,15 +238,15 @@ test("idempotency keys support private-network HTTP without randomUUID", () => {
   expect(newRequestKey(random)).toBe("01".repeat(16));
 });
 
-test("legacy prepared-material inoculation links to Inventory when empty", async () => {
+test("historical prepared-material inoculation directs new creation to Quick Create", async () => {
   mocks({ materials: [] });
   mount(<PreparationWorkflow operation="agar-plate" source={source} />);
   expect(
     await screen.findByText("No prepared containers available."),
   ).toBeInTheDocument();
   expect(
-    screen.getByRole("link", { name: /Inventory → Prepared Materials/ }),
-  ).toHaveAttribute("href", "/inventory/prepared/prepare");
+    screen.getByRole("link", { name: /Create new inoculated material/ }),
+  ).toHaveAttribute("href", "/");
   expect(
     screen.queryByRole("button", { name: "Prepare Containers" }),
   ).not.toBeInTheDocument();
@@ -348,26 +256,6 @@ test("legacy prepared-material inoculation links to Inventory when empty", async
   expect(
     screen.queryByLabelText(/Number of prepared containers/),
   ).not.toBeInTheDocument();
-});
-test("reusable pool overview separates empty, ready and inoculated allocations", async () => {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    response([
-      {
-        item_id: pool.id,
-        name: "Plates",
-        available: "7.000",
-        ready: 5,
-        inoculated: 8,
-        preparing: 0,
-        other_reserved: 0,
-        total: "20.000",
-      },
-    ]),
-  );
-  mount(<PoolOverview />);
-  expect(await screen.findByRole("table")).toHaveTextContent(
-    "Plates7.000580020.000",
-  );
 });
 test("LC detail corrects measured Remaining Culture Material with reason and revision", async () => {
   const fetch = mocks({

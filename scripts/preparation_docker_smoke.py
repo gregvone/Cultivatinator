@@ -201,6 +201,50 @@ try:
     }
     direct_result = command("create", direct_payload)
     assert all(row["stage"] == "inoculated" for row in direct_result["materials"])
+    media_default = command(
+        "recipes",
+        {
+            "name": "Retained LC Media",
+            "recipe_type": "lc",
+            "batch_yield": 1,
+            "ingredients": [{"name": "Media nutrient", "quantity": "1", "unit": "g"}],
+        },
+    )
+    command(
+        "lc-default",
+        {
+            "recipe_id": media_default["id"],
+            "expected_revision": media_default["revision"],
+        },
+    )
+    jar_payload = {
+        "request_key": "docker-auto-media-jar",
+        "material_type": "lc_jar",
+        "source_kind": "physical",
+        "source_id": direct_source["id"],
+        "count": 1,
+        "inoculation_date": "2026-11-01",
+        "destination_volume_ml": "100",
+        "unit": "plate",
+    }
+    jar_result = command("create", jar_payload)
+    jar_id = jar_result["materials"][0]["id"]
+    syringe_payload = {
+        "request_key": "docker-inherited-media-syringes",
+        "material_type": "lc_syringe",
+        "source_kind": "physical",
+        "source_id": jar_id,
+        "count": 2,
+        "usage_per_container": "5",
+        "unit": "mL",
+        "inoculation_date": "2026-11-01",
+    }
+    syringe_result = command("create", syringe_payload)
+    assert all(
+        row["snapshot"]["media_origin"] == "source_transfer"
+        and row["snapshot"]["recipe"]["name"] == "Retained LC Media"
+        for row in syringe_result["materials"]
+    )
     ledger_before = request("/api/preparation/transactions")
     snapshots_before = request("/api/preparation/materials")
     docker("stop", name)
@@ -232,6 +276,10 @@ try:
     assert request("/api/library/spawn/" + failed)["lifecycle"] == "failed"
     assert command("inoculate", inoc_payload) == inoculated
     assert command("create", direct_payload) == direct_result
+    assert request("/api/preparation/lc-default")["recipe"]["id"] == media_default["id"]
+    assert command("create", jar_payload) == jar_result
+    assert command("create", syringe_payload) == syringe_result
+    assert request("/api/library/physical/" + jar_id)["remaining_quantity"] == "90.000"
     assert (
         request("/api/preparation/recipes/" + direct_recipe["id"])["notes"]
         == "Retained formula"
@@ -243,7 +291,7 @@ try:
     )
     assert request("/api/preparation/transactions") == ledger_before
     print(
-        "Milestone 2C.2 Docker smoke passed: non-root port 8085, 2B data/photos/FR identity, immutable preparation snapshots and ledger, depletion, one-time release, direct creation without container stock, recipe definitions and idempotency preserved across recreation"
+        "Milestone 2C.2 Docker smoke passed: non-root port 8085, 2B data/photos/FR identity, immutable preparation snapshots and ledger, depletion, one-time release, direct creation without container stock, recipe definitions, LC default/inherited media and idempotency preserved across recreation"
     )
 finally:
     subprocess.run([*DOCKER, "rm", "-f", name], capture_output=True)

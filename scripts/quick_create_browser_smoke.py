@@ -155,7 +155,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                     "AG-0001"
                     not in page.get_by_label("Source material", exact=True).inner_text()
                 )
-                page.goto(base + "/inventory")
+                page.goto(base + "/acquisitions")
                 page.get_by_role("link", name="Receive Acquisition", exact=True).click()
                 expect(page.get_by_label("Acquired material")).to_be_visible()
                 page.goto(
@@ -163,7 +163,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                     + "/culture-library/receive-culture?strain=STR-0001&line=CL-0001"
                 )
                 expect(page).to_have_url(
-                    base + "/inventory/receive-culture?strain=STR-0001&line=CL-0001"
+                    base + "/acquisitions/receive-culture?strain=STR-0001&line=CL-0001"
                 )
                 expect(page.get_by_label("Strain selection")).to_have_value("existing")
                 page.goto(base + "/culture-library")
@@ -240,14 +240,14 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                     "document.documentElement.scrollWidth <= window.innerWidth"
                 ), "Mobile workflow overflow"
                 page.get_by_role("button", name="Open navigation", exact=True).click()
-                page.get_by_role("link", name="Inventory", exact=True).click()
+                page.get_by_role("link", name="Acquisitions", exact=True).click()
                 expect(
                     page.get_by_role("link", name="Receive Acquisition", exact=True)
                 ).to_be_visible()
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Milestone 2C.1 browser smoke passed: six entries, no writes from source selection, spawning still deferred, source filtering/preselection, Inventory, legacy redirect, clean catalog, real spore collection, 2B FR identity/provenance, desktop/mobile; no page errors"
+                    "Milestone 2C.1 browser smoke passed: six entries, no writes from source selection, spawning still deferred, source filtering/preselection, Acquisitions, legacy redirect, clean catalog, real spore collection, 2B FR identity/provenance, desktop/mobile; no page errors"
                 )
         finally:
             process.terminate()

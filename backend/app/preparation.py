@@ -15,6 +15,7 @@ from .library import transaction, record, allocate, event
 from .models import PhysicalCulture, Spawn, now
 from .preparation_models import (
     StockItem,
+    LCMediaDefault,
     InventoryOperation,
     StockTransaction,
     Recipe,
@@ -28,6 +29,7 @@ from .material_state import lifecycle, material_state
 from .inventory_quantities import balance, convert, compatible, canonical, text_or_none
 from .preparation_schemas import (
     StockInput,
+    LCMediaSelection,
     StockEdit,
     RecipeAction,
     DirectCreation,
@@ -368,6 +370,11 @@ def recipe_out(row, session=None):
         status=row.status,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        is_lc_default=bool(
+            session
+            and (default := session.get(LCMediaDefault, 1))
+            and default.recipe_id == row.id
+        ),
         used=(
             bool(
                 session.scalar(
@@ -437,6 +444,12 @@ def edit_recipe(code: str, data: RecipeEdit, request: Request):
         row = get(session, Recipe, code)
         if row.revision != data.expected_revision:
             fail("Recipe changed; reload before editing", 409)
+        default = session.get(LCMediaDefault, 1)
+        if default and default.recipe_id == row.id:
+            if data.recipe_type != "lc":
+                fail("The default LC Media recipe must remain an LC formulation")
+            if data.status == "archived":
+                session.delete(default)
         validate_ingredients(session, data.ingredients, optional_stock=True)
         row.contents = json.dumps(
             data.model_dump(mode="json", include=set(RecipeData.model_fields))
@@ -1058,6 +1071,12 @@ def delete_recipe(code: str, data: RecipeAction, request: Request):
         row = get(session, Recipe, code)
         if row.revision != data.expected_revision:
             fail("Recipe changed; reload before deleting", 409)
+        default = session.get(LCMediaDefault, 1)
+        if default and default.recipe_id == row.id:
+            fail(
+                "This is the default LC Media recipe; archive it or designate another default before deleting",
+                409,
+            )
         if recipe_out(row, session)["used"]:
             fail(
                 "This recipe has historical cultivation or preparation records; archive it instead",
@@ -1115,18 +1134,64 @@ def create_inoculated(data: DirectCreation, request: Request):
     def work(session, op):
         # A single operation reuses the immutable snapshot and physical-transfer
         # model. It never reserves containers or consumes ingredient inventory.
-        recipe = get(session, Recipe, data.recipe_id) if data.recipe_id else None
+        source = eligible(session, data.source_kind, data.source_id, data.material_type)
+        inherited = None
+        if data.material_type == "lc_jar":
+            default = session.get(LCMediaDefault, 1)
+            if default is None:
+                fail(
+                    "Set up the default LC Media recipe in Recipes before creating LC containers",
+                    409,
+                )
+            recipe = get(session, Recipe, default.recipe_id)
+            if data.recipe_id and data.recipe_id != recipe.id:
+                fail(
+                    "LC containers use the designated default LC Media recipe automatically"
+                )
+        elif data.material_type == "lc_syringe":
+            previous = session.scalar(
+                select(PreparedMaterial).where(
+                    PreparedMaterial.physical_id == source.id
+                )
+            )
+            batch = (
+                session.get(PreparationBatch, previous.batch_id) if previous else None
+            )
+            inherited = json.loads(batch.snapshot) if batch else None
+            recipe = (
+                session.get(Recipe, batch.recipe_id)
+                if batch and batch.recipe_id
+                else None
+            )
+        else:
+            recipe = get(session, Recipe, data.recipe_id) if data.recipe_id else None
         if data.material_type != "lc_syringe" and recipe is None:
             fail("Choose a recipe for this material")
-        if recipe and (
-            recipe.status != "active"
-            or recipe.recipe_type != RECIPE_TYPE[data.material_type]
+        if (
+            recipe
+            and data.material_type != "lc_syringe"
+            and (
+                recipe.status != "active"
+                or recipe.recipe_type != RECIPE_TYPE[data.material_type]
+            )
         ):
             fail("Choose an active recipe appropriate for this material")
-        eligible(session, data.source_kind, data.source_id, data.material_type)
-        original = json.loads(recipe.contents) if recipe else None
+        original = (
+            (inherited or {}).get("recipe")
+            if data.material_type == "lc_syringe"
+            else json.loads(recipe.contents) if recipe else None
+        )
+        recipe_revision = (
+            (inherited or {}).get("recipe_revision")
+            if data.material_type == "lc_syringe"
+            else recipe.revision if recipe else None
+        )
         ingredients = []
-        for ingredient in (original or {}).get("ingredients", []):
+        for ingredient in (
+            []
+            if data.material_type == "lc_syringe"
+            else (original or {}).get("ingredients", [])
+        ):
             item = (
                 session.get(StockItem, ingredient.get("item_id"))
                 if ingredient.get("item_id")
@@ -1149,13 +1214,29 @@ def create_inoculated(data: DirectCreation, request: Request):
         snapshot = {
             "workflow": "direct",
             "recipe": original,
-            "recipe_revision": recipe.revision if recipe else None,
+            "recipe_revision": recipe_revision,
             "recipe_id": recipe.id if recipe else None,
             "ingredients": ingredients,
             "count": data.count,
             "material_type": data.material_type,
-            "processing": (original or {}).get("processing", {}),
-            "preparation_date": data.inoculation_date.isoformat(),
+            "processing": (
+                {}
+                if data.material_type == "lc_syringe"
+                else (original or {}).get("processing", {})
+            ),
+            "media_origin": (
+                "source_transfer"
+                if data.material_type == "lc_syringe"
+                else "prepared" if data.material_type == "lc_jar" else None
+            ),
+            "media_source_id": (
+                source.id if data.material_type == "lc_syringe" else None
+            ),
+            "preparation_date": (
+                None
+                if data.material_type == "lc_syringe"
+                else data.inoculation_date.isoformat()
+            ),
             "inoculation_date": data.inoculation_date.isoformat(),
             "notes": data.notes,
             "container_name": "",
@@ -1248,3 +1329,36 @@ def growing_records(request: Request, workspace: Literal["laboratory", "cultivat
                     }
                 )
         return result
+
+
+@router.get("/lc-default")
+def lc_default(request: Request):
+    with Session(request.app.state.engine) as session:
+        default = session.get(LCMediaDefault, 1)
+        recipe = session.get(Recipe, default.recipe_id) if default else None
+        return {
+            "recipe": (
+                recipe_out(recipe, session)
+                if recipe and recipe.status == "active" and recipe.recipe_type == "lc"
+                else None
+            )
+        }
+
+
+@router.post("/lc-default")
+def designate_lc_default(data: LCMediaSelection, request: Request):
+    def work(session, op):
+        recipe = get(session, Recipe, data.recipe_id)
+        if recipe.revision != data.expected_revision:
+            fail("Recipe changed; reload before designating the default", 409)
+        if recipe.status != "active" or recipe.recipe_type != "lc":
+            fail("Choose an active LC Media recipe")
+        default = session.get(LCMediaDefault, 1)
+        if default:
+            default.recipe_id = recipe.id
+        else:
+            session.add(LCMediaDefault(id=1, recipe_id=recipe.id))
+        session.flush()
+        return {"recipe": recipe_out(recipe, session)}
+
+    return execute(request, data, "lc_default", work)
