@@ -1,3 +1,5 @@
+import RecordHeader from "../components/RecordHeader";
+import CollapsiblePanel from "../components/CollapsiblePanel";
 import { FruitingPanel } from "./Fruiting";
 import PhotoGallery from "../components/PhotoGallery";
 import { cultivationStatus } from "../containerApi";
@@ -29,8 +31,9 @@ import StrainIdentity from "../components/StrainIdentity";
 import { EditForm } from "./LibraryForms";
 
 function RecordLink({ record }: { record: LibraryRecord }) {
-  const biological =
-    record.material_type === "agar_plate" || record.kind === "fruiting";
+  const biological = ["physical", "spawn", "fruiting", "spores"].includes(
+    record.kind,
+  );
   return (
     <Link to={`/culture-library/${record.kind}/${record.id}`}>
       {title(record)}{" "}
@@ -419,7 +422,7 @@ export function RecordDetail() {
     allocation_mode: "Allocation mode",
   };
   return (
-    <>
+    <div key={`${kind}/${code}`} className="record-detail">
       <Link to="/culture-library">← Culture Library</Link>
       {record.strain_id && (
         <p className="breadcrumb">
@@ -435,10 +438,7 @@ export function RecordDetail() {
           </Link>
         </p>
       )}
-      <PageHeader
-        title={title(record)}
-        description={`${record.id} · ${kindNames[kind]} · ${biological ? cultivationStatus(record) : record.status}${!biological && record.lifecycle && record.lifecycle !== "active" ? ` · ${record.lifecycle}` : ""}`}
-      />
+      <RecordHeader record={record} />
       {(notice || location.state?.message) && (
         <p className="success-message" role="status">
           {notice || location.state.message}
@@ -448,6 +448,13 @@ export function RecordDetail() {
         <FruitingPanel
           record={record}
           onSaved={() => setRevision((v) => v + 1)}
+          sourceContent={
+            <LineagePanel
+              key={`lineage/${kind}/${code}`}
+              record={record}
+              onChange={() => setRevision((v) => v + 1)}
+            />
+          }
         />
       ) : (
         <ContainerTracking
@@ -456,7 +463,9 @@ export function RecordDetail() {
         />
       )}
       <div className="actions">
-        <button onClick={() => setEditing(!editing)}>Edit information</button>
+        <button className="secondary" onClick={() => setEditing(!editing)}>
+          Edit information
+        </button>
         <button disabled={busy} onClick={() => void statusChange()}>
           {record.status === "active" ? "Archive record" : "Restore record"}
         </button>
@@ -474,20 +483,12 @@ export function RecordDetail() {
           }}
         />
       ) : (
-        <section className="panel detail-panel">
-          <h2>Record information</h2>
+        <CollapsiblePanel title="Record information" className="detail-panel">
           <dl className="info-list">
             <div>
               <dt>Permanent ID</dt>
               <dd>{record.id}</dd>
             </div>
-            {["physical", "spawn", "spores"].includes(kind) && (
-              <MaterialOperationPanel
-                key={`material/${kind}/${code}`}
-                record={record}
-                onSaved={() => setRevision((v) => v + 1)}
-              />
-            )}
             {kind !== "strains" && (
               <div>
                 <dt>Strain</dt>
@@ -516,7 +517,9 @@ export function RecordDetail() {
                               ...growTypes,
                             } as Record<string, string>
                           )[record.material_type!]
-                        : String(record[k as keyof LibraryRecord])}
+                        : k === "stage" && ["physical", "spawn"].includes(kind)
+                          ? cultivationStatus(record)
+                          : String(record[k as keyof LibraryRecord])}
                   </dd>
                 </div>
               ))}
@@ -547,29 +550,43 @@ export function RecordDetail() {
               below.
             </p>
           )}
-        </section>
+        </CollapsiblePanel>
       )}
-      {kind !== "strains" && (
-        <LineagePanel
-          key={`lineage/${kind}/${code}`}
+      {["physical", "spawn", "spores"].includes(kind) && (
+        <MaterialOperationPanel
+          key={`material/${kind}/${code}`}
           record={record}
-          onChange={() => setRevision((v) => v + 1)}
+          onSaved={() => setRevision((v) => v + 1)}
         />
       )}
-      <PhotoGallery
-        key={`${kind}/${code}`}
-        kind={kind}
-        code={code}
-        refreshToken={revision}
-        onChange={() => setRevision((v) => v + 1)}
-      />
+
+      {kind !== "strains" && kind !== "fruiting" && (
+        <CollapsiblePanel title="Source & Genetics">
+          <LineagePanel
+            key={`lineage/${kind}/${code}`}
+            record={record}
+            onChange={() => setRevision((v) => v + 1)}
+          />
+        </CollapsiblePanel>
+      )}
+      <CollapsiblePanel title="Photographs">
+        <PhotoGallery
+          key={`${kind}/${code}`}
+          kind={kind}
+          code={code}
+          refreshToken={revision}
+          onChange={() => setRevision((v) => v + 1)}
+        />
+      </CollapsiblePanel>
       {(kind === "strains" || kind === "lines") && (
-        <section className="panel related-panel">
-          <h2>
-            {kind === "strains"
+        <CollapsiblePanel
+          className="related-panel"
+          title={
+            kind === "strains"
               ? "Related culture lines and spore sources"
-              : "Individual physical containers"}
-          </h2>
+              : "Individual physical containers"
+          }
+        >
           {!related.length ? (
             <p>No related records registered yet.</p>
           ) : (
@@ -587,10 +604,14 @@ export function RecordDetail() {
               ))}
             </ul>
           )}
-        </section>
+        </CollapsiblePanel>
       )}
-      <section className="panel history-panel">
-        <h2>Activity history</h2>
+      <CollapsiblePanel
+        title="Record History"
+        summary="Permanent identifiers and audit events"
+        className="history-panel"
+      >
+        <p>Permanent ID: {record.id}</p>
         <ol>
           {history.map((e) => (
             <li key={e.id}>
@@ -601,7 +622,7 @@ export function RecordDetail() {
             </li>
           ))}
         </ol>
-      </section>
-    </>
+      </CollapsiblePanel>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import RecordNextAction from "../components/RecordNextAction";
 import { FruitingList } from "./Fruiting";
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -79,41 +80,43 @@ export default function Growing({
           </Link>
         )}
       </div>
-      <label className="field">
-        <span>Show records</span>
-        <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-          <option value="active">Active</option>
-          {workspace === "laboratory" ? (
-            <>
-              <option value="colonizing">Germinating agar</option>
-              <option value="ready">Ready agar</option>
-              <option value="depleted">Depleted LC</option>
-              <option value="agar_plate">Agar cultures</option>
-              <option value="lc_jar">LC containers</option>
-              <option value="lc_syringe">LC syringes</option>
-            </>
-          ) : (
-            <>
-              <option value="colonizing">Colonizing spawn</option>
-              <option value="spawn_jar">Spawn jars</option>
-              <option value="spawn_bag">Spawn bags</option>
-              <option value="ready">Ready for Spawning</option>
-            </>
-          )}
-          <option value="used">Used</option>
-          <option value="completed">Completed</option>
-          <option value="failed">Failed</option>
-          <option value="all">All records</option>
-        </select>
-      </label>
-      <label className="field">
-        <span>Find by ID, strain or culture line</span>
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </label>
+      <div className="library-filters">
+        <label className="field">
+          <span>Show records</span>
+          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+            <option value="active">Active</option>
+            {workspace === "laboratory" ? (
+              <>
+                <option value="colonizing">Germinating agar</option>
+                <option value="ready">Ready agar</option>
+                <option value="depleted">Depleted LC</option>
+                <option value="agar_plate">Agar cultures</option>
+                <option value="lc_jar">LC containers</option>
+                <option value="lc_syringe">LC syringes</option>
+              </>
+            ) : (
+              <>
+                <option value="colonizing">Colonizing spawn</option>
+                <option value="spawn_jar">Spawn jars</option>
+                <option value="spawn_bag">Spawn bags</option>
+                <option value="ready">Ready for Spawning</option>
+              </>
+            )}
+            <option value="used">Used</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="all">All records</option>
+          </select>
+        </label>
+        <label className="field">
+          <span>Find by ID, strain or culture line</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+      </div>
       {records.error && (
         <p role="alert">
           {records.error}
@@ -153,25 +156,33 @@ export default function Growing({
               Inoculated: {r.cultivation?.source?.date || "Not recorded"} ·
               Registered: {new Date(r.created_at).toLocaleDateString()}
             </p>
-            {r.cultivation?.source && (
-              <p>
-                Source:{" "}
-                <Link
-                  to={`/culture-library/${r.cultivation.source.kind}/${r.cultivation.source.id}`}
-                >
-                  {r.cultivation.source.physical_label ||
-                    r.cultivation.source.id}
-                </Link>
+            {(r.cultivation?.source || r.cultivation?.snapshot.recipe) && (
+              <p className="list-context">
+                {r.cultivation?.source && (
+                  <>
+                    Source:{" "}
+                    <Link
+                      to={`/culture-library/${r.cultivation.source.kind}/${r.cultivation.source.id}`}
+                    >
+                      {r.cultivation.source.physical_label ||
+                        r.cultivation.source.id}
+                    </Link>{" "}
+                    ·{" "}
+                  </>
+                )}
+                {r.cultivation?.snapshot.recipe && (
+                  <span>Recipe: {r.cultivation.snapshot.recipe.name}</span>
+                )}
               </p>
             )}
-            {r.cultivation?.snapshot.recipe && (
-              <p>
-                Recipe: {r.cultivation.snapshot.recipe.name} ·{" "}
+            <div className="actions">
+              {!r.pending_establishment && <RecordNextAction record={r} />}
+              {r.cultivation?.snapshot.recipe && (
                 <Link to={`/history/materials/${r.id}`}>
-                  View recipe snapshot and source history
+                  Recipe & source history
                 </Link>
-              </p>
-            )}
+              )}
+            </div>
           </li>
         ))}
       </ul>

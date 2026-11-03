@@ -1,3 +1,4 @@
+import CollapsiblePanel from "./CollapsiblePanel";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Field } from "../pages/LibraryForms";
@@ -143,8 +144,7 @@ export default function FruitingEnvironmentSettings() {
       {!loaded && !error ? (
         <p>Loading environment…</p>
       ) : (
-        <details>
-          <summary>Configure fruiting tent (optional)</summary>
+        <CollapsiblePanel title="Configure fruiting tent (optional)">
           <form className="library-form" onSubmit={save}>
             <EnvironmentFields
               value={value}
@@ -154,12 +154,12 @@ export default function FruitingEnvironmentSettings() {
               }}
             />
             {command.error && <p role="alert">{command.error}</p>}
-            <button disabled={command.busy || !loaded}>
+            <button className="primary" disabled={command.busy || !loaded}>
               Save Fruiting Environment
             </button>
             {saved && <p role="status">Environment saved for future grows.</p>}
           </form>
-        </details>
+        </CollapsiblePanel>
       )}
     </section>
   );

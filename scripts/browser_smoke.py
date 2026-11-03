@@ -78,6 +78,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-browser-") as temp:
                 buffer = BytesIO()
                 Image.new("RGB", (900, 600), "#558899").save(buffer, format="PNG")
                 png = buffer.getvalue()
+                page.get_by_role("button", name="Photographs", exact=True).click()
                 page.get_by_label("Attach photographs").set_input_files(
                     [
                         {"name": "one.png", "mimeType": "image/png", "buffer": png},
@@ -87,7 +88,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-browser-") as temp:
                 expect(page.get_by_text("2 photograph(s) attached")).to_be_visible()
                 page.get_by_role("button", name="Use as cover").click()
                 expect(
-                    page.get_by_text("Cover photograph updated", exact=True)
+                    page.get_by_role("status").filter(
+                        has_text="Cover photograph updated"
+                    )
                 ).to_be_visible()
                 page.get_by_role("button", name="Open photograph 1").click()
                 expect(page.get_by_role("dialog")).to_be_visible()
@@ -96,7 +99,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-browser-") as temp:
                 page.once("dialog", lambda dialog: dialog.accept())
                 page.get_by_role("button", name="Remove", exact=True).last.click()
                 expect(
-                    page.get_by_text("Photograph removed", exact=True)
+                    page.get_by_role("status").filter(has_text="Photograph removed")
                 ).to_be_visible()
                 expect(
                     page.get_by_role("button", name="Open photograph 1")
@@ -119,16 +122,25 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-browser-") as temp:
                 expect(
                     page.get_by_role("heading", name="Individual physical containers")
                 ).to_be_visible()
+                page.get_by_role(
+                    "button", name="Individual physical containers", exact=True
+                ).click()
                 expect(page.locator(".related-panel .record-list li")).to_have_count(3)
                 page.locator(
-                    'a[href="/culture-library/physical/LC-0001"]'
+                    '.related-panel a[href="/culture-library/physical/LC-0001"]'
                 ).first.click()
+                page.get_by_role(
+                    "button", name="Record information", exact=True
+                ).click()
                 expect(
                     page.get_by_text("Starting Quantity", exact=True)
                 ).to_be_visible()
                 page.get_by_role("button", name="Edit information").click()
                 page.get_by_label("Storage location").fill("Browser shelf")
                 page.get_by_role("button", name="Save changes").click()
+                page.get_by_role(
+                    "button", name="Record information", exact=True
+                ).click()
                 expect(page.get_by_text("Browser shelf", exact=True)).to_be_visible()
                 page.once("dialog", lambda dialog: dialog.accept())
                 page.get_by_role("button", name="Archive record", exact=True).click()

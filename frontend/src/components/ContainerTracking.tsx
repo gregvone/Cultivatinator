@@ -1,3 +1,4 @@
+import CollapsiblePanel from "./CollapsiblePanel";
 import { useId, useState } from "react";
 import type { LibraryRecord } from "../libraryApi";
 import { localToday } from "../libraryApi";
@@ -24,10 +25,7 @@ export function LabelChoices({
   const labelPrefix = useId();
   const labels = useAvailableLabels(material, reusable);
   return (
-    <details className="panel workflow-source">
-      <summary>
-        Physical labels · automatic lowest available (optional override)
-      </summary>
+    <CollapsiblePanel title="Physical labels · automatic lowest available (optional override)">
       <p>
         Labels identify physical containers and can be reused when reusable
         containers are released. Permanent culture IDs and history are separate.
@@ -93,7 +91,7 @@ export function LabelChoices({
           )}
         </>
       )}
-    </details>
+    </CollapsiblePanel>
   );
 }
 export default function ContainerTracking({
@@ -202,6 +200,7 @@ function Tracking({
             phase !== "ready" &&
             record.status === "active" && (
               <button
+                className="primary"
                 onClick={() => {
                   setAction("ready");
                   setDate(localToday());
@@ -212,6 +211,7 @@ function Tracking({
             )}
           {!labelsOnly && (
             <button
+              className="danger"
               onClick={() => {
                 setAction("failed");
                 setDate(localToday());
@@ -222,6 +222,7 @@ function Tracking({
           )}
           {!labelsOnly && !agar && !spawn && (
             <button
+              className="danger"
               onClick={() => {
                 setAction("complete");
                 setDate(localToday());

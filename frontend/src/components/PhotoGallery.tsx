@@ -1,5 +1,5 @@
 import { PhotoSelection, usePhotoUploads } from "./PhotoUploads";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { libraryApi } from "../libraryApi";
 import type { Kind, Photo } from "../libraryApi";
@@ -52,6 +52,9 @@ export default function PhotoGallery({
   refreshToken?: number;
 }) {
   const uploads = usePhotoUploads();
+  const [adding, setAdding] = useState(!compact);
+  const [showAll, setShowAll] = useState(false);
+  const uploadId = useId();
   const scopedPath = harvestId
     ? `harvests/${harvestId}/photos`
     : pinningFlush != null
@@ -127,25 +130,36 @@ export default function PhotoGallery({
           Photographs
         </h2>
       )}
-      <p>
-        JPEG, PNG or WebP · up to 10 MB and 24 megapixels per image · originals
-        retained
-      </p>
-      <PhotoSelection
-        uploads={uploads}
-        label="Attach photographs"
-        disabled={busy || uploads.busy}
-        onFiles={(files) => void upload(files)}
-      />
-      {uploads.items.some((item) => item.state !== "saved") && (
-        <button
-          type="button"
+      <button
+        type="button"
+        className="secondary"
+        aria-expanded={adding}
+        aria-controls={uploadId}
+        onClick={() => setAdding(!adding)}
+      >
+        Add Photos
+      </button>
+      <div id={uploadId} hidden={!adding}>
+        <p>
+          JPEG, PNG or WebP · up to 10 MB and 24 megapixels per image ·
+          originals retained
+        </p>
+        <PhotoSelection
+          uploads={uploads}
+          label="Attach photographs"
           disabled={busy || uploads.busy}
-          onClick={() => void upload()}
-        >
-          Retry remaining photos
-        </button>
-      )}
+          onFiles={(files) => void upload(files)}
+        />
+        {uploads.items.some((item) => item.state !== "saved") && (
+          <button
+            type="button"
+            disabled={busy || uploads.busy}
+            onClick={() => void upload()}
+          >
+            Retry remaining photos
+          </button>
+        )}
+      </div>
       {busy && <p role="status">Saving photographs…</p>}
       {notice && <p role="status">{notice}</p>}
       {error && (
@@ -164,7 +178,7 @@ export default function PhotoGallery({
       )}
       {!photos.length && <p className="muted">No photographs attached.</p>}
       <div className={compact ? "photo-grid photo-grid-compact" : "photo-grid"}>
-        {photos.map((p, i) => (
+        {(compact && !showAll ? photos.slice(0, 3) : photos).map((p, i) => (
           <figure key={p.id}>
             <button
               className="photo-open"
@@ -176,7 +190,7 @@ export default function PhotoGallery({
                 alt={`Photograph ${i + 1} of ${code}`}
               />
             </button>
-            <figcaption>
+            <figcaption hidden={compact && !adding}>
               {p.is_cover ? (
                 <span className="badge">Cover photograph</span>
               ) : (
@@ -193,6 +207,7 @@ export default function PhotoGallery({
                 </button>
               )}
               <button
+                className="danger"
                 disabled={busy || uploads.busy}
                 onClick={() => {
                   if (window.confirm("Remove this photograph permanently?"))
@@ -208,6 +223,15 @@ export default function PhotoGallery({
           </figure>
         ))}
       </div>
+      {compact && photos.length > 3 && (
+        <button
+          type="button"
+          aria-expanded={showAll}
+          onClick={() => setShowAll(!showAll)}
+        >
+          {showAll ? "Show fewer photos" : `Show all ${photos.length} photos`}
+        </button>
+      )}
       {view && (
         <PhotoViewer photo={view} code={code} onClose={() => setView(null)} />
       )}

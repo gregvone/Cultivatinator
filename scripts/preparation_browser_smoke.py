@@ -382,6 +382,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     page.get_by_role("link", name="B-01 · Spawn bag", exact=True)
                 ).to_have_count(0)
                 page.goto(base + "/culture-library/physical/" + plates[0])
+                page.get_by_role(
+                    "button", name="Preparation & Transfer History", exact=True
+                ).click()
                 expect(
                     page.get_by_role(
                         "heading", name="Recipe: Standard Agar", exact=True
@@ -471,6 +474,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     == "P-02"
                 )
                 page.goto(base + "/culture-library/physical/" + plates[0])
+                page.get_by_role(
+                    "button", name="Preparation & Transfer History", exact=True
+                ).click()
                 expect(
                     page.get_by_role("button", name="Mark Ready", exact=True)
                 ).to_have_count(0)

@@ -1,3 +1,4 @@
+import CollapsiblePanel from "../components/CollapsiblePanel";
 import { NewFruiting } from "./Fruiting";
 import { cultivationStatus } from "../containerApi";
 import { useEffect, useState } from "react";
@@ -61,8 +62,7 @@ export function CreateFromThis({ record }: { record: LibraryRecord }) {
   const operations = availableOperations(record);
   if (!operations.length) return null;
   return (
-    <details className="create-from-this">
-      <summary>Create From This</summary>
+    <CollapsiblePanel title="Create From This" className="create-from-this">
       <nav aria-label={`Create from ${record.id}`} className="actions">
         {operations.map((op) => (
           <Link key={op.id} className="button" to={workflowPath(op, record)}>
@@ -70,7 +70,7 @@ export function CreateFromThis({ record }: { record: LibraryRecord }) {
           </Link>
         ))}
       </nav>
-    </details>
+    </CollapsiblePanel>
   );
 }
 function SporePrintForm({ source }: { source: LibraryRecord }) {

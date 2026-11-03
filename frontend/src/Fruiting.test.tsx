@@ -419,3 +419,79 @@ test("legacy records show unknown earlier data, and completed grows are hidden f
   );
   expect(screen.getByRole("link", { name: /F-02/ })).toBeInTheDocument();
 });
+
+test("current flush and journal are expanded, older flushes and secondary details are collapsed", async () => {
+  const d = fixture("fruiting");
+  d.run!.current_flush = 2;
+  d.flushes = [
+    {
+      ...d.flushes[0],
+      number: 1,
+      wet_grams: "250.000",
+      dry_grams: "25.000",
+      harvest_count: 1,
+    },
+    {
+      ...d.flushes[0],
+      number: 2,
+      pinning_date: "2026-01-10",
+      fruiting_date: "2026-01-12",
+    },
+  ];
+  mock(d);
+  mount(<FruitingPanel record={record} onSaved={vi.fn()} />);
+  const journal = await screen.findByRole("button", { name: "Grow Journal" });
+  expect(journal.closest("details")).toHaveAttribute("open");
+  const old = screen.getByRole("button", {
+    name: /Flush 1.*250.000 g wet.*25.000 g dry.*1 harvest/,
+  });
+  const current = screen.getByRole("button", { name: /Flush 2/ });
+  expect(old.closest("details")).not.toHaveAttribute("open");
+  expect(current.closest("details")).toHaveAttribute("open");
+  for (const name of [
+    "Source & Genetics",
+    "Substrate & Environment",
+    "Detailed Results",
+  ])
+    expect(
+      screen.getByRole("button", { name }).closest("details"),
+    ).not.toHaveAttribute("open");
+  await userEvent.click(old);
+  expect(current.closest("details")).toHaveAttribute("open");
+  expect(screen.getByRole("button", { name: "Record Harvest" })).toHaveClass(
+    "primary",
+  );
+  expect(screen.getByRole("button", { name: "Finish Grow" })).toHaveClass(
+    "danger",
+  );
+  expect(screen.getAllByText("Unknown", { selector: "dd" })).toHaveLength(2);
+});
+
+test("completed grow remains a journal entry with its own date, notes and photo controls", async () => {
+  const d = fixture("completed");
+  d.run!.completed_date = "2026-01-20";
+  d.run!.closing_notes = "Grow finished successfully";
+  mock(d);
+  mount(
+    <FruitingPanel
+      record={{ ...record, fruiting_stage: "completed" }}
+      onSaved={vi.fn()}
+    />,
+  );
+  const entry = await screen.findByRole("heading", {
+    name: "Grow Completed — 2026-01-20",
+  });
+  const section = entry.closest("section")!;
+  expect(within(section).getByText("Grow finished successfully")).toBeVisible();
+  expect(
+    within(section).getByRole("button", { name: "Add Photos" }),
+  ).toHaveClass("secondary");
+  expect(
+    screen
+      .getByRole("button", { name: "Current Growing Cycle" })
+      .closest("details"),
+  ).not.toHaveAttribute("open");
+  expect(
+    screen.queryByRole("button", { name: "Finish Grow" }),
+  ).not.toBeInTheDocument();
+});

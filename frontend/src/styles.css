@@ -1254,3 +1254,316 @@ button:disabled {
 .pinning-history {
   margin-block: 0.75rem;
 }
+
+/* Shared controls keep every action recognizable across detail pages and forms. */
+button,
+.button,
+.actions > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0.6rem 1rem;
+  border: 1px solid #526e87;
+  border-radius: 5px;
+  background: #25384c;
+  color: #e2edf8;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+button:hover:not(:disabled),
+.button:hover,
+.actions > a:hover {
+  background: #304b65;
+  border-color: #8ac2f2;
+  color: #fff;
+}
+button.primary,
+.button.primary {
+  background: #365d7e;
+  border-color: #8ab6d8;
+  font-weight: 600;
+}
+button.danger,
+.button.danger {
+  color: #ffd1ca;
+  border-color: #a97169;
+  background: #3b2b31;
+}
+button.danger:hover:not(:disabled) {
+  background: #59383e;
+  border-color: #e8aaa5;
+}
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #9fd6ff;
+  outline-offset: 3px;
+}
+.collapsible-panel {
+  margin-block: 0.85rem;
+  min-width: 0;
+}
+.collapsible-panel > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  list-style: none;
+  cursor: pointer;
+  min-height: 52px;
+  padding: 0.9rem 1rem;
+  background: #1e2e40;
+  color: #e2edf8;
+}
+.collapsible-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.collapsible-panel > summary:hover {
+  background: #273e54;
+}
+.collapse-heading {
+  min-width: 0;
+}
+.collapse-heading h2,
+.collapse-heading h3,
+.collapse-heading h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+.collapse-summary {
+  display: block;
+  color: #afc5d9;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.collapse-chevron {
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+}
+.collapsible-panel[open] > summary .collapse-chevron {
+  transform: rotate(0);
+}
+.collapse-body {
+  padding: 1rem;
+  min-width: 0;
+}
+.collapse-body > * + * {
+  margin-top: 0.8rem;
+}
+.collapsible-panel[open] > summary {
+  border-bottom: 1px solid #304155;
+}
+.collapsible-panel .panel {
+  box-shadow: none;
+}
+[hidden] {
+  display: none !important;
+}
+.record-meta,
+.record-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin-top: 1rem;
+}
+.record-meta small {
+  color: #9aaec5;
+  font-size: 0.8rem;
+}
+.record-metrics {
+  margin-bottom: 1rem;
+}
+.record-metrics dt {
+  color: #afc5d9;
+  font-size: 0.8rem;
+}
+.record-metrics dd {
+  margin: 0.3rem 0 0;
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+.record-header {
+  margin-top: 1.25rem;
+  margin-bottom: 1rem;
+}
+.record-header h1 {
+  overflow-wrap: anywhere;
+}
+main,
+main section,
+main form {
+  min-width: 0;
+}
+main p,
+main li,
+main dd {
+  overflow-wrap: anywhere;
+}
+.library-form > fieldset,
+.library-form > .collapsible-panel,
+.library-form > h3,
+.library-form > [role="status"] {
+  grid-column: 1/-1;
+}
+.library-form > fieldset {
+  display: grid;
+  gap: 1rem;
+}
+.library-form .collapse-body {
+  display: grid;
+  gap: 1rem;
+}
+.library-form .collapse-body > * {
+  margin: 0;
+}
+.compact-gallery {
+  margin: 0.7rem 0;
+  padding: 0;
+}
+.compact-gallery h5 {
+  display: none;
+}
+.compact-gallery > button {
+  margin-block: 0.3rem;
+}
+.compact-gallery .photo-grid {
+  padding: 0.5rem 0;
+}
+.compact-gallery .photo-grid figcaption button {
+  min-height: 44px;
+}
+.compact-gallery > p {
+  margin: 0.4rem 0;
+}
+.compact-gallery .photo-grid-compact {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 120px));
+}
+.dashboard-grid .collapsible-panel {
+  margin: 0;
+  align-self: start;
+}
+.summary-card {
+  padding: 1rem;
+}
+.summary-card > strong {
+  margin: 1rem 0 0.6rem;
+  font-size: 2.3rem;
+}
+.empty-state,
+.cultivation-panel .empty-state {
+  min-height: 120px;
+  padding: 1.2rem;
+}
+.page-header {
+  margin-bottom: 1.25rem;
+}
+.workflow-source {
+  padding: 1rem;
+}
+.workflow-source > h2 {
+  margin-bottom: 0.75rem;
+}
+.workflow-source > p + p {
+  margin-top: 0.45rem;
+}
+.library-form {
+  gap: 1rem;
+}
+.record-list h2 {
+  font-size: 1.05rem;
+}
+.record-list .actions {
+  margin: 0.65rem 0 0;
+}
+.photo-open {
+  min-height: 0;
+}
+.menu-backdrop {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+@media (max-width: 600px) {
+  .collapse-body {
+    padding: 0.75rem;
+  }
+  .collapsible-panel > summary {
+    padding: 0.85rem 0.75rem;
+  }
+  .record-metrics {
+    gap: 1rem;
+  }
+  .record-metrics > div {
+    flex: 1 1 120px;
+  }
+  .actions {
+    gap: 0.6rem;
+  }
+  .actions > button,
+  .actions > .button {
+    flex: 1 1 auto;
+  }
+  .library-filters .field {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+  .library-form {
+    padding: 0.85rem;
+  }
+}
+
+/* Optional form panels span the form; photo controls stay behind Add Photos. */
+.library-form > .collapse-section {
+  grid-column: 1/-1;
+}
+.dashboard-grid > .collapse-section {
+  align-self: start;
+}
+@media (min-width: 1000px) {
+  .pinning-history,
+  .fruiting-history {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(130px, 390px);
+    column-gap: 1rem;
+    align-items: start;
+  }
+  .pinning-history > .compact-gallery,
+  .fruiting-history > .compact-gallery {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
+  }
+}
+@media (max-width: 480px) {
+  .quick-create-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-inline: 0.75rem;
+    gap: 0.5rem;
+  }
+  .quick-create-action {
+    padding: 0.7rem;
+    min-height: 4.5rem;
+    font-size: 0.85rem;
+    gap: 0.5rem;
+  }
+  .quick-create-action svg {
+    width: 18px;
+  }
+}
+
+/* Status badges in record headers stay visible at every viewport size. */
+.record-header .badge {
+  display: inline-flex;
+}
+.actions:empty {
+  display: none;
+}

@@ -46,7 +46,7 @@ export default function Shell() {
         <div className="sidebar-footer">
           <span className="status-dot" />
           Single-user workspace
-          <small>Milestone 2C.3 / Fruiting & Harvest</small>
+          <small>Cultures · Grows · Harvests</small>
         </div>
       </aside>
       {open && (

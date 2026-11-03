@@ -1,3 +1,4 @@
+import CollapsiblePanel from "../components/CollapsiblePanel";
 import { QuickCreateSection } from "./QuickCreate";
 import { Link } from "react-router-dom";
 import {
@@ -17,7 +18,6 @@ import {
   ErrorState,
   LoadingState,
   PageHeader,
-  Panel,
 } from "../components/UI";
 
 const cards = [
@@ -74,11 +74,11 @@ export default function Dashboard() {
               </section>
             ))}
           </div>
+          <QuickCreateSection />
           <div className="dashboard-grid">
-            <Panel
+            <CollapsiblePanel
               title="Needs Attention"
-              icon={TriangleAlert}
-              label="PRIORITIES"
+              defaultOpen
               className="attention-panel"
             >
               {data.attention_items.length ? (
@@ -100,11 +100,10 @@ export default function Dashboard() {
                   description="Items that need a closer look will be collected here."
                 />
               )}
-            </Panel>
-            <Panel
+            </CollapsiblePanel>
+            <CollapsiblePanel
               title="Growing Conditions"
-              icon={Thermometer}
-              label="ENVIRONMENT"
+              summary="Environmental observations"
             >
               {data.environmental_observations.length ? (
                 <ul className="record-list">
@@ -126,11 +125,10 @@ export default function Dashboard() {
                   description="Temperature, humidity, and growing-area observations will appear here."
                 />
               )}
-            </Panel>
-            <Panel
+            </CollapsiblePanel>
+            <CollapsiblePanel
               title="Active Cultivation"
-              icon={Sprout}
-              label="GROWING CYCLES"
+              defaultOpen
               className="cultivation-panel"
             >
               {data.active_cultivation.length ? (
@@ -146,7 +144,7 @@ export default function Dashboard() {
                 <EmptyState
                   icon={Sprout}
                   title="No active cultivation records."
-                  description="Browse registered spawn, grow batches, and fruiting containers in the Culture Library. Operational monitoring comes in a later stage."
+                  description="Open Cultivation to follow spawn, fruiting stages, flushes and harvests."
                 />
               )}
               <div className="panel-footer">
@@ -155,8 +153,11 @@ export default function Dashboard() {
                   Explore cultivation <ArrowUpRight size={14} />
                 </Link>
               </div>
-            </Panel>
-            <Panel title="Recent Activity" icon={Activity} label="ACTIVITY LOG">
+            </CollapsiblePanel>
+            <CollapsiblePanel
+              title="Recent Activity"
+              summary="Workspace activity log"
+            >
               {data.recent_activity.length ? (
                 <ul className="record-list">
                   {data.recent_activity.map((item) => (
@@ -174,16 +175,10 @@ export default function Dashboard() {
                   description="Culture Library changes are recorded in each record’s activity history."
                 />
               )}
-            </Panel>
+            </CollapsiblePanel>
           </div>
-          <p className="foundation-note">
-            <span className="status-dot" />
-            Registered quantities are starting measurements. Transfers and
-            automatic inventory accounting come in a later milestone.
-          </p>
         </>
       )}
-      <QuickCreateSection />
     </>
   );
 }

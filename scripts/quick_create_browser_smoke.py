@@ -181,6 +181,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                     == 0
                 )
                 page.goto(base + "/culture-library/fruiting/" + fr["id"])
+                page.get_by_role(
+                    "button", name="Record information", exact=True
+                ).click()
                 expect(page.locator(".detail-panel")).to_contain_text(
                     "Browser Chestnut"
                 )

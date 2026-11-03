@@ -1,3 +1,4 @@
+import CollapsiblePanel from "../components/CollapsiblePanel";
 import { cultivationStatus } from "../containerApi";
 import { verifyAgarSource } from "../quickCreate";
 import { useState } from "react";
@@ -359,13 +360,15 @@ export default function DirectCreate({
         choices={labels}
         onChange={setLabels}
       />
-      <Field
-        name="notes"
-        label="Cultivation notes"
-        type="textarea"
-        values={v}
-        set={set}
-      />
+      <CollapsiblePanel title="Cultivation notes (optional)">
+        <Field
+          name="notes"
+          label="Cultivation notes"
+          type="textarea"
+          values={v}
+          set={set}
+        />
+      </CollapsiblePanel>
       {command.error && <p role="alert">{command.error}</p>}
       <div className="actions">
         <button

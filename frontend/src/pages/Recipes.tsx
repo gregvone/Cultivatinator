@@ -1,3 +1,4 @@
+import CollapsiblePanel from "../components/CollapsiblePanel";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -67,7 +68,7 @@ export function RecipesHome() {
                   ? "Agar media formulations"
                   : key === "spawn-seed"
                     ? "Grain spawn formulations"
-                    : "Substrate definitions for future fruiting operations"}
+                    : "Substrate formulas for fruiting grows"}
             </p>
           </Link>
         ))}
@@ -281,22 +282,28 @@ export function RecipeDetail({
             <p>Yield: {r.batch_yield} containers</p>
             <h2>Preparation Instructions</h2>
             <p className="preserve-lines">{r.instructions || "Not recorded"}</p>
-            <p>
-              Processing: {r.processing.method || "Not recorded"} ·{" "}
-              {r.processing.duration_minutes ?? "Unknown"} min ·{" "}
-              {r.processing.temperature_c ?? "Unknown"} °C ·{" "}
-              {r.processing.pressure_psi ?? "Unknown"} psi
-            </p>
-            <p>{r.processing.notes}</p>
-            <h2>Notes</h2>
-            <p>{r.notes || "None"}</p>
-            <p>Created: {new Date(r.created_at || "").toLocaleString()}</p>
-            <p>
-              Last updated:{" "}
-              {r.updated_at
-                ? new Date(r.updated_at).toLocaleString()
-                : `Not recorded (created ${new Date(r.created_at || "").toLocaleDateString()})`}
-            </p>
+            <CollapsiblePanel
+              title="Processing & secondary details"
+              summary={`Revision ${r.revision}`}
+              level={3}
+            >
+              <p>
+                Processing: {r.processing.method || "Not recorded"} ·{" "}
+                {r.processing.duration_minutes ?? "Unknown"} min ·{" "}
+                {r.processing.temperature_c ?? "Unknown"} °C ·{" "}
+                {r.processing.pressure_psi ?? "Unknown"} psi
+              </p>
+              <p>{r.processing.notes}</p>
+              <h2>Notes</h2>
+              <p>{r.notes || "None"}</p>
+              <p>Created: {new Date(r.created_at || "").toLocaleString()}</p>
+              <p>
+                Last updated:{" "}
+                {r.updated_at
+                  ? new Date(r.updated_at).toLocaleString()
+                  : `Not recorded (created ${new Date(r.created_at || "").toLocaleDateString()})`}
+              </p>
+            </CollapsiblePanel>
             <div className="actions">
               <Link
                 className="button primary"
@@ -320,6 +327,7 @@ export function RecipeDetail({
               )}
               {!r.used && !r.is_lc_default && (
                 <button
+                  className="danger"
                   disabled={command.busy}
                   onClick={() => action("delete")}
                 >
@@ -549,7 +557,9 @@ function RecipeForm({
           values={v}
           set={set}
         />
-        <ProcessingFields values={v} set={set} />
+        <CollapsiblePanel title="Processing details (optional)">
+          <ProcessingFields values={v} set={set} />
+        </CollapsiblePanel>
         <Field
           name="notes"
           label="Recipe notes"

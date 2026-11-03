@@ -376,6 +376,11 @@ test.each(
       );
     const removal = screen.getByRole("button", { name: "Remove retry.png" });
     expect(removal).toBeEnabled();
+    const cycle = screen.getByRole("button", { name: "Current Growing Cycle" });
+    await user.click(cycle);
+    expect(cycle.closest("details")).not.toHaveAttribute("open");
+    await user.click(cycle);
+    expect(screen.getByText("retry.png: Image rejected")).toBeInTheDocument();
     state.offline = false;
     await user.click(
       screen.getByRole("button", { name: "Retry remaining photos" }),
@@ -456,6 +461,7 @@ test("later pinning-photo additions and removals never submit stage changes", as
     name: /Pinning — 2026-01-03/,
   });
   const section = heading.closest("section")!;
+  await user.click(within(section).getByRole("button", { name: "Add Photos" }));
   await user.upload(
     within(section).getByLabelText("Attach photographs"),
     file("later.png"),
@@ -517,6 +523,9 @@ test.each(["fruiting", "complete"])(
       kind === "fruiting"
         ? state.data.flushes[1].fruiting_date
         : state.data.run!.completed_date;
+    await user.click(
+      within(section).getByRole("button", { name: "Add Photos" }),
+    );
     await user.upload(
       within(section).getByLabelText("Attach photographs"),
       file("later.png"),
@@ -564,4 +573,45 @@ test.each(["fruiting", "complete"])("%s needs no photos", async (kind) => {
   expect(
     fetch.mock.calls.filter(([, init]) => init?.body instanceof FormData),
   ).toHaveLength(0);
+});
+
+test("compact event galleries show three thumbnails and expose all photos and editing on demand", async () => {
+  const { fetch } = mock("pinning");
+  mount("pinning");
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", { name: "Mark Fruiting" }),
+  );
+  await user.upload(screen.getByLabelText("Fruiting photos (optional)"), [
+    file("one.png"),
+    file("two.png"),
+    file("three.png"),
+    file("four.png"),
+  ]);
+  await user.click(screen.getByRole("button", { name: "Save Grow Status" }));
+  const heading = await screen.findByRole("heading", { name: /Fruiting — 20/ });
+  const section = heading.closest("section")!;
+  await waitFor(() =>
+    expect(
+      within(section).getAllByRole("button", { name: /Open photograph/ }),
+    ).toHaveLength(3),
+  );
+  expect(
+    within(section).queryByRole("button", { name: "Remove" }),
+  ).not.toBeInTheDocument();
+  await user.click(
+    within(section).getByRole("button", { name: "Show all 4 photos" }),
+  );
+  expect(
+    within(section).getAllByRole("button", { name: /Open photograph/ }),
+  ).toHaveLength(4);
+  await user.click(within(section).getByRole("button", { name: "Add Photos" }));
+  expect(
+    within(section).getAllByRole("button", { name: "Remove" }),
+  ).toHaveLength(4);
+  expect(
+    fetch.mock.calls
+      .filter(([, init]) => init?.body instanceof FormData)
+      .every(([path]) => String(path).endsWith("/flushes/1/fruiting/photos")),
+  ).toBe(true);
 });

@@ -1,3 +1,4 @@
+import CollapsiblePanel from "../components/CollapsiblePanel";
 import { verifyAgarSource } from "../quickCreate";
 import { cultivationStatus } from "../containerApi";
 import { useEffect, useState } from "react";
@@ -540,91 +541,95 @@ export function MaterialOperationPanel({
         record.material_type?.startsWith("lc_") && (
           <CultureBalanceForm record={record} onSaved={onSaved} />
         )}
-      {error && <p role="alert">{error}</p>}
-      {history?.preparation?.snapshot.media_origin === "source_transfer" && (
-        <p>
-          Media transferred from{" "}
-          <Link
-            to={`/culture-library/physical/${history.preparation.snapshot.media_source_id}`}
-          >
-            {history.preparation.snapshot.media_source_id}
-          </Link>
-          .{" "}
-          {history.preparation.snapshot.recipe
-            ? "The original media formulation is retained below."
-            : "The media formulation was not recorded for this source."}{" "}
-          No new media preparation is recorded.
-        </p>
-      )}
-      {history?.preparation?.snapshot.recipe && (
-        <section>
-          <h3>Recipe: {history.preparation.snapshot.recipe.name}</h3>
-          {history.preparation.snapshot.media_origin === "source_transfer" && (
-            <p>
-              Inherited formulation yield:{" "}
-              {history.preparation.snapshot.recipe.batch_yield} containers.
-              Amounts below describe the original formula, not new preparation.
-            </p>
-          )}
+      <CollapsiblePanel title="Preparation & Transfer History">
+        {error && <p role="alert">{error}</p>}
+        {history?.preparation?.snapshot.media_origin === "source_transfer" && (
           <p>
-            Inoculated: {history.preparation.source?.date || "Not recorded"}
-          </p>
-          <p>{history.preparation.snapshot.recipe.instructions}</p>
-          <ul>
-            {(history.preparation.snapshot.media_origin === "source_transfer"
-              ? history.preparation.snapshot.recipe.ingredients
-              : history.preparation.snapshot.ingredients
-            ).map((i, index) => (
-              <li key={i.item_id || index}>
-                {i.name || i.item_id}: {i.quantity} {i.unit}
-              </li>
-            ))}
-          </ul>
-          <p>{history.preparation.snapshot.notes}</p>
-          {history.preparation.snapshot.recipe_id && (
+            Media transferred from{" "}
             <Link
-              to={`/recipes/detail/${history.preparation.snapshot.recipe_id}`}
+              to={`/culture-library/physical/${history.preparation.snapshot.media_source_id}`}
             >
-              Open recipe definition
+              {history.preparation.snapshot.media_source_id}
             </Link>
-          )}
-        </section>
-      )}
-      {history?.preparation && (
-        <p>
-          <Link to={`/history/materials/${history.preparation.id}`}>
-            {history.preparation.snapshot.workflow === "direct"
-              ? "Recipe & source history"
-              : "Previous preparation"}{" "}
-            {history.preparation.id} · {history.preparation.batch_id}
-          </Link>
-          {history.preparation.source && (
-            <>
-              {" "}
-              · Exact physical source:{" "}
+            .{" "}
+            {history.preparation.snapshot.recipe
+              ? "The original media formulation is retained below."
+              : "The media formulation was not recorded for this source."}{" "}
+            No new media preparation is recorded.
+          </p>
+        )}
+        {history?.preparation?.snapshot.recipe && (
+          <section>
+            <h3>Recipe: {history.preparation.snapshot.recipe.name}</h3>
+            {history.preparation.snapshot.media_origin ===
+              "source_transfer" && (
+              <p>
+                Inherited formulation yield:{" "}
+                {history.preparation.snapshot.recipe.batch_yield} containers.
+                Amounts below describe the original formula, not new
+                preparation.
+              </p>
+            )}
+            <p>
+              Inoculated: {history.preparation.source?.date || "Not recorded"}
+            </p>
+            <p>{history.preparation.snapshot.recipe.instructions}</p>
+            <ul>
+              {(history.preparation.snapshot.media_origin === "source_transfer"
+                ? history.preparation.snapshot.recipe.ingredients
+                : history.preparation.snapshot.ingredients
+              ).map((i, index) => (
+                <li key={i.item_id || index}>
+                  {i.name || i.item_id}: {i.quantity} {i.unit}
+                </li>
+              ))}
+            </ul>
+            <p>{history.preparation.snapshot.notes}</p>
+            {history.preparation.snapshot.recipe_id && (
               <Link
-                to={`/culture-library/${history.preparation.source.kind}/${history.preparation.source.id}`}
+                to={`/recipes/detail/${history.preparation.snapshot.recipe_id}`}
               >
-                {history.preparation.source.id}
+                Open recipe definition
               </Link>
-            </>
-          )}
-        </p>
-      )}
-      {!!history?.destinations?.length && (
-        <>
-          <h3>Physical transfer destinations</h3>
-          <ul>
-            {history.destinations.map((row) => (
-              <li key={row.id}>
-                <Link to={`/history/materials/${row.id}`}>
-                  {row.id} · {row.source?.operation_id}
+            )}
+          </section>
+        )}
+        {history?.preparation && (
+          <p>
+            <Link to={`/history/materials/${history.preparation.id}`}>
+              {history.preparation.snapshot.workflow === "direct"
+                ? "Recipe & source history"
+                : "Previous preparation"}{" "}
+              {history.preparation.id} · {history.preparation.batch_id}
+            </Link>
+            {history.preparation.source && (
+              <>
+                {" "}
+                · Exact physical source:{" "}
+                <Link
+                  to={`/culture-library/${history.preparation.source.kind}/${history.preparation.source.id}`}
+                >
+                  {history.preparation.source.id}
                 </Link>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+              </>
+            )}
+          </p>
+        )}
+        {!!history?.destinations?.length && (
+          <>
+            <h3>Physical transfer destinations</h3>
+            <ul>
+              {history.destinations.map((row) => (
+                <li key={row.id}>
+                  <Link to={`/history/materials/${row.id}`}>
+                    {row.id} · {row.source?.operation_id}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </CollapsiblePanel>
     </section>
   );
 }

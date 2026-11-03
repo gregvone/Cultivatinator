@@ -1,3 +1,4 @@
+import CollapsiblePanel from "../components/CollapsiblePanel";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -312,20 +313,22 @@ export function AcquisitionForm() {
               values={v}
               set={set}
             />
-            <Field
-              name="supplier_reference"
-              label="Supplier reference"
-              values={v}
-              set={set}
-            />
-            {!spores && (
+            <CollapsiblePanel title="Supplier references (optional)">
               <Field
-                name="supplier_batch"
-                label="Supplier batch identifier"
+                name="supplier_reference"
+                label="Supplier reference"
                 values={v}
                 set={set}
               />
-            )}
+              {!spores && (
+                <Field
+                  name="supplier_batch"
+                  label="Supplier batch identifier"
+                  values={v}
+                  set={set}
+                />
+              )}
+            </CollapsiblePanel>
             <Field
               name="acquisition_date"
               label="Acquisition date (optional)"
