@@ -1,3 +1,4 @@
+import { emptyReport } from "./test-fixtures/reports";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -23,14 +24,16 @@ function mockApi() {
             String(input).includes("/api/preparation/") ||
             String(input).includes("/api/fruiting")
             ? []
-            : String(input).endsWith("app/info")
-              ? {
-                  name: "Cultivatinator",
-                  version: "0.1.0",
-                  environment: "test",
-                  storage: "SQLite",
-                }
-              : summary,
+            : String(input).includes("/api/reports/")
+              ? emptyReport()
+              : String(input).endsWith("app/info")
+                ? {
+                    name: "Cultivatinator",
+                    version: "0.1.0",
+                    environment: "test",
+                    storage: "SQLite",
+                  }
+                : summary,
         ),
         { status: 200 },
       ),

@@ -1567,3 +1567,116 @@ main dd {
 .actions:empty {
   display: none;
 }
+
+/* Read-only Reports: compact charts with the same data available in tables. */
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.report-filters .field {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.report-filters [role="alert"] {
+  flex-basis: 100%;
+  color: #efb1aa;
+}
+.report-period,
+.report-coverage {
+  margin-block: 1rem;
+  line-height: 1.7;
+}
+.report-summary {
+  margin-top: 1rem;
+}
+.report-summary h2 {
+  font-size: 0.9rem;
+  color: #b9cddd;
+  font-weight: 500;
+}
+.report-summary .summary-card > strong {
+  font-size: 1.7rem;
+  overflow-wrap: anywhere;
+}
+.performance-chart {
+  margin: 1rem 0;
+}
+.performance-chart figcaption {
+  color: #b9cddd;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+.performance-chart ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.performance-chart li {
+  margin-bottom: 1.2rem;
+}
+.bar-label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.bar-label > span:first-of-type {
+  margin-left: auto;
+}
+.bar-track {
+  height: 0.65rem;
+  background: #111f2d;
+  border: 1px solid #456079;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bar-track > span {
+  display: block;
+  height: 100%;
+  background: #79b6e4;
+}
+.performance-chart li p {
+  font-size: 0.85rem;
+  color: #afc5d9;
+  margin-top: 0.4rem;
+}
+.table-scroll caption {
+  text-align: left;
+  color: #b9cddd;
+  padding-block: 0.75rem;
+}
+.table-scroll small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: #afc5d9;
+  margin-top: 0.5rem;
+}
+.report-records {
+  padding-left: 1rem;
+}
+.report-records > li {
+  padding-block: 0.7rem;
+  border-bottom: 1px solid #304155;
+  min-width: 200px;
+}
+.report-records p {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+@media (max-width: 600px) {
+  .report-filters .field {
+    flex-basis: 100%;
+  }
+  .report-filters > button {
+    width: 100%;
+  }
+  .bar-label > span:first-of-type {
+    margin-left: 0;
+  }
+}

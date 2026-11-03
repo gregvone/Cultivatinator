@@ -26,7 +26,7 @@ import LegacyInoculation from "./pages/LegacyInoculation";
 import QuickCreatePage from "./pages/QuickCreate";
 import Shell from "./components/Shell";
 import Dashboard from "./pages/Dashboard";
-import ModulePage, { modules } from "./pages/ModulePage";
+import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import { CultureLibrary, RecordDetail } from "./pages/CultureLibrary";
 import { ReceiveForm, StrainForm } from "./pages/LibraryForms";
@@ -169,18 +169,7 @@ export default function App() {
             path="culture-library/:kind/:code"
             element={<RecordDetail />}
           />
-          {(Object.keys(modules) as (keyof typeof modules)[])
-            .filter(
-              (module) =>
-                !["inventory", "laboratory", "cultivation"].includes(module),
-            )
-            .map((module) => (
-              <Route
-                key={module}
-                path={module}
-                element={<ModulePage module={module} />}
-              />
-            ))}
+          <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
           <Route
             path="*"
