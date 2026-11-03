@@ -30,6 +30,7 @@ from .backup_format import (
 from .backup_store import atomic_json, identifier, NAME, file_identity
 from .maintenance_protocol import MaintenanceError, signature, read_key
 from .restore_workspace import Compose, restore, recover
+from .backup_policy import BackupPolicy
 
 log = logging.getLogger(__name__)
 SESSION_SECONDS = 1800
@@ -160,10 +161,65 @@ class AdminStore:
             atomic_json(self.path, state)
         return {"unlocked": False}
 
+    def trusted_csrf(self, token):
+        return signature(self.secret, ("trusted-csrf:" + token).encode())
+
+    def trusted_sessions(self):
+        path = self.root / "trusted-sessions.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+    def authorize_trusted(self, token, client, csrf="", write=False):
+        with self.lock:
+            entry = self.trusted_sessions().get(
+                hashlib.sha256(token.encode()).hexdigest()
+            )
+            if (
+                not entry
+                or entry["expires"] <= time.time()
+                or entry["client"] != client
+            ):
+                raise MaintenanceError("Refresh the trusted LAN backup session", 401)
+            if write and not hmac.compare_digest(csrf, self.trusted_csrf(token)):
+                raise MaintenanceError(
+                    "Invalid administration confirmation token; refresh Backup & Restore",
+                    403,
+                )
+            return {
+                "configured": True,
+                "unlocked": True,
+                "csrf": self.trusted_csrf(token),
+                "expires_at": entry["expires"],
+            }
+
+    def trusted_login(self, client, token=""):
+        with self.lock:
+            try:
+                return {"session": token, **self.authorize_trusted(token, client)}
+            except MaintenanceError:
+                pass
+            sessions = {
+                key: entry
+                for key, entry in self.trusted_sessions().items()
+                if entry["expires"] > time.time()
+            }
+            if len(sessions) >= 64:
+                sessions.pop(min(sessions, key=lambda key: sessions[key]["expires"]))
+            token = secrets.token_urlsafe(48)
+            sessions[hashlib.sha256(token.encode()).hexdigest()] = {
+                "expires": time.time() + SESSION_SECONDS,
+                "client": client,
+            }
+            atomic_json(self.root / "trusted-sessions.json", sessions)
+            return {"session": token, **self.authorize_trusted(token, client)}
+
 
 class MaintenanceService:
     def __init__(self, config, controller_factory=None):
         self.config = config
+        self.policy = BackupPolicy(
+            config.get("backup_auth_mode", "password"),
+            config.get("trusted_networks", ""),
+        )
         self.root = Path(config["data_root"]).resolve(strict=True)
         self.state = Path(config["state_root"])
         self.state.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -197,7 +253,10 @@ class MaintenanceService:
             value = self.latest()
         return {
             "available": True,
-            "configured": bool(self.admin.load()["credential"]),
+            "configured": self.policy.mode == "trusted_lan"
+            or bool(self.admin.load()["credential"]),
+            "auth_mode": self.policy.mode,
+            "trusted_networks": self.policy.cidrs,
             "active": bool(
                 value and value["status"] not in {"complete", "rolled_back", "failed"}
             ),
@@ -495,16 +554,36 @@ class MaintenanceService:
                 f"Automatic recovery could not finish: {exc}. Preserve recovery files and use the documented host recovery procedure.",
             )
 
+    def authorize_request(self, data, write=False):
+        if data.get("auth_mode", "password") != self.policy.mode:
+            raise MaintenanceError(
+                "Backup authentication configuration differs from the maintenance helper; refresh its installation",
+                503,
+            )
+        if self.policy.mode == "trusted_lan":
+            try:
+                client = self.policy.require_peer(data.get("client"))
+            except ValueError as exc:
+                raise MaintenanceError(str(exc), 403) from exc
+            return self.admin.authorize_trusted(
+                data.get("session", ""), client, data.get("csrf", ""), write
+            )
+        return self.admin.authorize(
+            data.get("session", ""), data.get("csrf", ""), write
+        )
+
     def dispatch(self, operation, data):
+        auth = {"session", "csrf", "auth_mode", "client"}
         fields = {
             "status": {"id"},
             "setup": {"passphrase", "bootstrap", "client"},
             "unlock": {"passphrase", "bootstrap", "client"},
-            "authorize": {"session", "csrf", "write"},
-            "lock": {"session", "csrf"},
-            "prepare_restore": {"session", "csrf", "source", "id"},
-            "cancel_preview": {"session", "csrf", "id"},
-            "restore": {"session", "csrf", "preview_id", "request_id", "confirmation"},
+            "trusted_session": {"session", "client"},
+            "authorize": auth | {"write"},
+            "lock": auth,
+            "prepare_restore": auth | {"source", "id"},
+            "cancel_preview": auth | {"id"},
+            "restore": auth | {"preview_id", "request_id", "confirmation"},
         }
         if operation not in fields or set(data) - fields[operation]:
             raise MaintenanceError(
@@ -513,14 +592,28 @@ class MaintenanceService:
         if operation == "status":
             return self.status(data.get("id"))
         if operation in {"setup", "unlock"}:
+            if self.policy.mode != "password":
+                raise MaintenanceError(
+                    "Trusted LAN mode does not use password setup or unlock", 409
+                )
             return self.admin.login(data, setup=operation == "setup")
+        if operation == "trusted_session":
+            if self.policy.mode != "trusted_lan":
+                raise MaintenanceError("Trusted LAN authentication is not enabled", 403)
+            try:
+                client = self.policy.require_peer(data.get("client"))
+            except ValueError as exc:
+                raise MaintenanceError(str(exc), 403) from exc
+            return self.admin.trusted_login(client, data.get("session", ""))
         if operation == "authorize":
-            return self.admin.authorize(
-                data.get("session", ""), data.get("csrf", ""), data.get("write", False)
-            )
+            return self.authorize_request(data, data.get("write", False))
         if operation == "lock":
+            if self.policy.mode != "password":
+                raise MaintenanceError(
+                    "Trusted LAN mode does not have a password lock", 409
+                )
             return self.admin.logout(data)
-        self.admin.authorize(data.get("session", ""), data.get("csrf", ""), True)
+        self.authorize_request(data, True)
         if operation == "prepare_restore":
             return self.prepare(data)
         if operation == "cancel_preview":

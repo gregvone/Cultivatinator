@@ -37,6 +37,7 @@ function json(value: unknown, status = 200) {
 function mockServer(
   options: {
     locked?: boolean;
+    trusted?: boolean;
     configured?: boolean;
     backups?: (typeof backup)[];
     route?: (
@@ -57,6 +58,12 @@ function mockServer(
           configured: options.configured ?? true,
           unlocked: !options.locked,
           csrf: "csrf-test",
+          ...(options.trusted
+            ? {
+                auth_mode: "trusted_lan",
+                trusted_networks: ["192.168.68.0/24"],
+              }
+            : {}),
         });
       if (path === "/catalog")
         return json({
@@ -517,4 +524,125 @@ test("post-upload preparation failure cancels the staged preview and leaves no m
   expect(
     screen.queryByRole("button", { name: "Cancel upload" }),
   ).not.toBeInTheDocument();
+});
+
+test("trusted LAN mode opens immediately, explains network authority and never presents password or lock controls", async () => {
+  mockServer({ trusted: true });
+  render(<BackupRestore />);
+  await ready();
+  expect(
+    screen.getByRole("heading", { name: "Trusted LAN Mode" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText(/Clients in 192.168.68.0\/24 can administer/),
+  ).toBeVisible();
+  expect(
+    screen.queryByLabelText("Administrator passphrase"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Lock Administration" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Unlock Backup Administration" }),
+  ).not.toBeInTheDocument();
+});
+
+test("trusted LAN actions renew CSRF automatically without asking for a password", async () => {
+  let sessions = 0;
+  const fetch = mockServer({
+    trusted: true,
+    route: (path) =>
+      path === "/admin/session"
+        ? json({
+            available: true,
+            configured: true,
+            unlocked: true,
+            auth_mode: "trusted_lan",
+            trusted_networks: ["192.168.68.0/24"],
+            csrf: ++sessions === 1 ? "initial" : "renewed",
+          })
+        : undefined,
+  });
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  render(<BackupRestore />);
+  await ready();
+  await userEvent.click(screen.getByRole("button", { name: "Create Backup" }));
+  expect(
+    await screen.findByText(/Verified backup saved on Debian/),
+  ).toBeVisible();
+  const call = fetch.mock.calls.find(
+    ([path]) => path === "/api/backups/create",
+  );
+  expect(call?.[1]?.headers).toMatchObject({ "X-Backup-CSRF": "renewed" });
+  expect(sessions).toBe(2);
+});
+
+test("expired trusted LAN sessions renew once and retry rejected reads without an unlock screen", async () => {
+  let catalogs = 0;
+  const fetch = mockServer({
+    trusted: true,
+    route: (path) =>
+      path === "/catalog" && ++catalogs === 1
+        ? json({ detail: "Session expired" }, 401)
+        : undefined,
+  });
+  render(<BackupRestore />);
+  await ready();
+  expect(
+    fetch.mock.calls.filter(([path]) => path === "/api/backups/admin/session"),
+  ).toHaveLength(2);
+  expect(
+    screen.queryByLabelText("Administrator passphrase"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Trusted LAN Mode" }),
+  ).toBeVisible();
+});
+
+test("unauthorized network access shows a clear denial without offering passwordless administration", async () => {
+  mockServer({
+    route: (path) =>
+      path === "/admin/session"
+        ? json(
+            {
+              detail:
+                "The connection address is not in a configured trusted network",
+            },
+            403,
+          )
+        : undefined,
+  });
+  render(<BackupRestore />);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "not in a configured trusted network",
+  );
+  expect(
+    screen.queryByRole("button", { name: "Create Backup" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Administrator passphrase"),
+  ).not.toBeInTheDocument();
+});
+
+test("trusted LAN still requires explicit delete and restore confirmation", async () => {
+  const fetch = mockServer({ trusted: true, backups: [backup] });
+  render(<BackupRestore />);
+  await ready();
+  await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+  expect(
+    screen.getByRole("button", { name: "Confirm Delete Backup" }),
+  ).toBeVisible();
+  expect(fetch.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(
+    false,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Keep Backup" }));
+  await choosePreview("stored");
+  expect(
+    await screen.findByRole("button", {
+      name: "Restore and Replace Current Data",
+    }),
+  ).toBeDisabled();
+  expect(
+    fetch.mock.calls.some(([path]) => path === "/api/backups/restore/confirm"),
+  ).toBe(false);
 });

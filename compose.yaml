@@ -17,6 +17,8 @@ services:
           create_host_path: false
     environment:
       CULTIVATINATOR_ENVIRONMENT: production
+      CULTIVATINATOR_BACKUP_AUTH_MODE: "${CULTIVATINATOR_BACKUP_AUTH_MODE:-password}"
+      CULTIVATINATOR_TRUSTED_NETWORKS: "${CULTIVATINATOR_TRUSTED_NETWORKS:-}"
     security_opt:
       - no-new-privileges:true
     cap_drop:

@@ -8,7 +8,15 @@ import anyio
 from fastapi import APIRouter, Request, Response, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.responses import FileResponse
-from .backup_access import COOKIE, browser_guard, helper, require_admin
+from .backup_access import (
+    COOKIE,
+    browser_guard,
+    helper,
+    require_admin,
+    credentials,
+    policy,
+    trusted_peer,
+)
 from .backup_format import BackupError, Limits, ensure_space
 from .backup_store import utcnow
 from .backups import capture, TTL
@@ -52,11 +60,16 @@ class Schedule(Input):
     retention: int = Field(ge=1, le=52)
 
 
-def credentials(request):
-    return {
-        "session": request.cookies.get(COOKIE, ""),
-        "csrf": request.headers.get("x-backup-csrf", ""),
-    }
+def session_cookie(request, response, token):
+    response.set_cookie(
+        COOKIE,
+        token,
+        max_age=1800,
+        httponly=True,
+        secure=request.url.scheme == "https",
+        samesite="strict",
+        path="/api/backups",
+    )
 
 
 def fail(exc):
@@ -66,15 +79,39 @@ def fail(exc):
 @router.get("/admin/session")
 async def session(request: Request, response: Response):
     browser_guard(request)
+    configured = policy(request)
+    client = trusted_peer(request) if configured.mode == "trusted_lan" else None
     response.headers["Cache-Control"] = "no-store"
     try:
         status = await helper(request, "status")
+        if status.get("auth_mode", "password") != configured.mode or (
+            configured.mode == "trusted_lan"
+            and status.get("trusted_networks") != configured.cidrs
+        ):
+            raise HTTPException(
+                503,
+                "Backup authentication configuration differs from the maintenance helper. Re-run the helper installer with the current Compose configuration.",
+            )
     except HTTPException as exc:
         return {
             "available": False,
             "configured": False,
             "unlocked": False,
             "detail": str(exc.detail),
+        }
+    if configured.mode == "trusted_lan":
+        result = await helper(
+            request,
+            "trusted_session",
+            {"client": client, "session": request.cookies.get(COOKIE, "")},
+        )
+        token = result.pop("session")
+        session_cookie(request, response, token)
+        return {
+            "available": True,
+            "auth_mode": "trusted_lan",
+            "trusted_networks": configured.cidrs,
+            **result,
         }
     if request.cookies.get(COOKIE):
         try:
@@ -90,6 +127,11 @@ async def session(request: Request, response: Response):
 
 async def login(action, data, request, response):
     browser_guard(request)
+    if policy(request).mode == "trusted_lan":
+        trusted_peer(request)
+        raise HTTPException(
+            409, "Trusted LAN mode does not use password setup or unlock"
+        )
     result = await helper(
         request,
         action,
@@ -99,15 +141,7 @@ async def login(action, data, request, response):
         },
     )
     token = result.pop("session")
-    response.set_cookie(
-        COOKIE,
-        token,
-        max_age=1800,
-        httponly=True,
-        secure=request.url.scheme == "https",
-        samesite="strict",
-        path="/api/backups",
-    )
+    session_cookie(request, response, token)
     response.headers["Cache-Control"] = "no-store"
     return {"available": True, **result}
 
@@ -124,6 +158,8 @@ async def unlock(data: Unlock, request: Request, response: Response):
 
 @router.post("/admin/lock", dependencies=[Depends(require_admin)])
 async def lock(request: Request, response: Response):
+    if policy(request).mode == "trusted_lan":
+        raise HTTPException(409, "Trusted LAN mode does not have a password lock")
     await helper(request, "lock", credentials(request))
     response.delete_cookie(
         COOKIE, path="/api/backups", httponly=True, samesite="strict"

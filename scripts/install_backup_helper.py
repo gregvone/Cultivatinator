@@ -15,11 +15,15 @@ CODE = Path("/opt/cultivatinator-maintenance")
 ETC = Path("/etc/cultivatinator-maintenance")
 STATE = Path("/var/lib/cultivatinator-maintenance")
 RUNTIME = Path("/run/cultivatinator-maintenance")
+sys.path.insert(0, str(ROOT / "backend"))
+from app.backup_policy import BackupPolicy
+
 UNIT = Path("/etc/systemd/system/cultivatinator-maintenance.service")
 MODULES = [
     "__init__.py",
     "version.py",
     "backup_format.py",
+    "backup_policy.py",
     "backup_schema.json",
     "backup_store.py",
     "backup_schedule.py",
@@ -107,12 +111,6 @@ def main():
             parser.error(
                 "Finish/recover the current restore before updating the helper"
             )
-    subprocess.run(
-        ["systemctl", "stop", "cultivatinator-maintenance.service"],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
     # Only the local daemon and the operator-selected trusted Compose file are
     # read during installation. The running helper uses a root-owned snapshot.
     environment = {
@@ -133,6 +131,8 @@ def main():
                 "docker",
                 "--host=unix:///var/run/docker.sock",
                 "compose",
+                "--project-directory",
+                str(compose.parent),
                 "-f",
                 str(compose),
                 "config",
@@ -151,6 +151,17 @@ def main():
         or Path(binds[0]["source"]).resolve() != root
     ):
         parser.error("Compose app /data must bind the configured data root")
+    configured_environment = definition.get("environment", {})
+    policy = BackupPolicy(
+        configured_environment.get("CULTIVATINATOR_BACKUP_AUTH_MODE") or "password",
+        configured_environment.get("CULTIVATINATOR_TRUSTED_NETWORKS") or "",
+    )
+    subprocess.run(
+        ["systemctl", "stop", "cultivatinator-maintenance.service"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     private_file(ETC / "compose.json", json.dumps(resolved, indent=2))
     backend = CODE / "backend"
     app = backend / "app"
@@ -188,6 +199,8 @@ def main():
         backups.mkdir(mode=0o700)
         os.chown(backups, 10001, 10001)
     config = {
+        "backup_auth_mode": policy.mode,
+        "trusted_networks": ",".join(policy.cidrs),
         "data_root": str(root),
         "compose_file": str(ETC / "compose.json"),
         "state_root": str(STATE),
@@ -229,7 +242,7 @@ CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SYS_PTRACE
 WantedBy=multi-user.target
 """
     private_file(UNIT, unit, 0o644)
-    code = bootstrap()
+    code = bootstrap() if policy.mode == "password" else None
     subprocess.run(["systemctl", "daemon-reload"], check=True)
     subprocess.run(
         ["systemctl", "enable", "--now", "cultivatinator-maintenance.service"],
@@ -238,7 +251,13 @@ WantedBy=multi-user.target
     print(
         "Helper installed. Recreate the app with the reviewed Compose file, then open Settings → Backup & Restore."
     )
-    if code:
+    if policy.mode == "trusted_lan":
+        print(
+            "Trusted LAN mode: clients in "
+            + ", ".join(policy.cidrs)
+            + " can administer backups and restores without a password. Existing password credentials are retained."
+        )
+    elif code:
         print("One-time browser setup code (store privately until used): " + code)
     elif not (STATE / "admin.json").exists():
         print(

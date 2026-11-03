@@ -24,7 +24,10 @@ BOOTSTRAP = "one-time-local-deployment-code"
 
 
 @pytest.fixture
-def administration(tmp_path):
+def administration(tmp_path, request):
+    options = getattr(request, "param", {})
+    mode = options.get("auth_mode", "password")
+    networks = options.get("trusted_networks", "")
     root = tmp_path / "installation"
     root.mkdir()
     state = tmp_path / "helper-state"
@@ -38,6 +41,8 @@ def administration(tmp_path):
         key = runtime / "channel.key"
         key.write_text("a" * 64)
         config = {
+            "backup_auth_mode": mode,
+            "trusted_networks": networks,
             "data_root": str(root),
             "state_root": str(state),
             "compose_file": str(tmp_path / "frozen-compose.json"),
@@ -51,6 +56,8 @@ def administration(tmp_path):
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             settings = Settings(
+                backup_auth_mode=mode,
+                trusted_networks=networks,
                 data_dir=root,
                 frontend_dir=tmp_path / "frontend",
                 maintenance_socket=runtime / "control.sock",
@@ -60,7 +67,15 @@ def administration(tmp_path):
             app.state.maintenance = HelperClient(
                 runtime / "control.sock", key, expected_uid=os.getuid()
             )
-            with TestClient(app) as client:
+            connection = (
+                {
+                    "client": ("192.168.68.25", 45000),
+                    "base_url": "http://192.168.68.2:8085",
+                }
+                if mode == "trusted_lan"
+                else {}
+            )
+            with TestClient(app, **connection) as client:
                 yield client, service, root, state
             server.shutdown()
             thread.join(timeout=5)

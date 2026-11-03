@@ -4,7 +4,7 @@ Revision on `feature/milestone-2d2-backup-restore`, PR #9. Continue the original
 
 ## Everyday use: Settings → Backup & Restore
 
-Routine operations require no terminal. First unlock backup administration with your passphrase. Initial setup uses the private one-time code printed by the host installer, then establishes your administrator passphrase (at least 12 characters). The main cultivation application still has no account login; backup administration is a separate, focused boundary.
+Routine operations require no terminal. Authentication defaults to **Password Mode**: first unlock backup administration with your passphrase. Explicit **Trusted LAN Mode** opens immediately for allowed connection addresses, with no password/setup/unlock screen. In password mode, initial setup uses the private one-time code printed by the host installer, then establishes your administrator passphrase (at least 12 characters). The main cultivation application still has no account login; backup administration is a separate, focused boundary.
 
 **Create Backup** defaults to **both** Save backup on Debian server and Download backup to my computer. Choose either or both; at least one is required. One consistent verified artifact is used for both destinations. Capture shows busy state and can be cancelled. If cancellation races with a completed server save, refresh the list before creating another backup. Browser download failure does not delete a verified server copy. Use Download on that row to retry.
 
@@ -26,7 +26,7 @@ Restore request IDs use secure UUID v4 generation through `crypto.getRandomValue
 
 The restricted helper validates again, creates an independent verified safety backup, fences application writes, stops the existing Compose app, proves SQLite writers stopped, replaces only the four data directories, preserves UID/GID 10001, starts the existing app and checks API/database/version health. It never builds an image or changes source/configuration. Status phases are Verifying, Preparing safety backup, Stopping application, Restoring data, Restarting application, Verifying health, then Complete, Rolled back, Failed or Recovery required.
 
-During actual app downtime the browser says **Reconnecting** and retries automatically; it does not invent detailed progress while the proxying app is offline. After reconnection it retrieves the helper's persisted authoritative outcome. Administrator sessions survive app restart/data restore; if a 30-minute session expires, unlock again to retrieve the result. Reloading Settings after reconnect also retrieves the latest outcome.
+During actual app downtime the browser says **Reconnecting** and retries automatically; it does not invent detailed progress while the proxying app is offline. After reconnection it retrieves the helper's persisted authoritative outcome. Administrator sessions survive app restart/data restore. Expired password-mode sessions require unlock; trusted LAN sessions renew automatically without a password. Reloading Settings after reconnect also retrieves the latest outcome.
 
 Ordinary replacement/startup failures trigger the existing automatic rollback: stop the replacement, retain displaced data, restore original directories, restart/check the original installation. Completion is reported only after health and maintenance release succeed. A helper restart after interruption recovers retained originals where safe. Unresolved recovery blocks further maintenance changes. If the app cannot return, use emergency recovery below; commands are needed only for this disaster case.
 
@@ -70,13 +70,46 @@ Recovery operations remain under `/storage/tv/cultivatinator-recovery/<UTC-time>
 
 Keep recovery files after success as well as failure. The online safety ZIP precedes shutdown; original directories also preserve commits made up to actual stop. Recovery copies are never included in ordinary archives or retention pruning. Their paths are shown with the outcome. Disk usage for recovery/staging is additional to the managed ZIP total.
 
+## Password and Trusted LAN authentication modes
+
+`CULTIVATINATOR_BACKUP_AUTH_MODE=password` is the secure default when configuration is absent, including new installations and older helper configurations. Existing setup codes, salted password hashes, sessions and unlock behavior are retained. Password mode is not restricted by `CULTIVATINATOR_TRUSTED_NETWORKS`; a valid administrator passphrase is still required. The cultivation application remains a private-network application without a general login.
+
+`CULTIVATINATOR_BACKUP_AUTH_MODE=trusted_lan` is an explicit opt-in. `CULTIVATINATOR_TRUSTED_NETWORKS` must contain one or more comma-separated CIDRs. Empty/invalid values, host-bit CIDRs and unrestricted `/0` networks fail closed. Your requested Debian profile is provided in **`.env.trusted-lan.example`**:
+
+```dotenv
+CULTIVATINATOR_BACKUP_AUTH_MODE=trusted_lan
+CULTIVATINATOR_TRUSTED_NETWORKS=192.168.68.0/24
+```
+
+**Every client in these allowed networks can administer backups and restore cultivation data without a password.** Use this only where all allowed clients are trusted. Deletion and restore still require their explicit confirmations. The Settings panel identifies Trusted LAN Mode and explains that authority; it has no password/setup/lock controls. Password-mode credentials are not removed, replaced or rewritten. Switching back to Password Mode reuses them.
+
+Trusted LAN access checks the real transport peer on every backup request, including downloads, previews, confirmations, status, deletion and schedule changes. IPv4, IPv6 and IPv4-mapped IPv6 addresses are supported. Forwarded requests (`Forwarded`, `X-Forwarded-For`, `X-Real-IP`, and related headers) are rejected, even if a native ASGI server had rewritten the peer. The production entry point disables Uvicorn proxy-header rewriting only in trusted_lan mode; password-mode proxy behavior is preserved. Loopback and Docker gateway addresses are **not** implicitly trusted. Use a direct LAN connection; do not add a reverse proxy's or NAT gateway's network to bypass address checks.
+
+To prevent DNS rebinding, the HTTP Host must be an IP in the configured networks, a single-label private hostname, or a `.local` hostname. `localhost` needs explicit loopback permission. Public DNS names and forwarded/reverse-proxy access are unsupported in this mode; use the server's `192.168.68.x` address or a private hostname. Network access rules apply to clients, not only to the requested Host.
+
+Passwordless does not mean CSRF-free: the app and helper create an automatic, short-lived, IP-bound session after network/origin checks. Its cookie is HttpOnly, SameSite=Strict and scoped to `/api/backups`; mutations require the session's CSRF token. The UI renews trusted sessions transparently instead of showing an unlock screen. The helper independently checks configured mode, attested peer, session and CSRF for privileged operations. Mode/network configuration must match the root-owned helper snapshot; mismatches show a setup error and do not grant administration. Password and trusted sessions are separate, so one mode's token cannot authorize the other mode. Only session-bound CSRF information reaches browser JavaScript; maintenance-channel credentials remain private.
+
+### Apply your Debian configuration without changing cultivation data
+
+After reviewing/updating the existing PR #9 checkout, **merge only the two lines above into `/storage/tv/cultivatinator/.env`**. Preserve `DATA_DIR`, `APP_PORT`, other existing values and all data. Do not overwrite `.env` wholesale with an example. Compose passes these settings to the application; the installer reads the same resolved project configuration into root-owned helper policy. Refresh the helper before recreating the app:
+
+```bash
+cd /storage/tv/cultivatinator && sudo python3 scripts/install_backup_helper.py install --data-root /storage/tv/cultivatinator --compose-file /storage/tv/cultivatinator/compose.yaml
+sudo docker compose --project-directory /storage/tv/cultivatinator -f /storage/tv/cultivatinator/compose.yaml up -d --build --wait
+sudo systemctl status cultivatinator-maintenance.service --no-pager
+```
+
+The installer prints the allowed networks rather than a setup code in trusted_lan mode. It keeps existing password credentials, server backups, schedule and recovery history. **Do not run reset-admin or delete credential files to change modes.** Open the normal LAN URL, go to Settings and check the mode/network warning, create a backup, verify/download it, and check that Delete/Restore require confirmation. Test destructive restores only in a disposable installation. A client on a different network must receive HTTP 403, including when it supplies forwarding headers.
+
+To return to Password Mode, set `CULTIVATINATOR_BACKUP_AUTH_MODE=password`, optionally clear the trusted-network list, and run the same installer/recreate commands. Existing credentials continue to work; if none were ever established, normal one-time setup becomes available. No database migration, data reset, recursive ownership change or archive conversion is required for either switch. Codex does not deploy these commands to Debian.
+
 ## Authorization and helper trust boundary
 
 `cultivatinator-maintenance.service` is one host systemd service running a small Python-standard-library helper as root. It has **no TCP listener**. The normal app remains UID/GID `10001:10001`, with dropped capabilities and no Docker socket. The helper has local Docker access, which is effectively host-root authority; root-owned code/configuration, fixed installation targets and the local channel form the trust boundary.
 
 The Unix socket directory is root:10001 `0750`, socket `0660`; a randomly generated channel key is root:10001 `0640`, read-only to the app. Peer UID checks and timestamped, nonce-protected HMAC requests authenticate the channel; the app checks that the server peer is root. Requests have bounded size/concurrency and a strict operation/field allowlist. APIs accept controlled backup/preview UUIDs only, never paths, shell commands, Compose projects or Docker targets. Root copies selected input through pinned `O_NOFOLLOW` directory descriptors into private staging, rejecting symlinks, hard links and special files before reading it. Each destructive helper action independently validates the administrator session, CSRF token and explicit confirmation.
 
-Administrator passphrases use salted scrypt (N=32768, r=8, p=1); plaintext is never stored. A root-held hash of the one-time setup code prevents another LAN visitor claiming an unconfigured installation. Consumed setup codes are removed. Login has per-client/global attempt limits. Random session tokens are stored only as hashes in root-private files; at most 16 sessions, absolute 30-minute expiration, HttpOnly SameSite=Strict cookies scoped to `/api/backups` (Secure when served over HTTPS). CSRF headers and exact-origin/Fetch Metadata checks protect browser changes. Backup downloads, catalog access, deletion, scheduling, upload and restore require authorization. The protected machine capture/freeze endpoints use the local channel credential so scheduling and safety backups do not require interactive login. Tokens/passphrases/request bodies are not logged.
+In the default password mode, administrator passphrases use salted scrypt (N=32768, r=8, p=1); plaintext is never stored. A root-held hash of the one-time setup code prevents another LAN visitor claiming an unconfigured installation. Consumed setup codes are removed. Login has per-client/global attempt limits. Random session tokens are stored only as hashes in root-private files (trusted sessions use a separate IP-bound file); at most 16 sessions, absolute 30-minute expiration, HttpOnly SameSite=Strict cookies scoped to `/api/backups` (Secure when served over HTTPS). CSRF headers and exact-origin/Fetch Metadata checks protect browser changes. Backup downloads, catalog access, deletion, scheduling, upload and restore require authorization. The protected machine capture/freeze endpoints use the local channel credential so scheduling and safety backups do not require interactive login. Tokens/passphrases/request bodies are not logged.
 
 The app still assumes a trusted private network. **Unencrypted HTTP does not protect passphrases/cookies from network interception**; use trusted local access or a properly configured HTTPS reverse proxy. Focused backup administration does not add authentication to the existing cultivation API. Application/host compromise remains outside the protection offered by this boundary; a Docker-capable helper must be treated as privileged software.
 
@@ -96,7 +129,7 @@ sudo systemctl status cultivatinator-maintenance.service --no-pager
 curl --fail http://127.0.0.1:8085/api/health
 ```
 
-The installer checks the existing data bind, copies only the required standard-library modules/schema/revisions and emergency CLI into root-owned directories, freezes resolved Compose configuration, creates channel/session keys, installs/enables the helper unit and prints a **private one-time browser setup code**. Keep that code privately until consumed. It creates `backups/` if absent with UID/GID 10001; it does not recursively chown or alter source/data. Compose adds only the read-only Unix runtime-directory bind to the app, with `create_host_path: false`; run the installer first. `DATA_DIR` must remain the exact host data root. `MAINTENANCE_DIR` defaults to `/run/cultivatinator-maintenance`; normal deployment needs no override. Existing port 8085, `/data`, UID/GID and single-worker behavior remain.
+The installer checks the existing data bind and authentication policy, copies only the required standard-library modules/schema/revisions and emergency CLI into root-owned directories, freezes resolved Compose configuration, creates channel/session keys, installs/enables the helper unit and in password mode prints a **private one-time browser setup code** (trusted_lan prints its allowed networks instead). Keep that code privately until consumed. It creates `backups/` if absent with UID/GID 10001; it does not recursively chown or alter source/data. Compose adds only the read-only Unix runtime-directory bind to the app, with `create_host_path: false`; run the installer first. `DATA_DIR` must remain the exact host data root. `MAINTENANCE_DIR` defaults to `/run/cultivatinator-maintenance`; normal deployment needs no override. Existing port 8085, `/data`, UID/GID and single-worker behavior remain.
 
 The helper's resolved snapshot is root-private and uses the existing project/service; normal operations only stop/start that container. Re-run the reviewed installer after helper/schema/configuration upgrades, while no restore is active, then recreate the app if needed. Existing administrator credentials, server archives and schedule are retained. The systemd unit restricts filesystem/kernel access and keeps its runtime-directory inode through service restarts so the app's bind remains connected. It starts after Docker and recreates runtime secrets/socket after host boot. The unit itself needs Debian acceptance; cloud tests run its installed code with real Docker/process checks in a disposable controller, where systemctl installation calls are stubbed because that test container has no systemd.
 
@@ -113,6 +146,7 @@ The disposable browser suite requires development pytest/Playwright tooling plus
 
 ```bash
 .venv/bin/python scripts/backup_browser_smoke.py /usr/bin/chromium
+CULTIVATINATOR_TEST_BACKUP_AUTH_MODE=trusted_lan .venv/bin/python scripts/backup_browser_smoke.py /usr/bin/chromium
 .venv/bin/python scripts/backup_docker_smoke.py
 ```
 
@@ -172,6 +206,8 @@ Validation rejects absolute/traversal/ambiguous paths, symlinks/special entries,
 Allow ample free space for stored ZIPs, snapshot/verification copies, incoming data and an independent safety ZIP; recovery originals stay on disk. Helper previews expire after 15 minutes and are swept every 30 seconds; active/recovery-required inputs are pinned. Native download tickets remain single-use with five-minute expiry, failure/disconnect cleanup, shutdown cleanup and startup stale-artifact recovery. Uploaded app staging is separate from published entries and cleaned reliably. No backup recursively contains `backups/`, credentials, root helper state or recovery directories. SHA-256 detects corruption, not authenticity; restore only trusted archives.
 
 ## Validation coverage
+
+Authentication-mode validation: **289 backend tests and 173 frontend tests passed**, along with production/Docker builds and migration/drift checks. Complete stored/uploaded browser restores, restart/reconnection, rollback and interrupted-helper recovery passed in **both** password and trusted_lan modes. The LAN suite directly verifies an application-generated HTTP 403 from a separate outside-network container, including a forged forwarding header. Existing lineage/preparation Docker persistence and host-CLI restore suites passed. Password credentials remain byte-for-byte unchanged during LAN operation; no application migration is introduced. Actual Debian deployment/acceptance remains pending.
 
 Initial browser revision results: **259 backend tests and 152 frontend tests passed**, production and Docker builds passed, fresh/repeated Alembic upgrades and model drift checks passed, and all seven browser suites passed. The final browser/helper suite exercised the installed private CLI, stored/uploaded restore, real stop/restart/reconnection, forced startup rollback and abrupt helper recovery. Existing lineage/preparation Docker persistence suites and the original complete host-CLI restore suite also passed. One existing Starlette/AnyIO deprecation warning remains; no outstanding test failures. Actual Debian systemd/service acceptance is pending as described above.
 

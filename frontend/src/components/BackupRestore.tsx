@@ -4,6 +4,8 @@ import CollapsiblePanel from "./CollapsiblePanel";
 import { isRestoreRequestId, newRestoreRequestId } from "../restoreRequest";
 
 type Admin = {
+  auth_mode?: "password" | "trusted_lan";
+  trusted_networks?: string[];
   available: boolean;
   configured: boolean;
   unlocked: boolean;
@@ -98,6 +100,7 @@ function date(value?: string | null, timeZone?: string) {
 
 export default function BackupRestore() {
   const [admin, setAdmin] = useState<Admin | null>(null);
+  const adminSession = useRef<Admin | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [busy, setBusy] = useState("");
@@ -132,21 +135,63 @@ export default function BackupRestore() {
     }
   }, [error]);
 
-  async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  function updateAdmin(value: Admin) {
+    adminSession.current = value;
+    setAdmin(value);
+  }
+  async function readSession(): Promise<Admin> {
+    const response = await fetch("/api/backups/admin/session", {
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+    const value = await response.json();
+    if (!response.ok)
+      throw new Error(
+        typeof value?.detail === "string"
+          ? value.detail
+          : "Could not check backup administration",
+      );
+    return value as Admin;
+  }
+  async function renewTrustedSession() {
+    const value = await readSession();
+    if (
+      !value.available ||
+      value.auth_mode !== "trusted_lan" ||
+      !value.unlocked
+    )
+      throw new Error(
+        value.detail ||
+          "Trusted LAN backup administration is unavailable; check the connection and helper configuration.",
+      );
+    updateAdmin(value);
+  }
+  async function api<T>(
+    path: string,
+    options: RequestInit = {},
+    retrySession = true,
+  ): Promise<T> {
     const response = await fetch(`/api/backups${path}`, {
       ...options,
       cache: "no-store",
       credentials: "same-origin",
       headers: {
         "Content-Type": "application/json",
-        "X-Backup-CSRF": admin?.csrf || "",
+        "X-Backup-CSRF": adminSession.current?.csrf || "",
         ...options.headers,
       },
     });
     const value = await response.json().catch(() => null);
     if (!response.ok) {
-      if (response.status === 401)
-        setAdmin((old) => (old ? { ...old, unlocked: false } : old));
+      if (response.status === 401) {
+        if (adminSession.current?.auth_mode === "trusted_lan") {
+          if (retrySession) {
+            await renewTrustedSession();
+            return api<T>(path, options, false);
+          }
+        } else if (adminSession.current)
+          updateAdmin({ ...adminSession.current, unlocked: false });
+      }
       throw new AdministrationError(
         typeof value?.detail === "string"
           ? value.detail
@@ -171,20 +216,19 @@ export default function BackupRestore() {
   }
   useEffect(() => {
     let mounted = true;
-    fetch("/api/backups/admin/session", {
-      cache: "no-store",
-      credentials: "same-origin",
-    })
-      .then((response) => {
-        if (!response.ok)
-          throw new Error("Could not check backup administration");
-        return response.json();
-      })
+    readSession()
       .then((value: Admin) => {
-        if (mounted) setAdmin(value);
+        if (mounted) updateAdmin(value);
       })
       .catch((reason: Error) => {
-        if (mounted) setError(reason.message);
+        if (mounted) {
+          updateAdmin({
+            available: false,
+            configured: false,
+            unlocked: false,
+            detail: reason.message,
+          });
+        }
       });
     return () => {
       mounted = false;
@@ -244,6 +288,8 @@ export default function BackupRestore() {
     setError("");
     setNotice("");
     try {
+      if (adminSession.current?.auth_mode === "trusted_lan")
+        await renewTrustedSession();
       await action();
     } catch (reason) {
       setError(
@@ -265,7 +311,7 @@ export default function BackupRestore() {
         );
         setPassphrase("");
         setBootstrap("");
-        setAdmin(result);
+        updateAdmin(result);
       },
       true,
     );
@@ -395,7 +441,10 @@ export default function BackupRestore() {
             );
             request.withCredentials = true;
             request.setRequestHeader("Content-Type", "application/zip");
-            request.setRequestHeader("X-Backup-CSRF", admin?.csrf || "");
+            request.setRequestHeader(
+              "X-Backup-CSRF",
+              adminSession.current?.csrf || "",
+            );
             request.upload.onprogress = (progress) => {
               if (progress.lengthComputable)
                 setBusy(
@@ -549,21 +598,37 @@ export default function BackupRestore() {
         </form>
       ) : (
         <>
-          <div className="actions">
-            <span>Backup administration unlocked</span>
-            <button
-              disabled={disabled}
-              onClick={() =>
-                void perform("Locking…", async () => {
-                  await api("/admin/lock", { method: "POST" });
-                  setAdmin({ ...admin, unlocked: false });
-                  setCatalog(null);
-                })
-              }
+          {admin.auth_mode === "trusted_lan" ? (
+            <section
+              aria-label="Trusted LAN backup administration"
+              className="backup-operation"
             >
-              Lock Administration
-            </button>
-          </div>
+              <h3>Trusted LAN Mode</h3>
+              <p>
+                Clients in {admin.trusted_networks?.join(", ")} can administer
+                backups and restore cultivation data without a password. Only
+                use this mode on a network where every allowed client is
+                trusted. Deleting backups and replacing data still require
+                explicit confirmation.
+              </p>
+            </section>
+          ) : (
+            <div className="actions">
+              <span>Password Mode · Backup administration unlocked</span>
+              <button
+                disabled={disabled}
+                onClick={() =>
+                  void perform("Locking…", async () => {
+                    await api("/admin/lock", { method: "POST" });
+                    updateAdmin({ ...admin, unlocked: false });
+                    setCatalog(null);
+                  })
+                }
+              >
+                Lock Administration
+              </button>
+            </div>
+          )}
           {busy && (
             <p role="status">
               {busy} Application writes wait while a consistent snapshot or

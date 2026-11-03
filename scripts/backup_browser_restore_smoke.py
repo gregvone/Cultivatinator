@@ -33,6 +33,16 @@ ENV = {
         "DOCKER_CERT_PATH",
     }
 }
+auth_mode = os.environ.get("CULTIVATINATOR_TEST_BACKUP_AUTH_MODE", "password")
+if auth_mode not in {"password", "trusted_lan"}:
+    raise ValueError("Invalid disposable test authentication mode")
+bridge = json.loads(
+    subprocess.check_output(
+        [*DOCKER, "network", "inspect", "bridge"], env=ENV, text=True
+    )
+)[0]
+gateway = bridge["IPAM"]["Config"][0]["Gateway"]
+trusted_networks = f"127.0.0.1/32,{gateway}/32" if auth_mode == "trusted_lan" else ""
 image = os.environ.get("CULTIVATINATOR_TEST_IMAGE", "cultivatinator:milestone-2d2")
 temp = Path(tempfile.mkdtemp(prefix="cultivatinator-browser-restore-"))
 root = temp / "installation"
@@ -53,6 +63,10 @@ services:
   app:
     image: {image}
     restart: unless-stopped
+    network_mode: bridge
+    environment:
+      CULTIVATINATOR_BACKUP_AUTH_MODE: "{auth_mode}"
+      CULTIVATINATOR_TRUSTED_NETWORKS: "{trusted_networks}"
     ports: ["127.0.0.1:{port}:8085"]
     volumes: ["{root}:/data", "{runtime}:/run/cultivatinator-maintenance:ro"]
 """
@@ -209,19 +223,61 @@ try:
                 "Disposable helper failed: " + docker("logs", helper_name)
             )
         logs = docker("logs", helper_name)
-        bootstrap = re.search(
-            r"One-time browser setup code \(store privately until used\): (\S+)", logs
-        ).group(1)
         page.goto(base + "/settings")
         assert page.evaluate("typeof crypto.randomUUID") == "undefined"
         assert page.evaluate("typeof crypto.getRandomValues") == "function"
-        page.get_by_label("One-time setup code", exact=True).fill(bootstrap)
-        page.get_by_label("Administrator passphrase", exact=True).fill(
-            "Disposable browser backup password"
-        )
-        page.get_by_role(
-            "button", name="Set Administrator Passphrase", exact=True
-        ).click()
+        if auth_mode == "password":
+            bootstrap = re.search(
+                r"One-time browser setup code \(store privately until used\): (\S+)",
+                logs,
+            ).group(1)
+            page.get_by_label("One-time setup code", exact=True).fill(bootstrap)
+            page.get_by_label("Administrator passphrase", exact=True).fill(
+                "Disposable browser backup password"
+            )
+            page.get_by_role(
+                "button", name="Set Administrator Passphrase", exact=True
+            ).click()
+        else:
+            expect(
+                page.get_by_role("heading", name="Trusted LAN Mode", exact=True)
+            ).to_be_visible()
+            assert (
+                page.get_by_label("Administrator passphrase", exact=True).count() == 0
+            )
+            assert (
+                page.get_by_role(
+                    "button", name="Lock Administration", exact=True
+                ).count()
+                == 0
+            )
+            assert "One-time browser setup code" not in logs
+            container = docker("compose", "-f", compose, "ps", "-q", "app")
+            container_ip = json.loads(docker("inspect", container))[0][
+                "NetworkSettings"
+            ]["Networks"]["bridge"]["IPAddress"]
+            probe = f"""
+import urllib.request,urllib.error,json
+url='http://{container_ip}:8085/api/backups/admin/session'
+opener=urllib.request.build_opener(urllib.request.ProxyHandler({{}}))
+for headers in [{{}},{{'X-Forwarded-For':'{gateway}'}}]:
+    try: opener.open(urllib.request.Request(url,headers=headers),timeout=10)
+    except urllib.error.HTTPError as error:
+        assert error.code==403,error.code
+        detail=json.load(error)['detail']
+        assert ('configured trusted network' in detail or 'direct connection' in detail),detail
+    else: raise AssertionError('Outside network client was accepted')
+"""
+            docker(
+                "run",
+                "--rm",
+                "--network",
+                "bridge",
+                "python:3.12-slim-bookworm",
+                "python",
+                "-c",
+                probe,
+            )
         expect(
             page.get_by_role("button", name="Create Backup", exact=True)
         ).to_be_visible()
@@ -496,7 +552,7 @@ try:
         assert not errors, errors
         browser.close()
     print(
-        "Browser restore smoke passed: installed root-owned helper, setup/session/CSRF, all download validation, same-artifact save/download, stored and uploaded restore, real stop/restart/reconnect, retained archive/history/photographs, rollback, abrupt helper restart recovery, source/config sentinels, isolated socket/no app Docker socket, phone/tablet and no page errors"
+        f"Browser restore smoke passed ({auth_mode}): installed root-owned helper, setup/session/CSRF, all download validation, same-artifact save/download, stored and uploaded restore, real stop/restart/reconnect, retained archive/history/photographs, rollback, abrupt helper restart recovery, source/config sentinels, isolated socket/no app Docker socket, phone/tablet and no page errors"
     )
 finally:
     for command in [("rm", "-f", helper_name), ("compose", "-f", compose, "down")]:

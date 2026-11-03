@@ -4,8 +4,56 @@ import hmac
 import anyio
 from fastapi import Request, HTTPException
 from .maintenance_protocol import MaintenanceError, read_key
+from .backup_policy import BackupPolicy
 
 COOKIE = "cultivatinator_backup_admin"
+
+
+def policy(request):
+    settings = request.app.state.settings
+    return BackupPolicy(settings.backup_auth_mode, settings.trusted_networks)
+
+
+def trusted_peer(request):
+    configured = policy(request)
+    # Also fail closed with native ASGI servers that might already have applied
+    # proxy headers. Production disables that rewriting in trusted_lan mode.
+    if any(
+        name in request.headers
+        for name in (
+            "forwarded",
+            "x-forwarded-for",
+            "x-forwarded-proto",
+            "x-forwarded-host",
+            "x-real-ip",
+        )
+    ):
+        raise HTTPException(
+            403,
+            "Trusted LAN backup administration requires a direct connection without forwarding headers",
+        )
+    try:
+        address = configured.require_peer(
+            request.client.host if request.client else None
+        )
+    except ValueError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    if not configured.allows_host(request.url.hostname):
+        raise HTTPException(
+            403,
+            "Use a configured LAN IP address or a private hostname (.local or single-label) for trusted LAN administration",
+        )
+    return address
+
+
+def credentials(request):
+    result = {
+        "session": request.cookies.get(COOKIE, ""),
+        "csrf": request.headers.get("x-backup-csrf", ""),
+    }
+    if policy(request).mode == "trusted_lan":
+        result.update(auth_mode="trusted_lan", client=trusted_peer(request))
+    return result
 
 
 def browser_guard(request):
@@ -31,8 +79,7 @@ async def require_admin(request: Request):
         request,
         "authorize",
         {
-            "session": request.cookies.get(COOKIE, ""),
-            "csrf": request.headers.get("x-backup-csrf", ""),
+            **credentials(request),
             "write": request.method not in {"GET", "HEAD", "OPTIONS"},
         },
     )
