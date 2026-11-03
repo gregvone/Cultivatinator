@@ -1233,3 +1233,24 @@ button:disabled {
 .preserve-lines {
   white-space: pre-wrap;
 }
+
+.compact-gallery {
+  padding-block: 0.5rem;
+  min-width: 0;
+}
+.photo-grid.photo-grid-compact {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 128px));
+  gap: 0.5rem;
+}
+.photo-grid-compact .photo-open img {
+  height: 96px;
+  width: 100%;
+  object-fit: cover;
+}
+.photo-grid-compact figcaption {
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+}
+.pinning-history {
+  margin-block: 0.75rem;
+}

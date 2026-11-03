@@ -61,6 +61,7 @@ export interface FruitingDetail {
   flushes: (Totals & {
     number: number;
     pinning_date: string | null;
+    pinning_notes?: string | null;
     fruiting_date: string | null;
   })[];
   environment: Environment | null;

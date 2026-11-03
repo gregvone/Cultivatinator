@@ -1,3 +1,4 @@
+import { PhotoSelection, usePhotoUploads } from "../components/PhotoUploads";
 import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -333,11 +334,13 @@ function HarvestForm({
   entry,
   onSaved,
   onCancel,
+  onRecordSaved,
 }: {
   fruitingId: string;
   entry?: Harvest;
   onSaved: () => void;
   onCancel: () => void;
+  onRecordSaved?: () => void;
 }) {
   const [v, setV] = useState<Values>({
     harvest_date: entry?.harvest_date || localToday(),
@@ -348,10 +351,22 @@ function HarvestForm({
     notes: entry?.notes || "",
   });
   const command = useInventoryCommand("fruiting");
+  const uploads = usePhotoUploads();
+  const [saved, setSaved] = useState<Harvest | null>(null);
+  async function uploadRemaining(target: Harvest) {
+    const complete = await uploads.upload(`harvests/${target.id}/photos`);
+    if (complete) onSaved();
+    else onRecordSaved?.();
+  }
   const set = (name: string, value: string) => setV({ ...v, [name]: value });
   async function save(e: FormEvent) {
     e.preventDefault();
-    const result = await command.send(
+    if (command.busy || uploads.busy) return;
+    if (saved) {
+      await uploadRemaining(saved);
+      return;
+    }
+    const result = await command.send<Harvest>(
       entry ? `harvests/${entry.id}/edit` : `records/${fruitingId}/harvests`,
       {
         ...v,
@@ -363,71 +378,104 @@ function HarvestForm({
         ...(entry ? { expected_revision: entry.revision } : {}),
       },
     );
-    if (result) onSaved();
+    if (result) {
+      if (entry) {
+        onSaved();
+        return;
+      }
+      setSaved(result);
+      if (uploads.items.length) onRecordSaved?.();
+      await uploadRemaining(result);
+    }
   }
   return (
     <form className="library-form" onSubmit={save}>
       <h3>{entry ? "Edit Harvest" : "Record Harvest"}</h3>
-      <Field
-        name="harvest_date"
-        label="Harvest date"
-        type="date"
-        required
-        values={v}
-        set={set}
-      />
-      <Field
-        name="wet_grams"
-        label="Wet weight (g, optional)"
-        type="number"
-        values={v}
-        set={set}
-      />
-      <Field
-        name="dry_grams"
-        label="Dry weight (g, optional)"
-        type="number"
-        values={v}
-        set={set}
-      />
-      <Field
-        name="potency"
-        label="Subjective medicinal potency (optional)"
-        values={v}
-        set={set}
-        options={{
-          "": "Not assessed",
-          "1": "1",
-          "2": "2",
-          "3": "3",
-          "4": "4",
-          "5": "5",
-        }}
-      />
-      <p>
-        Subjective grower assessment, not a laboratory assay or verified
-        medicinal-compound concentration.
-      </p>
-      <Field
-        name="potency_notes"
-        label="Potency notes"
-        type="textarea"
-        values={v}
-        set={set}
-      />
-      <Field
-        name="notes"
-        label="Special harvest notes"
-        type="textarea"
-        values={v}
-        set={set}
-      />
+      <fieldset disabled={!!saved || command.busy || uploads.busy}>
+        <Field
+          name="harvest_date"
+          label="Harvest date"
+          type="date"
+          required
+          values={v}
+          set={set}
+        />
+        <Field
+          name="wet_grams"
+          label="Wet weight (g, optional)"
+          type="number"
+          values={v}
+          set={set}
+        />
+        <Field
+          name="dry_grams"
+          label="Dry weight (g, optional)"
+          type="number"
+          values={v}
+          set={set}
+        />
+        <Field
+          name="potency"
+          label="Subjective medicinal potency (optional)"
+          values={v}
+          set={set}
+          options={{
+            "": "Not assessed",
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+          }}
+        />
+        <p>
+          Subjective grower assessment, not a laboratory assay or verified
+          medicinal-compound concentration.
+        </p>
+        <Field
+          name="potency_notes"
+          label="Potency notes"
+          type="textarea"
+          values={v}
+          set={set}
+        />
+        <Field
+          name="notes"
+          label="Special harvest notes"
+          type="textarea"
+          values={v}
+          set={set}
+        />
+      </fieldset>
+      {!entry && (
+        <PhotoSelection
+          uploads={uploads}
+          label="Harvest photos (optional)"
+          disabled={command.busy}
+        />
+      )}
+      {saved && (
+        <p role="status">
+          <strong>Harvest {saved.id} saved.</strong>{" "}
+          {uploads.items.some((item) => item.state === "failed")
+            ? "Some photos failed. Retry the remaining files; this will not create another harvest."
+            : "Photographs are uploaded separately from the saved harvest."}
+        </p>
+      )}
       {command.error && <p role="alert">{command.error}</p>}
-      <button className="primary" disabled={command.busy}>
-        {entry ? "Save Harvest Changes" : "Save Harvest"}
+      <button className="primary" disabled={command.busy || uploads.busy}>
+        {saved
+          ? "Retry remaining photos"
+          : entry
+            ? "Save Harvest Changes"
+            : "Save Harvest"}
       </button>
-      <button type="button" onClick={onCancel}>
-        Cancel
+      <button
+        type="button"
+        disabled={command.busy || uploads.busy}
+        onClick={saved ? onSaved : onCancel}
+      >
+        {saved ? "Done — add remaining photos later" : "Cancel"}
       </button>
     </form>
   );
@@ -435,9 +483,11 @@ function HarvestForm({
 function HarvestCard({
   entry,
   onSaved,
+  photoRevision,
 }: {
   entry: Harvest;
   onSaved: () => void;
+  photoRevision: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [history, setHistory] = useState<
@@ -471,15 +521,14 @@ function HarvestCard({
           Edit Harvest {entry.id}
         </button>
       )}
-      <details>
-        <summary>Harvest photos</summary>
-        <PhotoGallery
-          kind="fruiting"
-          code={entry.fruiting_id}
-          harvestId={entry.id}
-          onChange={onSaved}
-        />
-      </details>
+      <PhotoGallery
+        kind="fruiting"
+        code={entry.fruiting_id}
+        harvestId={entry.id}
+        onChange={onSaved}
+        refreshToken={photoRevision}
+        compact
+      />
       <details
         onToggle={async (e) => {
           if (e.currentTarget.open && !history) {
@@ -563,6 +612,115 @@ function EnvironmentChangeForm({
   );
 }
 
+function GrowStageForm({
+  id,
+  action,
+  label,
+  onSaved,
+  onRecordSaved,
+  onCancel,
+}: {
+  id: string;
+  action: string;
+  label: string;
+  onSaved: () => void;
+  onRecordSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState<Values>({
+    action_date: localToday(),
+    notes: "",
+  });
+  const [saved, setSaved] = useState<FruitingDetail | null>(null);
+  const command = useInventoryCommand("fruiting");
+  const uploads = usePhotoUploads();
+  const pinning = action === "pinning" || action === "next_flush";
+  async function uploadRemaining(target: FruitingDetail) {
+    const number = target.run!.current_flush;
+    const complete = await uploads.upload(
+      `records/${id}/flushes/${number}/pinning/photos`,
+    );
+    if (complete) onSaved();
+    else onRecordSaved();
+  }
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (command.busy || uploads.busy) return;
+    if (saved) {
+      await uploadRemaining(saved);
+      return;
+    }
+    const result = await command.send<FruitingDetail>(`records/${id}/stage`, {
+      action,
+      action_date: value.action_date,
+      notes: value.notes || null,
+    });
+    if (result) {
+      if (!pinning) {
+        onSaved();
+        return;
+      }
+      setSaved(result);
+      if (uploads.items.length) onRecordSaved();
+      await uploadRemaining(result);
+    }
+  }
+  return (
+    <form className="library-form" onSubmit={save}>
+      <h3>{label}</h3>
+      <fieldset disabled={!!saved || command.busy || uploads.busy}>
+        <Field
+          name="action_date"
+          label="Stage date"
+          type="date"
+          required
+          values={value}
+          set={(name, text) => setValue({ ...value, [name]: text })}
+        />
+        <Field
+          name="notes"
+          label="Stage notes (optional)"
+          type="textarea"
+          values={value}
+          set={(name, text) => setValue({ ...value, [name]: text })}
+        />
+      </fieldset>
+      {pinning && (
+        <PhotoSelection
+          uploads={uploads}
+          label="Pinning photos (optional)"
+          disabled={command.busy}
+        />
+      )}
+      {saved && (
+        <p role="status">
+          <strong>Pinning saved for flush {saved.run!.current_flush}.</strong>{" "}
+          {uploads.items.some((item) => item.state === "failed")
+            ? "Some photos failed. Retry the remaining files; the stage and date will not be saved again."
+            : "Photographs are uploaded separately from the saved Pinning event."}
+        </p>
+      )}
+      {action === "complete" && (
+        <p>
+          Finish only when no more flushes are expected. This releases the
+          physical label.
+        </p>
+      )}
+      {command.error && <p role="alert">{command.error}</p>}
+      <button className="primary" disabled={command.busy || uploads.busy}>
+        {saved ? "Retry remaining photos" : "Save Grow Status"}
+      </button>
+      <button
+        type="button"
+        disabled={command.busy || uploads.busy}
+        onClick={saved ? onSaved : onCancel}
+      >
+        {saved ? "Done — add remaining photos later" : "Cancel"}
+      </button>
+    </form>
+  );
+}
+
 export function FruitingPanel({
   record,
   onSaved,
@@ -576,8 +734,6 @@ export function FruitingPanel({
   const [action, setAction] = useState("");
   const [harvesting, setHarvesting] = useState(false);
   const [changing, setChanging] = useState(false);
-  const [v, setV] = useState<Values>({ action_date: localToday(), notes: "" });
-  const command = useInventoryCommand("fruiting");
   const reload = () => {
     setRevision((v) => v + 1);
     onSaved();
@@ -598,7 +754,7 @@ export function FruitingPanel({
       live = false;
     };
   }, [record.id, record.fruiting_stage, revision]);
-  if (error)
+  if (error && !data)
     return (
       <p role="alert">
         {error}
@@ -634,6 +790,12 @@ export function FruitingPanel({
   return (
     <section className="panel workflow-source">
       <h2>Fruiting & Harvest</h2>
+      {error && (
+        <p role="alert">
+          {error}
+          <button onClick={() => setRevision((v) => v + 1)}>Retry grow</button>
+        </p>
+      )}
       <p>
         <strong>
           Current Status:{" "}
@@ -678,9 +840,9 @@ export function FruitingPanel({
             .map((b) => (
               <button
                 key={b.action}
+                disabled={!!action || harvesting}
                 onClick={() => {
                   setAction(b.action);
-                  setV({ action_date: localToday(), notes: "" });
                   setHarvesting(false);
                 }}
               >
@@ -690,6 +852,7 @@ export function FruitingPanel({
         {active && ["fruiting", "harvest"].includes(stage || "") && (
           <button
             className="primary"
+            disabled={!!action || harvesting}
             onClick={() => {
               setHarvesting(true);
               setAction("");
@@ -700,57 +863,23 @@ export function FruitingPanel({
         )}
       </div>
       {action && active && (
-        <form
-          className="library-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (
-              await command.send(`records/${record.id}/stage`, {
-                action,
-                action_date: v.action_date,
-                notes: v.notes || null,
-              })
-            ) {
-              setAction("");
-              command.reset();
-              reload();
-            }
+        <GrowStageForm
+          key={action}
+          id={record.id}
+          action={action}
+          label={buttons.find((b) => b.action === action)!.label}
+          onRecordSaved={() => setRevision((v) => v + 1)}
+          onSaved={() => {
+            setAction("");
+            reload();
           }}
-        >
-          <h3>{buttons.find((b) => b.action === action)?.label}</h3>
-          <Field
-            name="action_date"
-            label="Stage date"
-            type="date"
-            required
-            values={v}
-            set={(name, value) => setV({ ...v, [name]: value })}
-          />
-          <Field
-            name="notes"
-            label="Stage notes (optional)"
-            type="textarea"
-            values={v}
-            set={(name, value) => setV({ ...v, [name]: value })}
-          />
-          {action === "complete" && (
-            <p>
-              Finish only when no more flushes are expected. This releases the
-              physical label.
-            </p>
-          )}
-          {command.error && <p role="alert">{command.error}</p>}
-          <button className="primary" disabled={command.busy}>
-            Save Grow Status
-          </button>
-          <button type="button" onClick={() => setAction("")}>
-            Cancel
-          </button>
-        </form>
+          onCancel={() => setAction("")}
+        />
       )}
       {harvesting && active && (
         <HarvestForm
           fruitingId={record.id}
+          onRecordSaved={() => setRevision((v) => v + 1)}
           onSaved={() => {
             setHarvesting(false);
             reload();
@@ -840,10 +969,21 @@ export function FruitingPanel({
       {data.flushes.map((f) => (
         <section key={f.number}>
           <h3>Flush {f.number}</h3>
-          <p>
-            Pinning: {f.pinning_date || "Not recorded"} · Fruiting:{" "}
-            {f.fruiting_date || "Not recorded"}
-          </p>
+          <section className="pinning-history">
+            <h4>Pinning — {f.pinning_date || "Not recorded"}</h4>
+            {f.pinning_notes && <p>{f.pinning_notes}</p>}
+            {f.pinning_date && (
+              <PhotoGallery
+                kind="fruiting"
+                code={record.id}
+                pinningFlush={f.number}
+                onChange={reload}
+                refreshToken={revision}
+                compact
+              />
+            )}
+          </section>
+          <p>Fruiting: {f.fruiting_date || "Not recorded"}</p>
           <p>
             Measured wet: {quantity(f.wet_grams)} · Measured dry:{" "}
             {quantity(f.dry_grams)}
@@ -854,6 +994,7 @@ export function FruitingPanel({
               <HarvestCard
                 key={h.id + "-" + h.revision}
                 entry={h}
+                photoRevision={revision}
                 onSaved={reload}
               />
             ))}

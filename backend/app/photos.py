@@ -44,7 +44,12 @@ def upload(kind: Kind, code: str, request: Request, file: UploadFile):
 
 
 def store_upload(
-    kind: Kind, code: str, request: Request, file: UploadFile, harvest_id=None
+    kind: Kind,
+    code: str,
+    request: Request,
+    file: UploadFile,
+    harvest_id=None,
+    pinning_flush=None,
 ):
     data = file.file.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
@@ -116,13 +121,30 @@ def store_upload(
                         422, "Harvest does not belong to this fruiting record"
                     )
                 session.add(HarvestPhoto(photo_id=photo.id, harvest_id=harvest_id))
+            if pinning_flush is not None:
+                from .fruiting import pinning_event
+                from .fruiting_models import PinningPhoto
+
+                if kind != "fruiting" or harvest_id is not None:
+                    raise HTTPException(422, "Choose one photo event")
+                pinning_event(session, code, pinning_flush)
+                session.add(
+                    PinningPhoto(
+                        photo_id=photo.id, fruiting_id=code, flush_number=pinning_flush
+                    )
+                )
             event(
                 session,
                 kind,
                 code,
                 "photo_attached",
                 "Photograph attached"
-                + (f" to harvest {harvest_id}" if harvest_id else ""),
+                + (f" to harvest {harvest_id}" if harvest_id else "")
+                + (
+                    f" to Pinning, flush {pinning_flush}"
+                    if pinning_flush is not None
+                    else ""
+                ),
             )
             session.flush()
             result = photo_out(photo)
@@ -198,8 +220,10 @@ def remove(photo_id: str, request: Request):
                     tomb = path.with_name(f".{uuid4()}.removed")
                     path.rename(tomb)
                     staged.append((path, tomb))
-            from .fruiting_models import HarvestPhoto
+            from .fruiting_models import HarvestPhoto, PinningPhoto
 
+            pinning_link = session.get(PinningPhoto, photo.id)
+            pinning_flush = pinning_link.flush_number if pinning_link else None
             harvest_link = session.get(HarvestPhoto, photo.id)
             harvest_id = harvest_link.harvest_id if harvest_link else None
             was_cover = photo.is_cover
@@ -219,7 +243,12 @@ def remove(photo_id: str, request: Request):
                 code,
                 "photo_removed",
                 "Photograph removed"
-                + (f" from harvest {harvest_id}" if harvest_id else ""),
+                + (f" from harvest {harvest_id}" if harvest_id else "")
+                + (
+                    f" from Pinning, flush {pinning_flush}"
+                    if pinning_flush is not None
+                    else ""
+                ),
             )
     except Exception:
         for path, tomb in staged:

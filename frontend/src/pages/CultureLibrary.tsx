@@ -560,6 +560,7 @@ export function RecordDetail() {
         key={`${kind}/${code}`}
         kind={kind}
         code={code}
+        refreshToken={revision}
         onChange={() => setRevision((v) => v + 1)}
       />
       {(kind === "strains" || kind === "lines") && (

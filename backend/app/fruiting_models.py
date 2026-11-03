@@ -6,6 +6,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
+    Index,
     Numeric,
     String,
     Text,
@@ -56,6 +57,7 @@ class FruitingFlush(Base):
     )
     number: Mapped[int] = mapped_column(Integer, primary_key=True)
     pinning_date: Mapped[str | None] = mapped_column(String(10))
+    pinning_notes: Mapped[str | None] = mapped_column(Text)
     fruiting_date: Mapped[str | None] = mapped_column(String(10))
 
 
@@ -128,3 +130,19 @@ class HarvestPhoto(Base):
     harvest_id: Mapped[str] = mapped_column(
         ForeignKey("harvest_entries.id"), index=True
     )
+
+
+class PinningPhoto(Base):
+    __tablename__ = "pinning_photos"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["fruiting_id", "flush_number"],
+            ["fruiting_flushes.fruiting_id", "fruiting_flushes.number"],
+        ),
+        Index("ix_pinning_photos_flush", "fruiting_id", "flush_number"),
+    )
+    photo_id: Mapped[str] = mapped_column(
+        ForeignKey("photo_attachments.id", ondelete="CASCADE"), primary_key=True
+    )
+    fruiting_id: Mapped[str] = mapped_column(String(32))
+    flush_number: Mapped[int] = mapped_column(Integer)

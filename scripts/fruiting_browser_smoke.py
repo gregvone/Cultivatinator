@@ -155,9 +155,23 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                     == "used"
                 )
 
-                def action(label, day):
+                image = BytesIO()
+                Image.new("RGB", (20, 20), "#558899").save(image, format="PNG")
+
+                def picture(name):
+                    return {
+                        "name": name,
+                        "mimeType": "image/png",
+                        "buffer": image.getvalue(),
+                    }
+
+                def action(label, day, photos=None):
                     page.get_by_role("button", name=label, exact=True).click()
                     page.get_by_label("Stage date *", exact=True).fill(day)
+                    if photos:
+                        page.get_by_label(
+                            "Pinning photos (optional)", exact=True
+                        ).set_input_files([picture(name) for name in photos])
                     page.get_by_role(
                         "button", name="Save Grow Status", exact=True
                     ).click()
@@ -167,16 +181,38 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                         base + "/api/fruiting/records/" + code
                     ).json()
 
-                action("Mark Pinning", "2026-01-03")
+                action("Mark Pinning", "2026-01-03", ["pin-one.png", "pin-two.png"])
                 expect(
                     page.get_by_text("Current Status: Pinning", exact=True)
+                ).to_be_visible()
+                expect(
+                    page.get_by_role("button", name="Mark Fruiting", exact=True)
+                ).to_be_enabled()
+                assert (
+                    len(
+                        page.request.get(
+                            base
+                            + f"/api/fruiting/records/{code}/flushes/1/pinning/photos"
+                        ).json()
+                    )
+                    == 2
+                )
+                pinning_card = page.get_by_role(
+                    "heading", name="Pinning — 2026-01-03", exact=True
+                ).locator("..")
+                expect(
+                    pinning_card.get_by_role(
+                        "button", name="Open photograph 1", exact=True
+                    )
                 ).to_be_visible()
                 action("Mark Fruiting", "2026-01-05")
                 expect(
                     page.get_by_text("Current Status: Fruiting", exact=True)
                 ).to_be_visible()
 
-                def record_harvest(day, wet, dry=None, potency=None):
+                def record_harvest(
+                    day, wet, dry=None, potency=None, photos=None, retry=False
+                ):
                     page.get_by_role(
                         "button", name="Record Harvest", exact=True
                     ).click()
@@ -193,7 +229,39 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                         page.get_by_label("Potency notes", exact=True).fill(
                             "Subjective grower trial"
                         )
+                    if photos:
+                        page.get_by_label(
+                            "Harvest photos (optional)", exact=True
+                        ).set_input_files([picture(name) for name in photos])
                     page.get_by_role("button", name="Save Harvest", exact=True).click()
+                    if retry:
+                        expect(
+                            page.get_by_text(
+                                "retry.png: Simulated photo upload failure", exact=True
+                            )
+                        ).to_be_visible()
+                        expect(
+                            page.get_by_text("Harvest HR-0001 saved.", exact=True)
+                        ).to_be_visible()
+                        assert len(current()["harvests"]) == 1
+                        assert (
+                            len(
+                                page.request.get(
+                                    base + "/api/fruiting/harvests/HR-0001/photos"
+                                ).json()
+                            )
+                            == 1
+                        )
+                        page.get_by_role(
+                            "button", name="Retry remaining photos", exact=True
+                        ).click()
+                        expect(
+                            page.get_by_role(
+                                "button", name="Retry remaining photos", exact=True
+                            )
+                        ).to_have_count(0)
+                        assert len(current()["harvests"]) == 1
+
                     expect(
                         page.get_by_role("heading", name="Record Harvest", exact=True)
                     ).to_have_count(0)
@@ -201,13 +269,36 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                         page.get_by_text("Current Status: Harvest", exact=True)
                     ).to_be_visible()
 
-                record_harvest("2026-01-07", "100", potency="4")
+                failed_uploads = []
+
+                def fail_once(route):
+                    if (
+                        b"retry.png" in (route.request.post_data_buffer or b"")
+                        and not failed_uploads
+                    ):
+                        failed_uploads.append(route.request.url)
+                        route.fulfill(
+                            status=422,
+                            content_type="application/json",
+                            body='{"detail":"Simulated photo upload failure"}',
+                        )
+                    else:
+                        route.continue_()
+
+                page.route("**/api/fruiting/harvests/*/photos", fail_once)
+                record_harvest(
+                    "2026-01-07",
+                    "100",
+                    potency="4",
+                    photos=["inline-harvest.png", "retry.png"],
+                    retry=True,
+                )
+                assert len(failed_uploads) == 1
                 record_harvest("2026-01-08", "50")
                 first = current()["harvests"][0]
                 card = page.get_by_role(
                     "heading", name=f"Harvest {first['id']} · 2026-01-07", exact=True
                 ).locator("..")
-                card.get_by_text("Harvest photos", exact=True).click()
                 image = BytesIO()
                 Image.new("RGB", (20, 20), "#558899").save(image, format="PNG")
                 card.get_by_label("Attach photographs", exact=True).set_input_files(
@@ -233,8 +324,13 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                             base + f"/api/fruiting/harvests/{first['id']}/photos"
                         ).json()
                     )
-                    == 2
+                    == 4
                 )
+                card.get_by_role("button", name="Open photograph 1", exact=True).click()
+                expect(
+                    page.get_by_role("dialog", name="Photograph viewer", exact=True)
+                ).to_be_visible()
+                page.get_by_role("button", name="Close photograph", exact=True).click()
                 page.get_by_role(
                     "button", name="Edit Harvest " + first["id"], exact=True
                 ).click()
@@ -246,11 +342,32 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                     page.get_by_text("Wet: 100.000 g · Dry: 10.000 g", exact=True)
                 ).to_be_visible()
                 assert current()["record"]["label_occupied"]
-                action("Next Flush", "2026-01-10")
+                action("Next Flush", "2026-01-10", ["second-flush.png"])
                 expect(page.get_by_text("Current flush: 2", exact=True)).to_be_visible()
                 expect(
                     page.get_by_text("Current Status: Pinning", exact=True)
                 ).to_be_visible()
+                expect(
+                    page.get_by_role("button", name="Mark Fruiting", exact=True)
+                ).to_be_enabled()
+                assert (
+                    len(
+                        page.request.get(
+                            base
+                            + f"/api/fruiting/records/{code}/flushes/2/pinning/photos"
+                        ).json()
+                    )
+                    == 1
+                )
+                assert (
+                    len(
+                        page.request.get(
+                            base
+                            + f"/api/fruiting/records/{code}/flushes/1/pinning/photos"
+                        ).json()
+                    )
+                    == 2
+                )
                 action("Mark Fruiting", "2026-01-12")
                 expect(
                     page.get_by_text("Current Status: Fruiting", exact=True)
@@ -349,7 +466,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Milestone 2C.3 browser smoke passed: one spawn to three F labels, dated stages, two flushes, multiple harvests, subjective potency, exact multi-photo uploads, later dry weights, original/current environment, explicit completion, totals/timing, label reuse/history, desktop/mobile; no page errors"
+                    "Milestone 2C.3 browser smoke passed: one spawn to three F labels, dated stages, two flushes, multiple harvests, subjective potency, inline Pinning/Next Flush/Harvest photos, exact multi-photo uploads, safe failed-upload retry, later dry weights, original/current environment, explicit completion, totals/timing, label reuse/history, desktop/mobile; no page errors"
                 )
 
         finally:

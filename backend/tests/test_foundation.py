@@ -56,6 +56,7 @@ def test_health_and_database(client, settings):
         "fruiting_environment",
         "fruiting_environment_changes",
         "harvest_photos",
+        "pinning_photos",
         "container_labels",
         "label_assignments",
         "cultivation_states",
@@ -108,7 +109,7 @@ def test_migrations_repeat_and_persist(settings):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
-                == "0011_fruiting"
+                == "0012_pinning_photos"
             )
 
 

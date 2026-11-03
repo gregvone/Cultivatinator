@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 import json
 from typing import Literal
-from fastapi import APIRouter, HTTPException, Request, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile, Path
 from pydantic import Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,6 +27,7 @@ from .fruiting_models import (
     FruitingEnvironment,
     FruitingEnvironmentChange,
     HarvestPhoto,
+    PinningPhoto,
 )
 from .preparation_models import Recipe, PreparedMaterial
 from .library import record, output, allocate, event, photo_out
@@ -453,6 +454,7 @@ def transition(code: str, data: StageAction, request: Request):
         if data.action == "pinning" and run.stage in {"colonizing", "unrecorded"}:
             run.stage = "pinning"
             flush.pinning_date = action_date
+            flush.pinning_notes = data.notes
         elif data.action == "fruiting" and run.stage == "pinning":
             run.stage = "fruiting"
             flush.fruiting_date = action_date
@@ -462,7 +464,10 @@ def transition(code: str, data: StageAction, request: Request):
             run.stage = "pinning"
             session.add(
                 FruitingFlush(
-                    fruiting_id=code, number=run.current_flush, pinning_date=action_date
+                    fruiting_id=code,
+                    number=run.current_flush,
+                    pinning_date=action_date,
+                    pinning_notes=data.notes,
                 )
             )
         elif data.action in {"complete", "failed"}:
@@ -661,3 +666,42 @@ def upload_harvest_photo(code: str, request: Request, file: UploadFile):
         harvest = get(session, HarvestEntry, code)
         fruiting_id = harvest.fruiting_id
     return store_upload("fruiting", fruiting_id, request, file, harvest_id=code)
+
+
+def pinning_event(session, code, number):
+    record(session, "fruiting", code)
+    flush = session.get(FruitingFlush, (code, number))
+    if flush is None:
+        raise HTTPException(404, "Flush not found")
+    if flush.pinning_date is None:
+        raise HTTPException(409, "Pinning has not been recorded for this flush")
+    return flush
+
+
+@router.get("/records/{code}/flushes/{number}/pinning/photos")
+def pinning_photos(code: str, request: Request, number: int = Path(ge=1)):
+    with Session(request.app.state.engine) as session:
+        pinning_event(session, code, number)
+        return [
+            photo_out(p)
+            for p in session.scalars(
+                select(PhotoAttachment)
+                .join(PinningPhoto, PinningPhoto.photo_id == PhotoAttachment.id)
+                .where(
+                    PinningPhoto.fruiting_id == code,
+                    PinningPhoto.flush_number == number,
+                )
+                .order_by(PhotoAttachment.created_at, PhotoAttachment.id)
+            )
+        ]
+
+
+@router.post("/records/{code}/flushes/{number}/pinning/photos", status_code=201)
+def upload_pinning_photo(
+    code: str, request: Request, file: UploadFile, number: int = Path(ge=1)
+):
+    from .photos import store_upload
+
+    with Session(request.app.state.engine) as session:
+        pinning_event(session, code, number)
+    return store_upload("fruiting", code, request, file, pinning_flush=number)

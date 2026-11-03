@@ -1,3 +1,4 @@
+import { PhotoSelection, usePhotoUploads } from "./PhotoUploads";
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { libraryApi } from "../libraryApi";
@@ -34,12 +35,39 @@ export default function PhotoGallery({
   code,
   onChange,
   harvestId,
+  pinningFlush,
+  compact = false,
+  refreshToken = 0,
 }: {
   kind: Kind;
   code: string;
   onChange: () => void;
   harvestId?: string;
+  pinningFlush?: number;
+  compact?: boolean;
+  refreshToken?: number;
 }) {
+  const uploads = usePhotoUploads();
+  const scopedPath = harvestId
+    ? `harvests/${harvestId}/photos`
+    : pinningFlush != null
+      ? `records/${code}/flushes/${pinningFlush}/pinning/photos`
+      : null;
+  const photoPath = scopedPath || `${kind}/${code}/photos`;
+  const namespace = scopedPath ? "fruiting" : "library";
+  async function upload(files?: File[]) {
+    setError("");
+    setNotice("");
+    const selected = files ? uploads.add(files) : undefined;
+    const complete = await uploads.upload(photoPath, namespace, selected);
+    setRevision((v) => v + 1);
+    if (complete) onChange();
+    setNotice(
+      complete
+        ? `${selected?.length || uploads.items.filter((item) => item.state !== "saved").length} photograph(s) attached`
+        : "Some photographs could not be uploaded. Retry the remaining files below.",
+    );
+  }
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -48,14 +76,12 @@ export default function PhotoGallery({
   const [view, setView] = useState<Photo | null>(null);
   useEffect(() => {
     let live = true;
-    libraryApi<Photo[]>(
-      harvestId ? `harvests/${harvestId}/photos` : `${kind}/${code}/photos`,
-      "GET",
-      undefined,
-      harvestId ? "fruiting" : "library",
-    )
+    libraryApi<Photo[]>(photoPath, "GET", undefined, namespace)
       .then((p) => {
-        if (live) setPhotos(p);
+        if (live) {
+          setPhotos(p);
+          setError("");
+        }
       })
       .catch((e) => {
         if (live) setError(e.message);
@@ -63,7 +89,7 @@ export default function PhotoGallery({
     return () => {
       live = false;
     };
-  }, [kind, code, revision, harvestId]);
+  }, [photoPath, namespace, revision, refreshToken]);
   async function action(fn: () => Promise<unknown>, message: string) {
     setBusy(true);
     setError("");
@@ -80,43 +106,38 @@ export default function PhotoGallery({
     }
   }
   return (
-    <section className="panel gallery-panel">
-      <h2>
-        <ImagePlus size={18} aria-hidden="true" />
-        Photographs
-      </h2>
+    <section
+      className={
+        compact ? "gallery-panel compact-gallery" : "panel gallery-panel"
+      }
+    >
+      {compact ? (
+        <h5>Photographs</h5>
+      ) : (
+        <h2>
+          <ImagePlus size={18} aria-hidden="true" />
+          Photographs
+        </h2>
+      )}
       <p>
         JPEG, PNG or WebP · up to 10 MB and 24 megapixels per image · originals
         retained
       </p>
-      <label className="field">
-        <span>Attach photographs</span>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          disabled={busy}
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            e.target.value = "";
-            if (files.length)
-              void action(async () => {
-                for (const file of files) {
-                  const body = new FormData();
-                  body.append("file", file);
-                  await libraryApi(
-                    harvestId
-                      ? `harvests/${harvestId}/photos`
-                      : `${kind}/${code}/photos`,
-                    "POST",
-                    body,
-                    harvestId ? "fruiting" : "library",
-                  );
-                }
-              }, `${files.length} photograph(s) attached`);
-          }}
-        />
-      </label>
+      <PhotoSelection
+        uploads={uploads}
+        label="Attach photographs"
+        disabled={busy || uploads.busy}
+        onFiles={(files) => void upload(files)}
+      />
+      {uploads.items.some((item) => item.state !== "saved") && (
+        <button
+          type="button"
+          disabled={busy || uploads.busy}
+          onClick={() => void upload()}
+        >
+          Retry remaining photos
+        </button>
+      )}
       {busy && <p role="status">Saving photographs…</p>}
       {notice && <p role="status">{notice}</p>}
       {error && (
@@ -134,7 +155,7 @@ export default function PhotoGallery({
         </div>
       )}
       {!photos.length && <p className="muted">No photographs attached.</p>}
-      <div className="photo-grid">
+      <div className={compact ? "photo-grid photo-grid-compact" : "photo-grid"}>
         {photos.map((p, i) => (
           <figure key={p.id}>
             <button
@@ -152,7 +173,7 @@ export default function PhotoGallery({
                 <span className="badge">Cover photograph</span>
               ) : (
                 <button
-                  disabled={busy}
+                  disabled={busy || uploads.busy}
                   onClick={() =>
                     void action(
                       () => libraryApi(`photos/${p.id}/cover`, "POST"),
@@ -164,7 +185,7 @@ export default function PhotoGallery({
                 </button>
               )}
               <button
-                disabled={busy}
+                disabled={busy || uploads.busy}
                 onClick={() => {
                   if (window.confirm("Remove this photograph permanently?"))
                     void action(

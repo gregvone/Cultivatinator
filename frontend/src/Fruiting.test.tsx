@@ -325,7 +325,6 @@ test("dry weights can be entered later and exact harvest photos keep their own e
   const first = screen
     .getByRole("heading", { name: /Harvest HR-0001/ })
     .closest("section")!;
-  await user.click(within(first).getByText("Harvest photos"));
   await user.upload(within(first).getByLabelText("Attach photographs"), [
     new File(["a"], "one.png", { type: "image/png" }),
     new File(["b"], "two.png", { type: "image/png" }),

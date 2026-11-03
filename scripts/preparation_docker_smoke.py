@@ -346,6 +346,18 @@ try:
     )
     with urllib.request.urlopen(harvest_req) as response:
         harvest_photo = json.load(response)
+
+    def pinning_photo(number):
+        req = urllib.request.Request(
+            base + f"/api/fruiting/records/{grow_id}/flushes/{number}/pinning/photos",
+            data=body,
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+        with urllib.request.urlopen(req) as response:
+            return json.load(response)
+
+    pinning_one = [pinning_photo(1), pinning_photo(1)]
+    pinning_two = pinning_photo(2)
     grow_before = request(f"/api/fruiting/records/{grow_id}")
     harvest_history_before = request(
         f"/api/fruiting/harvests/{harvest_one['id']}/history"
@@ -430,6 +442,21 @@ try:
     )
     with urllib.request.urlopen(base + harvest_photo["url"]) as response:
         assert response.read() == png.getvalue()
+    assert {
+        p["id"]
+        for p in request(f"/api/fruiting/records/{grow_id}/flushes/1/pinning/photos")
+    } == {p["id"] for p in pinning_one}
+    assert [
+        p["id"]
+        for p in request(f"/api/fruiting/records/{grow_id}/flushes/2/pinning/photos")
+    ] == [pinning_two["id"]]
+    for pin in [*pinning_one, pinning_two]:
+        with urllib.request.urlopen(base + pin["url"]) as response:
+            assert response.read() == png.getvalue()
+    assert (
+        request(f"/api/fruiting/records/{grow_id}")["flushes"][0]["pinning_date"]
+        == "2026-01-03"
+    )
     assert fruit_command("create", grow_payload, "docker-operational-grow") == grown
     ended = fruit_command(
         f"records/{grow_id}/stage",
