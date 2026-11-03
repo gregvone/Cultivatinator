@@ -25,7 +25,7 @@ Migration `0001_foundation` is the baseline. Incremental migration `0002_culture
 
 The Dockerfile builds frontend assets and a Python virtualenv in separate stages, then serves both through one non-root UID/GID 10001 application container on internal port 8085. Compose defaults host port 8085 and restart unless stopped. No privileges, no added services. Health checks query the database and migration revision through HTTP. Logs go to stdout/stderr.
 
-`/data/database`, `/data/photos`, `/data/files`, and `/data/settings` are inside one host bind mount; only the database currently contains application data. Host directories must be writable by UID/GID 10001. Live processes are disposable. A future complete backup must include the database, photographs, files, and persistent settings together. Current recovery uses a stopped-container whole-directory archive as described in README. No built-in backup or restore exists yet.
+`/data/database`, `/data/photos`, `/data/files`, and `/data/settings` are inside one host bind mount. Host directories must be writable by UID/GID 10001. Live processes are disposable. Settings provides a complete ZIP download; the standard-library host restore utility replaces only these four data children, preserving the co-located Git checkout, source and Compose configuration. See the 2D.2 architecture below and [maintenance instructions](MILESTONE_2D2.md).
 
 ## Rules for future schemas
 
@@ -38,7 +38,7 @@ The Dockerfile builds frontend assets and a Python virtualenv in separate stages
 - Archive historical records by default rather than deleting them; keep corrections traceable.
 - Model observations, transfers, milestones, and harvests as activity events; preserve photo associations with individual records/events and include photographs in complete backups.
 
-These constraints also guide future modules; only the Culture Library subset is implemented. No authentication is implemented; private-network access is required.
+These constraints also guide future modules and the implemented cultivation/harvest workflows. No authentication is implemented; private-network access is required.
 
 ## Culture Library implementation (2A)
 
@@ -66,7 +66,7 @@ Migrations `0003_lineage` and `0004_acquisition` add these structures and nullab
 
 Prepared media can own AG/LC/SJ/SB identities before any biological line exists. Physical/spawn rows retain those IDs on inoculation, preserve a routine source's line, and link exact physical origin separately from genetic ancestry. Spore-inoculated agar remains pending until explicit successful establishment binds an independent line. Measured LC depletion blocks reuse; reasoned corrections can restore depleted (not completed/failed) sources. Archive remains separate from operational completion. `preparationApi.ts` uses stable retry keys and integer-thousandth previews; Historical preparation remains available with explicit legacy readiness and completion paths. Normal Quick Create saves inoculated records directly without stock or reservations, as described below. Recipes has dedicated category/list/detail routes and comparison. Actual spawning/FR allocation remains 2C.3. See [2C.2 operations](MILESTONE_2C2.md).
 
-Deployment clarification from the user: repository/Compose and persistent data coexist in `/storage/tv/cultivatinator`, mounted at `/data`. Preserve the arrangement. The current installation has dummy test data and requires no routine backup; when preserving valuable data, back up the whole stopped co-located directory. Root data subdirectories are excluded only from Docker build context, not moved or removed.
+Deployment clarification from the user: repository/Compose and persistent data coexist in `/storage/tv/cultivatinator`, mounted at `/data`. Preserve the arrangement. Only `database/`, `photos/`, `files/` and `settings/` are persistent application data. Do not archive or replace the whole co-located directory during backup/restore. Root data subdirectories are excluded from Docker build context; 2D.2 adds a complete data-only backup and safe restore.
 
 
 ### Final 2C.2 workflow redesign
@@ -106,3 +106,16 @@ Migration 0013 extends that workflow to Fruiting and Finish Grow. It adds nullab
 `reports.py` exposes GET `/api/reports/performance` with typed Pydantic contracts in `report_schemas.py`. Four set/aggregate SELECTs resolve per-FR measurements, recorded dates, labels and shared/specific/acquired sources under a consistent read transaction. Integer milligram sums and Decimal per-container averages avoid harvest-count weighting and missing-as-zero errors. Genetics use actual source line/strain IDs; recipe grouping uses immutable run snapshots/revisions, never editable recipe contents. No schema, historical record or cultivation mutation changes are required.
 
 `Reports.tsx`, `reportApi.ts` and `PerformanceBars.tsx` use existing navigation/UI/error handling, CSS horizontal bars and accessible expandable tables. Unknown/mixed identities remain unranked; measured samples/source counts, incomplete exclusions, separate current active scope, date bounds and terminal failure denominators are explicit. See [2D.1 calculation and population rules](MILESTONE_2D1.md).
+
+
+## Milestone 2D.2: coordinated backup and stopped-data restore
+
+`backups.py` installs a pure-ASGI asynchronous mutation gate around the full lifetime of every mutating request, covering photo upload before commit and photo-removal rollback/cleanup after transactions. Backup capture uses the same gate, a SQLite writer reservation and a separate read-only online-backup connection. It inventories only the four persistent directories, snapshots committed WAL data, verifies integrity/foreign keys/schema/photo references, and writes a ZIP with SHA-256 inventory. Reads remain available; writes resume before archive transmission. Existing mutation APIs and domain data remain compatible.
+
+`backup_format.py` is standard-library-only and shared by the backend and host CLI. It bounds the ZIP central directory before parsing, validates format/version/migration and every path/member/checksum, and extracts exclusively into private staging. `backup_schema.json` is the trusted schema contract for current migration `0013_journal_photos`, including constraints, indexes and immutable-history triggers. Reflection-dependent constraint ordering is normalized. No schema migration or domain model change is introduced. `version.py` exposes the same existing application version without importing runtime dependencies into the CLI.
+
+`POST /api/backups/prepare` stages a verified archive and returns an opaque single-use URL with a five-minute TTL. GET streams a native browser download; DELETE cancels an unused ticket. Direct GET `/api/backups/download` supports the host safety-copy workflow. Artifact cleanup covers capture failure/cancellation, stream failures, expiration, shutdown and stale files at next startup. The frontend uses an abortable preparation request and native download manager, avoiding a second archive-sized JavaScript buffer. Busy/error/retry and external-copy wording use existing Settings panels and controls.
+
+`scripts/workspace_backup.py` and `restore_workspace.py` implement host verification, explicit confirmed restore and interrupted recovery with no pip dependencies. They validate incoming data before shutdown, retain an independently verified pre-restore ZIP plus original directories, use the existing local Compose service, check stopped process state/host file descriptors/exclusive SQLite access, and replace only four child directories by same-filesystem renames. Restored files are owned by 10001:10001. An fsynced operation journal, retained originals and a root interruption marker support automatic rollback and recovery after abrupt termination. Health checks verify connectivity, migration head and application version. The tool starts an existing container and never builds, recreates, deploys or changes source/configuration.
+
+Application lifetime holds an OS file lease outside the backed-up data, enforcing one process per root. An incomplete restore marker prevents initialization/migration before missing or mixed directories can be opened. Restore uses a separate operation lock and obtains the runtime lease only after shutdown. This supplements, rather than replaces, the single-worker rule. Recovery remains an explicit host action; there is no restore HTTP API, remote storage service or backup scheduler. Archive checksums provide integrity, not authenticity or encryption. See [2D.2 limits, disk requirements, exact Debian commands and recovery](MILESTONE_2D2.md).

@@ -1,6 +1,6 @@
 # Cultivatinator
 
-A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2D.1: Performance Dashboard & Cultivation Comparisons** adds read-only yield, timing, flush and outcome reports with measured sample counts and traceable grow records. See [2D.1 calculations and coverage](docs/MILESTONE_2D1.md) and [2C.4 layouts](docs/MILESTONE_2C4.md).
+A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2D.2: Complete Backup & Safe Restore** adds verified whole-workspace downloads and a Debian maintenance utility that replaces only the four persistent data directories. See [backup, verification and recovery instructions](docs/MILESTONE_2D2.md), [2D.1 reports](docs/MILESTONE_2D1.md) and [2C.4 layouts](docs/MILESTONE_2C4.md).
 
 The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; spawn and fruiting counts reflect active registered records; monitoring and unimplemented modules remain empty. No demonstration records or login are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
 
@@ -29,8 +29,8 @@ Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI 
 sudo install -d -m 0755 /opt/stacks
 sudo git clone https://github.com/gregvone/Cultivatinator.git /opt/stacks/cultivatinator
 cd /opt/stacks/cultivatinator
-# For the Milestone 2D.1 review implementation:
-sudo git switch feature/milestone-2d1-performance
+# For the Milestone 2D.2 review implementation:
+sudo git switch feature/milestone-2d2-backup-restore
 sudo install -d -o 10001 -g 10001 -m 0750 /storage/tv/cultivatinator
 sudo docker compose up -d --build --wait
 sudo docker compose ps
@@ -54,16 +54,23 @@ All persistent content is mounted at `/data`:
 | `files/` | Reserved for application-managed files |
 | `settings/` | Reserved for future persistent settings |
 
-Container recreation and image replacement preserve the bind-mounted directory. Do not remove it when updating. UI backup/restore is **not implemented**. For a consistent Docker-level backup, stop writes by stopping the container and archive the entire directory (including SQLite sidecars):
+Container recreation and image replacement preserve persistent data. The existing Debian installation has its Git checkout, Compose file and data together at `/storage/tv/cultivatinator`. **Never replace or archive that entire root as a data-restore operation.** Only `database/`, `photos/`, `files/` and `settings/` belong in a workspace backup; Git, source, Compose and `.env` are excluded.
+
+Use **Settings → Backup & Restore → Download Complete Backup** while the app runs. Capture coordinates application mutations and uses SQLite's online backup API, including committed WAL contents. The ZIP contains a checksummed manifest and a verified database snapshot, originals and thumbnails. Check the browser download and retain an external copy; the app does not keep a permanent server backup collection.
+
+Verify a downloaded archive on Debian with the matching checkout (Python 3.10+ standard library; replace the filename):
 
 ```bash
-cd /opt/stacks/cultivatinator
-sudo docker compose stop app
-sudo tar -C /storage/tv -czf /opt/stacks/cultivatinator-backup-$(date +%Y%m%d-%H%M%S).tar.gz cultivatinator
-sudo docker compose start app
+python3 /storage/tv/cultivatinator/scripts/workspace_backup.py verify /path/to/backup.zip
 ```
 
-Check the tar command succeeded before relying on the archive; keep a copy off the server. To restore: stop the service, preserve the current data directory separately, inspect a trusted archive, extract its `cultivatinator/` directory under `/storage/tv`, restore UID/GID 10001 ownership, and start the **matching application version**. Test recovery on a separate copy first. No live-file copying procedure is promised safe.
+Restore requires host root, local Docker/Compose, the matching existing app container, free disk space and explicit interactive confirmation. It validates first, retains an independent pre-restore ZIP and original data directories, stops/proves writers stopped, replaces only the four data children, preserves UID/GID 10001, restarts and checks health. It never builds or deploys an image:
+
+```bash
+sudo python3 /storage/tv/cultivatinator/scripts/workspace_backup.py restore /path/to/backup.zip --data-root /storage/tv/cultivatinator --compose-file /storage/tv/cultivatinator/compose.yaml
+```
+
+Type `REPLACE-PERSISTENT-DATA` only after reviewing the prompt. Retain the printed recovery directory even on success. Failed startup triggers rollback; interruption during cutover blocks app initialization until recovery. See [2D.2 compatibility, limits, interrupted recovery and disposable Debian checks](docs/MILESTONE_2D2.md) before maintenance. No automatic downgrade or migration repair is performed.
 
 ## Development without Docker
 
