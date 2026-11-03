@@ -1,3 +1,4 @@
+import { phaseName } from "./containerApi";
 import {
   CircleDot,
   Syringe,
@@ -79,7 +80,7 @@ export function eligibleSource(
   record: LibraryRecord,
 ) {
   if (
-    ["depleted", "completed", "failed"].includes(
+    ["used", "depleted", "completed", "failed"].includes(
       record.lifecycle || "active",
     ) ||
     (record.balance_tracked &&
@@ -87,6 +88,12 @@ export function eligibleSource(
       /^0*(\.0*)?$/.test(record.remaining_quantity)) ||
     record.status !== "active" ||
     !(operation.kinds as readonly string[]).includes(record.kind)
+  )
+    return false;
+  if (
+    record.kind === "physical" &&
+    record.material_type === "agar_plate" &&
+    record.growth_stage !== "ready"
   )
     return false;
   if (record.kind === "physical")
@@ -120,7 +127,7 @@ export function sourceLabel(record: LibraryRecord) {
     (
       { ...cultureTypes, ...sporeTypes, ...growTypes } as Record<string, string>
     )[record.material_type ?? ""] || "Fruiting container";
-  return `${record.id}${record.name ? ` · ${record.name}` : ""} · ${material} · ${strain}${record.line_id ? ` · Line ${record.line_id}` : ""} · ${record.stage || record.status}`;
+  return `${record.physical_label || record.id}${record.physical_label ? ` (record ${record.id})` : ""}${record.name ? ` · ${record.name}` : ""} · ${material} · ${strain}${record.line_id ? ` · Line ${record.line_id}` : ""} · ${phaseName(record.growth_stage || record.stage || record.status, record.kind === "spawn")}`;
 }
 export function availableOperations(record: LibraryRecord) {
   return quickCreate.filter((op) => eligibleSource(op, record));

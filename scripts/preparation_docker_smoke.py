@@ -179,6 +179,14 @@ try:
         "/api/library/receive-culture",
         {"line": {}, "material": {"material_type": "agar_plate"}},
     )["physical"][0]
+
+    def mark_ready(code):
+        return request(
+            f"/api/containers/records/physical/{code}/state",
+            {"request_key": str(uuid4()), "action": "ready"},
+        )
+
+    mark_ready(direct_source["id"])
     direct_recipe = command(
         "recipes",
         {
@@ -217,11 +225,15 @@ try:
             "expected_revision": media_default["revision"],
         },
     )
+    # A consumed plate cannot supply a later operation. Explicitly ready one
+    # of the new agar destinations for the LC operation.
+    jar_source = direct_result["materials"][0]
+    mark_ready(jar_source["id"])
     jar_payload = {
         "request_key": "docker-auto-media-jar",
         "material_type": "lc_jar",
         "source_kind": "physical",
-        "source_id": direct_source["id"],
+        "source_id": jar_source["id"],
         "count": 1,
         "inoculation_date": "2026-11-01",
         "destination_volume_ml": "100",
@@ -245,6 +257,14 @@ try:
         and row["snapshot"]["recipe"]["name"] == "Retained LC Media"
         for row in syringe_result["materials"]
     )
+    source_before = request("/api/library/physical/" + direct_source["id"])
+    assert source_before["lifecycle"] == "used" and not source_before["label_occupied"]
+    depleted_before = request("/api/library/physical/" + lc["id"])
+    assert (
+        depleted_before["label_occupied"] and depleted_before["lifecycle"] == "depleted"
+    )
+    label_history = request(f"/api/containers/records/physical/{direct_source['id']}")
+    label_availability = request("/api/containers/available?material_type=agar_plate")
     ledger_before = request("/api/preparation/transactions")
     snapshots_before = request("/api/preparation/materials")
     docker("stop", name)
@@ -263,6 +283,16 @@ try:
         assert r.read() == png.getvalue()
     assert (
         request(f"/api/library/fruiting/{fruit['id']}/photos")[0]["id"] == photo["id"]
+    )
+    assert request("/api/library/physical/" + direct_source["id"]) == source_before
+    assert request("/api/library/physical/" + lc["id"]) == depleted_before
+    assert (
+        request(f"/api/containers/records/physical/{direct_source['id']}")
+        == label_history
+    )
+    assert (
+        request("/api/containers/available?material_type=agar_plate")
+        == label_availability
     )
     assert request("/api/preparation/materials") == snapshots_before
     assert request("/api/preparation/transactions") == ledger_before

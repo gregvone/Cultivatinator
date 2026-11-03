@@ -26,6 +26,7 @@ from .preparation_models import (
     MaterialTransfer,
 )
 from .material_state import lifecycle, material_state
+from .container_tracking import tracking_state, set_phase, release_label
 from .inventory_quantities import balance, convert, compatible, canonical, text_or_none
 from .preparation_schemas import (
     StockInput,
@@ -116,6 +117,8 @@ def execute(request, data, kind, work):
         for ingredient in payload.get("ingredients", []):
             if ingredient.get("name") is None:
                 ingredient.pop("name", None)
+    if isinstance(data, DirectCreation) and payload.get("label_choices") is None:
+        payload.pop("label_choices", None)
     fingerprint = hashlib.sha256(
         (kind + json.dumps(payload, sort_keys=True)).encode()
     ).hexdigest()
@@ -466,6 +469,13 @@ def edit_recipe(code: str, data: RecipeEdit, request: Request):
 def prepared_out(session, row):
     batch = get(session, PreparationBatch, row.batch_id)
     values = row_values(row)
+    values.update(
+        tracking_state(
+            session,
+            "physical" if row.physical_id else "spawn" if row.spawn_id else "prepared",
+            row.id,
+        )
+    )
     values["snapshot"] = json.loads(batch.snapshot)
     values["expired"] = bool(
         row.use_by and date.fromisoformat(row.use_by) < date.today()
@@ -478,6 +488,11 @@ def prepared_out(session, row):
         values["source"] = {
             "kind": "physical" if transfer.physical_source_id else "spores",
             "id": transfer.physical_source_id or transfer.spore_source_id,
+            "physical_label": tracking_state(
+                session,
+                "physical" if transfer.physical_source_id else "spores",
+                transfer.physical_source_id or transfer.spore_source_id,
+            ).get("physical_label"),
             "operation_id": transfer.operation_id,
             "date": transfer.transfer_date,
             "usage_quantity": transfer.usage_quantity,
@@ -690,8 +705,14 @@ def biological_material(session, row, line, op_id, volume=None):
 def eligible(session, kind, code, destination):
     source = record(session, kind, code, active=True)
     state = material_state(session, kind, code)
-    if state["lifecycle"] in {"completed", "failed", "depleted"}:
+    if state["lifecycle"] in {"used", "completed", "failed", "depleted"}:
         fail("This source is completed, failed, or depleted", 409)
+    if (
+        kind == "physical"
+        and source.material_type == "agar_plate"
+        and tracking_state(session, kind, code).get("growth_stage") != "ready"
+    ):
+        fail("Mark this agar culture Ready before using it as a source", 409)
     stock = stock_source(session, kind, code)
     if stock and (stock.status != "active" or balance(stock) == 0):
         fail("Source stock is unavailable or depleted", 409)
@@ -760,21 +781,22 @@ def inoculate_materials(session, op, data, require_lc_measurement=True):
         if compatible(data.unit, "mL")
         else None
     )
-    stock = ensure_source_stock(session, op, source, data.source_kind, data.unit)
-    total = (
-        data.usage_per_container * len(rows)
-        if data.usage_per_container is not None
-        else None
-    )
-    use_stock(
-        session,
-        op,
-        stock,
-        total,
-        data.unit,
-        "usage",
-        f"Inoculation of {len(rows)} prepared container(s); operation {op.id}",
-    )
+    if source.material_type != "agar_plate":
+        stock = ensure_source_stock(session, op, source, data.source_kind, data.unit)
+        total = (
+            data.usage_per_container * len(rows)
+            if data.usage_per_container is not None
+            else None
+        )
+        use_stock(
+            session,
+            op,
+            stock,
+            total,
+            data.unit,
+            "usage",
+            f"Inoculation of {len(rows)} prepared container(s); operation {op.id}",
+        )
     for row in rows:
         row.stage = "inoculated"
         transfer = MaterialTransfer(
@@ -838,12 +860,19 @@ def inoculate_materials(session, op, data, require_lc_measurement=True):
                     ),
                 )
         # Spores remain a pending establishment; no genetic line or parent is invented.
+    if data.source_kind == "physical" and source.material_type == "agar_plate":
+        consume_agar(session, op, source.id, data.inoculation_date)
     event(
         session,
         data.source_kind,
         source.id,
         "material_transferred",
-        f"{len(rows)} destination(s) in {op.id}; source retained until explicitly completed or failed",
+        f"{len(rows)} destination(s) in {op.id}; "
+        + (
+            "agar source Used and physical label released"
+            if source.material_type == "agar_plate"
+            else "source retains partial-usage lifecycle"
+        ),
     )
     session.flush()
     return {
@@ -929,6 +958,21 @@ def finish(session, op, row, data):
             row.stage,
             f'{row.stage} on {data.action_date or "date unknown"}: {data.reason[:250]}; reusable allocation released where tracked',
         )
+    kind = "physical" if row.physical_id else "spawn" if row.spawn_id else "prepared"
+    set_phase(
+        session,
+        kind,
+        row.id,
+        row.stage,
+        data.action_date.isoformat() if data.action_date else None,
+    )
+    release_label(
+        session,
+        kind,
+        row.id,
+        data.action_date.isoformat() if data.action_date else None,
+        data.reason,
+    )
     session.flush()
 
 
@@ -960,6 +1004,21 @@ def finish_existing(kind: str, code: str, data: FinishInput, request: Request):
                 code,
                 new_state,
                 f'{new_state} on {data.action_date or "date unknown"}: {data.reason[:300]}; no tracked pool allocation',
+            )
+        if not row:
+            set_phase(
+                session,
+                kind,
+                code,
+                new_state,
+                data.action_date.isoformat() if data.action_date else None,
+            )
+            release_label(
+                session,
+                kind,
+                code,
+                data.action_date.isoformat() if data.action_date else None,
+                data.reason,
             )
         return {"id": code, **material_state(session, kind, code)}
 
@@ -1250,8 +1309,13 @@ def create_inoculated(data: DirectCreation, request: Request):
         )
         session.add(batch)
         session.flush()
+        if data.label_choices is not None and len(data.label_choices) != data.count:
+            fail("Provide one physical label choice per container")
+        session.info["reserved_label_codes"] = {
+            c.label for c in data.label_choices or [] if c.label
+        }
         ids = []
-        for _ in range(data.count):
+        for index in range(data.count):
             row = PreparedMaterial(
                 id=allocate(session, PREFIX[data.material_type]),
                 batch_id=batch.id,
@@ -1259,11 +1323,21 @@ def create_inoculated(data: DirectCreation, request: Request):
                 stage="ready",
             )
             session.add(row)
+            if data.label_choices:
+                session.info.setdefault("container_choices", {})[row.id] = (
+                    data.label_choices[index].model_dump()
+                )
             ids.append(row.id)
         session.flush()
         transfer = InoculationInput(
             **data.model_dump(
-                exclude={"request_key", "recipe_id", "material_type", "count"}
+                exclude={
+                    "request_key",
+                    "recipe_id",
+                    "material_type",
+                    "count",
+                    "label_choices",
+                }
             ),
             request_key=data.request_key,
             prepared_ids=ids,
@@ -1362,3 +1436,26 @@ def designate_lc_default(data: LCMediaSelection, request: Request):
         return {"recipe": recipe_out(recipe, session)}
 
     return execute(request, data, "lc_default", work)
+
+
+def consume_agar(session, op, code, used_date):
+    """One ready plate supplies one complete operation; destinations already exist."""
+    reason = f"Agar consumed by transfer operation {op.id}"
+    row = session.scalar(
+        select(PreparedMaterial).where(PreparedMaterial.physical_id == code)
+    )
+    data = FinishInput(
+        request_key=op.request_key,
+        action="complete",
+        action_date=used_date,
+        reason=reason,
+    )
+    if row:
+        finish(session, op, row, data)
+    else:
+        set_lifecycle(session, "physical", code, "completed")
+        close_source_balance(session, op, "physical", code, reason)
+    date_value = used_date.isoformat() if used_date else None
+    set_phase(session, "physical", code, "used", date_value)
+    release_label(session, "physical", code, date_value, reason)
+    event(session, "physical", code, "used", reason)

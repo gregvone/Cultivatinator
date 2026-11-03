@@ -408,56 +408,45 @@ def test_lc_depletion_correction_and_unknown_source_quantities(client):
     )
 
 
-def test_pool_release_complete_failure_and_plate_remains_after_transfer(client):
+def test_pool_release_and_physical_labels_follow_atomic_agar_consumption(client):
     raw, container = setup_preparation(client, "agar_plate", 20)
     batch = prepare(client, raw, container, 3)
-    source = lc_source(client)
-    first = inoculate(client, source, batch["materials"][:1])["materials"][0]
-    agar = client.get("/api/library/physical/" + first["physical_id"]).json()
+    first = inoculate(client, lc_source(client), batch["materials"][:1])["materials"][0]
+    agar = client.get("/api/library/physical/" + first["id"]).json()
+    response = client.post(
+        f"/api/containers/records/physical/{agar['id']}/state",
+        json={"request_key": str(uuid4()), "action": "ready"},
+    )
+    assert response.status_code == 200, response.text
     inoculate(
         client, agar, batch["materials"][1:2], unit="plate", usage_per_container=None
     )
     assert (
-        client.get("/api/library/physical/" + agar["id"]).json()["lifecycle"]
-        == "active"
-    )
-    finish = {
-        "action": "complete",
-        "action_date": "2026-01-02",
-        "reason": "Finished use",
-    }
-    post(
-        client,
-        "materials/" + first["id"] + "/finish",
-        finish,
-        200,
-        key="finish-container",
-    )
-    post(
-        client,
-        "materials/" + first["id"] + "/finish",
-        finish,
-        200,
-        key="finish-container",
+        client.get("/api/library/physical/" + agar["id"]).json()["lifecycle"] == "used"
     )
     assert list_stock(client)[container["id"]]["available"] == "18.000"
     post(
         client,
         "materials/" + first["id"] + "/finish",
-        {**finish, "action": "failed"},
+        {"action": "complete", "reason": "Already consumed"},
         409,
+    )
+    payload = {"action": "failed", "reason": "Processing failure"}
+    post(
+        client,
+        "materials/" + batch["materials"][2]["id"] + "/finish",
+        payload,
+        200,
+        key="failure-release-once",
     )
     post(
         client,
         "materials/" + batch["materials"][2]["id"] + "/finish",
-        {"action": "failed", "reason": "Processing failure"},
+        payload,
         200,
+        key="failure-release-once",
     )
     assert list_stock(client)[container["id"]]["available"] == "19.000"
-    assert (
-        client.get("/api/library/physical/" + agar["id"]).json()["lifecycle"]
-        == "completed"
-    )
     assert upload(client, "physical", agar["id"]).status_code == 201
 
 
@@ -660,7 +649,7 @@ def test_migration_restart_preserves_preparation_stock_and_existing_photos(setti
             == "25.000"
         )
     command.check(migration_config(settings))
-    with pytest.raises(RuntimeError, match="inventory data exists"):
+    with pytest.raises(RuntimeError, match="Physical label or lifecycle history exists"):
         command.downgrade(migration_config(settings), "0004_acquisition")
 
 
@@ -717,6 +706,12 @@ def test_lc_container_inoculation_preserves_line_from_agar_or_lc(client, source_
     source = receive(client, count=1, material={"material_type": source_type})[
         "physical"
     ][0]
+    if source_type == "agar_plate":
+        response = client.post(
+            f"/api/containers/records/physical/{source['id']}/state",
+            json={"request_key": str(uuid4()), "action": "ready"},
+        )
+        assert response.status_code == 200, response.text
     result = inoculate(
         client,
         source,

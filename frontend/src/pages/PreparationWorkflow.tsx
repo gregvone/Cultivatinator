@@ -18,7 +18,6 @@ import {
   IngredientFields,
   ProcessingFields,
   processingPayload,
-  FinishForm,
 } from "./PreparationInventory";
 
 type Values = Record<string, string>;
@@ -618,13 +617,6 @@ export function MaterialOperationPanel({
           </ul>
         </>
       )}
-      {["physical", "spawn"].includes(record.kind) &&
-        !["completed", "failed"].includes(record.lifecycle || "active") && (
-          <FinishForm
-            path={`records/${record.kind}/${record.id}/finish`}
-            onSaved={onSaved}
-          />
-        )}
     </section>
   );
 }

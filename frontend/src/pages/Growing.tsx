@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { phaseName } from "../containerApi";
 import { PageHeader } from "../components/UI";
 import StrainIdentity from "../components/StrainIdentity";
 import { useInventoryList, materialNames } from "../preparationApi";
@@ -21,20 +22,21 @@ export default function Growing({
   const [search, setSearch] = useState("");
   const rows = (records.data || []).filter((r) => {
     const terminal =
-      ["completed", "failed", "depleted"].includes(r.lifecycle || "active") ||
-      r.stage === "used";
+      ["used", "completed", "failed", "depleted"].includes(
+        r.lifecycle || "active",
+      ) || r.stage === "used";
     return (
       (filter === "all" ||
         (filter === "active"
           ? !terminal && r.status === "active"
-          : filter === "completed" || filter === "failed"
+          : ["used", "completed", "failed", "depleted"].includes(filter)
             ? r.lifecycle === filter
             : filter === "ready" || filter === "colonizing"
-              ? r.stage === filter && !terminal
+              ? (r.growth_stage || r.stage) === filter && !terminal
               : r.material_type === filter &&
                 !terminal &&
                 r.status === "active")) &&
-      `${r.id} ${r.strain_name || ""} ${r.line_id || ""}`
+      `${r.physical_label || ""} ${r.id} ${r.strain_name || ""} ${r.line_id || ""}`
         .toLowerCase()
         .includes(search.toLowerCase())
     );
@@ -82,6 +84,9 @@ export default function Growing({
           <option value="active">Active</option>
           {workspace === "laboratory" ? (
             <>
+              <option value="colonizing">Colonizing agar</option>
+              <option value="ready">Ready agar</option>
+              <option value="depleted">Depleted LC</option>
               <option value="agar_plate">Agar cultures</option>
               <option value="lc_jar">LC containers</option>
               <option value="lc_syringe">LC syringes</option>
@@ -94,6 +99,7 @@ export default function Growing({
               <option value="ready">Ready for Spawning</option>
             </>
           )}
+          <option value="used">Used</option>
           <option value="completed">Completed</option>
           <option value="failed">Failed</option>
           <option value="all">All records</option>
@@ -128,23 +134,25 @@ export default function Growing({
                     : `/culture-library/${r.kind}/${r.id}`
                 }
               >
-                {r.id} ·{" "}
+                {r.physical_label || r.id} ·{" "}
                 {materialNames[r.material_type || ""] || r.material_type}
               </Link>
             </h2>
+            {r.physical_label && <small>Permanent record: {r.id}</small>}
             <p>
               <StrainIdentity record={r} />
               {r.line_id && ` · Culture line ${r.line_id}`}
             </p>
             <p>
               Status:{" "}
-              {r.lifecycle !== "active"
-                ? r.lifecycle
-                : r.pending_establishment
-                  ? "Pending spore establishment"
-                  : r.stage === "ready"
-                    ? "Ready for Spawning"
-                    : r.stage || "Inoculated / Growing"}{" "}
+              {r.pending_establishment
+                ? `Pending spore establishment · ${phaseName(r.growth_stage)}`
+                : phaseName(
+                    r.lifecycle !== "active"
+                      ? r.lifecycle
+                      : r.growth_stage || r.stage || r.lifecycle,
+                    r.kind === "spawn",
+                  )}{" "}
               · {r.status}
             </p>
             <p>
@@ -157,7 +165,8 @@ export default function Growing({
                 <Link
                   to={`/culture-library/${r.cultivation.source.kind}/${r.cultivation.source.id}`}
                 >
-                  {r.cultivation.source.id}
+                  {r.cultivation.source.physical_label ||
+                    r.cultivation.source.id}
                 </Link>
               </p>
             )}

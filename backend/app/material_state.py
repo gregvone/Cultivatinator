@@ -2,6 +2,7 @@
 
 from sqlalchemy import select
 from .inventory_quantities import balance
+from .container_tracking import tracking_state
 from .preparation_models import StockItem, MaterialLifecycle, PreparedMaterial
 
 
@@ -30,8 +31,15 @@ def material_state(session, kind, code):
             else PreparedMaterial.spawn_id
         )
         prepared = session.scalar(select(PreparedMaterial).where(column == code))
+    tracking = tracking_state(session, kind, code)
+    phase = tracking.get("growth_stage")
     return {
-        "lifecycle": state.state if state else "active",
+        **tracking,
+        "lifecycle": (
+            phase
+            if phase in {"used", "completed", "failed"}
+            else state.state if state else "active"
+        ),
         "stock_item_id": stock.id if stock else None,
         "remaining_quantity": balance(stock) if stock else None,
         "remaining_unit": stock.unit if stock else None,

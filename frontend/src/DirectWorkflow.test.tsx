@@ -63,8 +63,16 @@ function mock(recipes: Recipe[] = [formula]) {
           return response(
             {
               materials: [
-                { id: "AG-0011", physical_id: "AG-0011" },
-                { id: "AG-0012", physical_id: "AG-0012" },
+                {
+                  id: "AG-0011",
+                  physical_id: "AG-0011",
+                  physical_label: "P-01",
+                },
+                {
+                  id: "AG-0012",
+                  physical_id: "AG-0012",
+                  physical_label: "P-02",
+                },
               ],
             },
             201,
@@ -225,13 +233,15 @@ test("Quick Create filters recipes, defaults local date, requires no inventory a
   await u.type(screen.getByLabelText("Number of containers *"), "2");
   await u.click(screen.getByRole("button", { name: "Create Agar plate" }));
   expect(
-    await screen.findByText("AG-0011, AG-0012", { selector: "p" }),
+    await screen.findByText("P-01, P-02", { selector: "p" }),
   ).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "Open AG-0011" })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: "Open P-01" })).toHaveAttribute(
     "href",
     "/culture-library/physical/AG-0011",
   );
-  expect(screen.getByRole("button", { name: "Copy IDs" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Copy Labels" }),
+  ).toBeInTheDocument();
   const call = fetch.mock.calls.find(
     ([input, init]) =>
       String(input).endsWith("/create") && init?.method === "POST",
@@ -488,7 +498,9 @@ test("LC syringe has no media input or default setup requirement", async () => {
   ).toBe(false);
 });
 test("missing LC default gives one-time setup without inventing media", async () => {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(response({ recipe: null }));
+  vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+    response({ recipe: null }),
+  );
   mount(
     <DirectCreate
       operation="lc-container"

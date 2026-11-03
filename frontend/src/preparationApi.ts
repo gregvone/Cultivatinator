@@ -51,6 +51,15 @@ export interface Recipe {
   status: string;
 }
 export interface Prepared {
+  physical_label?: string | null;
+  label_reusable?: boolean | null;
+  label_occupied?: boolean;
+  growth_stage?: string | null;
+  inoculation_date?: string | null;
+  completed_date?: string | null;
+  ready_date?: string | null;
+  used_date?: string | null;
+  failed_date?: string | null;
   id: string;
   batch_id: string;
   material_type: string;
@@ -60,6 +69,7 @@ export interface Prepared {
   physical_id: string | null;
   spawn_id: string | null;
   source: {
+    physical_label?: string | null;
     kind: "physical" | "spores";
     id: string;
     operation_id: string;
@@ -134,7 +144,7 @@ export function newRequestKey(random: Crypto = crypto) {
     b.toString(16).padStart(2, "0"),
   ).join("");
 }
-export function useInventoryCommand() {
+export function useInventoryCommand(namespace = "preparation") {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const prior = useRef<{ signature: string; key: string } | null>(null);
@@ -149,10 +159,15 @@ export function useInventoryCommand() {
     setBusy(true);
     setError("");
     try {
-      return await preparationApi<T>(path, method, {
-        ...(payload as object),
-        request_key: prior.current!.key,
-      });
+      return await libraryApi<T>(
+        path,
+        method,
+        {
+          ...(payload as object),
+          request_key: prior.current!.key,
+        },
+        namespace,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save operation");
       return undefined;

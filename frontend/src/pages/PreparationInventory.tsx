@@ -1,3 +1,4 @@
+import ContainerTracking from "../components/ContainerTracking";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
@@ -966,8 +967,10 @@ export function PreparedDetail() {
     <>
       <InventoryNav />
       <PageHeader
-        title={code}
-        description="Prepared material and immutable batch settings."
+        title={
+          row?.id === code && row.physical_label ? row.physical_label : code
+        }
+        description={`Permanent record ${code} · cultivation and source history.`}
       />
       {error && (
         <p role="alert">
@@ -1061,7 +1064,7 @@ export function PreparedDetail() {
                 <Link
                   to={`/culture-library/${row.source.kind}/${row.source.id}`}
                 >
-                  {row.source.id}
+                  {row.source.physical_label || row.source.id}
                 </Link>{" "}
                 · {row.source.date || "Date unknown"} · Usage{" "}
                 {row.source.usage_quantity ?? "Unknown"} {row.source.unit} ·{" "}
@@ -1124,7 +1127,34 @@ export function PreparedDetail() {
                 </button>
               </form>
             )}
-          {!["completed", "failed"].includes(row.stage) && (
+          {!row.physical_id &&
+            !row.spawn_id &&
+            row.stage !== "preparing" &&
+            row.stage !== "ready" && (
+              <ContainerTracking
+                record={{
+                  id: row.id,
+                  kind: "prepared",
+                  material_type: row.material_type,
+                  physical_label: row.physical_label,
+                  label_occupied: row.label_occupied,
+                  label_reusable: row.label_reusable,
+                  growth_stage: row.growth_stage,
+                  inoculation_date: row.inoculation_date,
+                  ready_date: row.ready_date,
+                  used_date: row.used_date,
+                  failed_date: row.failed_date,
+                  completed_date: row.completed_date,
+                  lifecycle:
+                    row.stage === "failed" || row.stage === "completed"
+                      ? row.stage
+                      : "active",
+                  status: "active",
+                }}
+                onSaved={reload}
+              />
+            )}
+          {!["inoculated", "completed", "failed"].includes(row.stage) && (
             <section className="panel workflow-source">
               <FinishForm
                 path={`materials/${row.id}/finish`}

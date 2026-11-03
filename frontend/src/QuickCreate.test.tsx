@@ -15,7 +15,13 @@ const base = {
   unit: null,
 };
 const records = [
-  { ...base, id: "AG-0001", kind: "physical", material_type: "agar_plate" },
+  {
+    ...base,
+    id: "AG-0001",
+    kind: "physical",
+    material_type: "agar_plate",
+    growth_stage: "ready",
+  },
   { ...base, id: "SL-0001", kind: "physical", material_type: "slant" },
   {
     ...base,
@@ -246,7 +252,7 @@ test("Create From This carries an LC source into a matching destination", async 
     await screen.findByRole("combobox", { name: "Source material" }),
   ).toHaveValue("physical:LC-0001");
   expect(
-    screen.getByRole("option", { name: /LC-0001.*Oyster.*CL-0001.*active/ }),
+    screen.getByRole("option", { name: /LC-0001.*Oyster.*CL-0001.*Active/ }),
   ).toBeInTheDocument();
 });
 test("ready spawn and fruiting context actions use the right source kinds", () => {

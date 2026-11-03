@@ -73,28 +73,29 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                     "button", name="Confirm acquisition", exact=True
                 ).click()
                 expect(
-                    page.get_by_role("heading", name="SJ-0001", exact=True)
+                    page.get_by_role("heading", name="J-01", exact=False)
                 ).to_be_visible()
                 expect(page.get_by_text("ready", exact=True)).to_be_visible()
                 page.goto(base + "/culture-library/register-grow")
                 page.get_by_label(
-                    "SJ-0001 · Browser Oyster · CL-0001 · ready", exact=True
+                    "J-01 (record SJ-0001) · Browser Oyster · CL-0001 · ready",
+                    exact=True,
                 ).check()
                 page.get_by_label("Source allocation").select_option("specific")
-                page.get_by_label("SJ-0001 · CL-0001", exact=True).check()
+                page.get_by_label("J-01 (record SJ-0001) · CL-0001", exact=True).check()
                 page.get_by_role(
                     "button", name="Add fruiting container", exact=True
                 ).click()
-                page.get_by_label("SJ-0001 · CL-0001", exact=True).last.check()
+                page.get_by_label(
+                    "J-01 (record SJ-0001) · CL-0001", exact=True
+                ).last.check()
                 page.get_by_role(
                     "button", name="Register manual provenance", exact=True
                 ).click()
                 expect(
                     page.get_by_role("heading", name="GB-0001", exact=True)
                 ).to_be_visible()
-                page.get_by_role(
-                    "link", name="FR-0001 · FR-0001 · active", exact=True
-                ).click()
+                page.locator('a[href="/culture-library/fruiting/FR-0001"]').click()
                 page.get_by_role(
                     "button", name="Establish Tissue Clone", exact=True
                 ).click()

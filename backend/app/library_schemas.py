@@ -153,6 +153,15 @@ class StrainReference(BaseModel):
 
 
 class RecordOut(BaseModel):
+    physical_label: str | None = None
+    label_reusable: bool | None = None
+    label_occupied: bool = False
+    growth_stage: str | None = None
+    inoculation_date: str | None = None
+    ready_date: str | None = None
+    used_date: str | None = None
+    completed_date: str | None = None
+    failed_date: str | None = None
     id: str
     kind: Kind
     name: str | None

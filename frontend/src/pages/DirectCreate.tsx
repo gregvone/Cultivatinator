@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Field } from "./LibraryForms";
+import { LabelChoices } from "../components/ContainerTracking";
+import type { LabelChoice } from "../containerApi";
 import { localToday } from "../libraryApi";
 import type { LibraryRecord } from "../libraryApi";
 import {
@@ -49,6 +51,7 @@ export default function DirectCreate({
     destination_volume_ml: "",
     notes: "",
   });
+  const [labels, setLabels] = useState<LabelChoice[]>([]);
   const [result, setResult] = useState<Prepared[] | null>(null);
   const [copied, setCopied] = useState("");
   const liquid = source?.material_type?.startsWith("lc_");
@@ -79,17 +82,20 @@ export default function DirectCreate({
       : Object.hasOwn(usageUnits, defaultUnit)
         ? defaultUnit
         : Object.keys(usageUnits)[0];
-  const set = (n: string, x: string) =>
+  const set = (n: string, x: string) => {
+    if (n === "count" || n === "material_type") setLabels([]);
     setV({
       ...v,
       [n]: x,
       ...(n === "unit" ? { unit_source: source?.id || "" } : {}),
     });
+  };
   async function save(e: FormEvent) {
     e.preventDefault();
     if (!source) return;
     const r = await command.send<{ materials: Prepared[] }>("create", {
       material_type: v.material_type,
+      ...(labels.length ? { label_choices: labels } : {}),
       recipe_id:
         v.material_type === "agar_plate" || v.material_type.startsWith("spawn_")
           ? v.recipe_id || null
@@ -114,8 +120,13 @@ export default function DirectCreate({
         <h2>
           Created {result.length} {result.length === 1 ? "record" : "records"}
         </h2>
-        <p>Write these permanent IDs on your containers.</p>
-        <p className="generated-ids">{result.map((r) => r.id).join(", ")}</p>
+        <p>
+          Write these physical labels on your containers. Permanent record IDs
+          remain linked below.
+        </p>
+        <p className="generated-ids">
+          {result.map((r) => r.physical_label || r.id).join(", ")}
+        </p>
         <ul>
           {result.map((r) => (
             <li key={r.id}>
@@ -126,8 +137,9 @@ export default function DirectCreate({
                     : `/history/materials/${r.id}`
                 }
               >
-                Open {r.id}
+                Open {r.physical_label || r.id}
               </Link>
+              <small>Permanent record: {r.id}</small>
               {!r.physical_id &&
                 !r.spawn_id &&
                 " · Pending independent spore establishment"}
@@ -139,15 +151,15 @@ export default function DirectCreate({
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(
-                  result.map((r) => r.id).join(", "),
+                  result.map((r) => r.physical_label || r.id).join(", "),
                 );
-                setCopied("IDs copied.");
+                setCopied("Labels copied.");
               } catch {
-                setCopied("Copy the IDs from the selectable text below.");
+                setCopied("Copy the labels from the selectable text below.");
               }
             }}
           >
-            Copy IDs
+            Copy Labels
           </button>
           <Link to={first.startsWith("spawn") ? "/cultivation" : "/laboratory"}>
             View growing records
@@ -164,11 +176,11 @@ export default function DirectCreate({
         </div>
         {copied && <p role="status">{copied}</p>}
         <label className="field">
-          <span>Generated IDs for copying</span>
+          <span>Physical labels for copying</span>
           <textarea
-            aria-label="Generated IDs for copying"
+            aria-label="Physical labels for copying"
             readOnly
-            value={result.map((r) => r.id).join(", ")}
+            value={result.map((r) => r.physical_label || r.id).join(", ")}
             onFocus={(e) => e.target.select()}
           />
         </label>
@@ -179,8 +191,8 @@ export default function DirectCreate({
       <h2>Create inoculated material</h2>
       <p>
         Save after preparation, sterilization and inoculation are complete.
-        Every container gets its own permanent ID. No empty equipment setup is
-        required.
+        Physical labels are assigned automatically; permanent record IDs remain
+        separate. No empty equipment setup is required.
       </p>
       {operation === "spawn" && (
         <Field
@@ -307,12 +319,25 @@ export default function DirectCreate({
           set={set}
         />
       )}
+      {source?.kind === "physical" && source.material_type === "agar_plate" && (
+        <p>
+          This operation uses the Ready agar plate once for all destinations.
+          After success, the source becomes Used and its physical label is
+          released.
+        </p>
+      )}
       {source?.kind === "spores" && (
         <p>
           Each plate remains a pending independent establishment until you
           register a successful culture. No shared genetic line is assumed.
         </p>
       )}
+      <LabelChoices
+        material={v.material_type}
+        count={Number(v.count)}
+        choices={labels}
+        onChange={setLabels}
+      />
       <Field
         name="notes"
         label="Cultivation notes"

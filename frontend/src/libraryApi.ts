@@ -13,6 +13,15 @@ export interface Photo {
   thumbnail_url: string;
 }
 export interface LibraryRecord {
+  physical_label?: string | null;
+  label_reusable?: boolean | null;
+  label_occupied?: boolean;
+  growth_stage?: string | null;
+  inoculation_date?: string | null;
+  ready_date?: string | null;
+  used_date?: string | null;
+  completed_date?: string | null;
+  failed_date?: string | null;
   id: string;
   kind: Kind;
   name: string | null;
@@ -137,7 +146,9 @@ export const kindNames: Record<Kind, string> = {
   fruiting: "Fruiting Containers",
 };
 export function title(record: LibraryRecord) {
-  return record.name || record.id;
+  return record.physical_label
+    ? `${record.physical_label}${record.name || record.strain_name ? ` — ${record.name || record.strain_name}` : ""}`
+    : record.name || record.id;
 }
 export function localToday() {
   const d = new Date();

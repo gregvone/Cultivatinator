@@ -140,6 +140,11 @@ def test_direct_bulk_no_inventory_permanent_ids_lineage_snapshot_and_date(
     source = receive(client, count=1, material={"material_type": "agar_plate"})[
         "physical"
     ][0]
+    ready = client.post(
+        f"/api/containers/records/physical/{source["id"]}/state",
+        json={"request_key": str(uuid4()), "action": "ready"},
+    )
+    assert ready.status_code == 200, ready.text
     r = recipe(client, recipe_type)
     if material == "lc_jar":
         post(
@@ -316,6 +321,9 @@ def test_spore_direct_creation_remains_independent_pending_establishment(client)
         and client.get("/api/library/lines").json() == []
     )
     assert all(row["physical_id"] is None for row in rows)
+    assert sorted(row["physical_label"] for row in rows) == ["P-01", "P-02", "P-03"]
+    assert all(row["growth_stage"] == "colonizing" for row in rows)
+    assert all(row["inoculation_date"] == "2026-11-01" for row in rows)
     assert len(client.get("/api/preparation/growing?workspace=laboratory").json()) == 3
     line_ids = []
     for row in rows:
@@ -325,6 +333,12 @@ def test_spore_direct_creation_remains_independent_pending_establishment(client)
         )
         assert response.status_code == 201, response.text
         line_ids.append(response.json()["line"]["id"])
+        physical = response.json()["physical"][0]
+        assert physical["id"] == row["id"]
+        assert physical["physical_label"] == row["physical_label"]
+        assert physical["growth_stage"] == "colonizing" and physical["label_occupied"]
+        history = client.get(f"/api/containers/records/physical/{row['id']}").json()
+        assert len(history["assignments"]) == 1
     assert len(set(line_ids)) == 3
 
 

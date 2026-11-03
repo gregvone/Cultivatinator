@@ -198,6 +198,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     material_type=None,
                     starting_volume=None,
                     source_code=None,
+                    physical_label=None,
                 ):
                     source_code = source_code or source["id"]
                     page.goto(base + "/culture-library/physical/" + source_code)
@@ -232,6 +233,14 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     assert page.get_by_label(
                         "Inoculation date *", exact=True
                     ).input_value()
+                    if physical_label:
+                        page.get_by_text(
+                            "Physical labels · automatic lowest available (optional override)",
+                            exact=True,
+                        ).click()
+                        page.get_by_label(
+                            "Container 1 physical label", exact=True
+                        ).select_option(physical_label)
                     if usage:
                         page.get_by_label(
                             "Source usage per container *", exact=True
@@ -278,17 +287,20 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                             full_page=True,
                         )
                         raise
-                    ids = (
-                        page.get_by_label("Generated IDs for copying", exact=True)
+                    labels = (
+                        page.get_by_label("Physical labels for copying", exact=True)
                         .input_value()
                         .split(", ")
                     )
-                    assert len(ids) == count and len(set(ids)) == count
-                    for code in ids:
+                    assert len(labels) == count and len(set(labels)) == count
+                    ids = []
+                    for code in labels:
+                        link = page.get_by_role("link", name="Open " + code, exact=True)
+                        ids.append(link.get_attribute("href").rsplit("/", 1)[1])
                         expect(
                             page.get_by_role("link", name="Open " + code, exact=True)
                         ).to_be_visible()
-                    page.get_by_role("button", name="Copy IDs", exact=True).click()
+                    page.get_by_role("button", name="Copy Labels", exact=True).click()
                     return ids
 
                 bags = direct("spawn", grain["id"], 5, "5", "spawn_bag")
@@ -330,20 +342,18 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 )
                 page.goto(base + "/laboratory")
                 expect(
-                    page.get_by_role(
-                        "link", name=plates[0] + " · Agar plate", exact=True
-                    )
+                    page.get_by_role("link", name="P-01 · Agar plate", exact=True)
                 ).to_be_visible()
                 page.goto(base + "/cultivation")
                 expect(
-                    page.get_by_role("link", name=bags[0] + " · Spawn bag", exact=True)
+                    page.get_by_role("link", name="B-01 · Spawn bag", exact=True)
                 ).to_be_visible()
                 page.get_by_label("Show records").select_option("spawn_jar")
                 expect(
-                    page.get_by_role("link", name=jars[0] + " · Spawn jar", exact=True)
+                    page.get_by_role("link", name="J-01 · Spawn jar", exact=True)
                 ).to_be_visible()
                 expect(
-                    page.get_by_role("link", name=bags[0] + " · Spawn bag", exact=True)
+                    page.get_by_role("link", name="B-01 · Spawn bag", exact=True)
                 ).to_have_count(0)
                 page.goto(base + "/culture-library/physical/" + plates[0])
                 expect(
@@ -351,6 +361,61 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                         "heading", name="Recipe: Standard Agar", exact=True
                     )
                 ).to_be_visible()
+                # Everyday identities are physical labels; all links still use permanent IDs.
+                expect(page.get_by_role("heading", level=1)).to_contain_text("P-01")
+                expect(
+                    page.get_by_role("button", name="Mark Ready", exact=True)
+                ).to_be_visible()
+                page.get_by_role("button", name="Mark Ready", exact=True).click()
+                page.get_by_label("Lifecycle date", exact=True).fill("2026-11-02")
+                page.get_by_role("button", name="Save Status", exact=True).click()
+                expect(
+                    page.get_by_text("Ready date: 2026-11-02", exact=True)
+                ).to_be_visible()
+                donor_jars = direct("spawn", grain["id"], 5, source_code=plates[0])
+                donor = page.request.get(
+                    base + "/api/library/physical/" + plates[0]
+                ).json()
+                assert donor["lifecycle"] == "used" and not donor["label_occupied"]
+                for code in donor_jars:
+                    row = page.request.get(base + "/api/library/spawn/" + code).json()
+                    assert row["growth_stage"] == "colonizing"
+                    assert (
+                        page.request.get(
+                            base + "/api/preparation/materials/" + code
+                        ).json()["source"]["id"]
+                        == plates[0]
+                    )
+                reused = direct("agar-plate", agar["id"], 1, "1")[0]
+                assert reused != plates[0]
+                assert (
+                    page.request.get(base + "/api/library/physical/" + reused).json()[
+                        "physical_label"
+                    ]
+                    == "P-01"
+                )
+                for code in (reused, plates[1]):
+                    page.goto(base + "/culture-library/physical/" + code)
+                    page.get_by_role("button", name="Mark Failed", exact=True).click()
+                    # Reasons are optional for operational failure.
+                    page.get_by_role("button", name="Save Status", exact=True).click()
+                    expect(
+                        page.get_by_role("button", name="Mark Failed", exact=True)
+                    ).to_have_count(0)
+                manual = direct(
+                    "agar-plate", agar["id"], 1, "1", physical_label="P-02"
+                )[0]
+                assert (
+                    page.request.get(base + "/api/library/physical/" + manual).json()[
+                        "physical_label"
+                    ]
+                    == "P-02"
+                )
+                page.goto(base + "/culture-library/physical/" + plates[0])
+                expect(
+                    page.get_by_role("button", name="Mark Ready", exact=True)
+                ).to_have_count(0)
+                expect(page.get_by_text("Used date:", exact=False)).to_be_visible()
                 page.goto(base + "/recipes/detail/" + agar["id"])
                 expect(
                     page.get_by_role("button", name="Archive Recipe", exact=True)
@@ -462,7 +527,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Final 2C.2 workflow browser smoke passed: four recipe categories and default LC Media, duplicate/delete/archive, direct agar/spawn/LC/syringe creation, permanent IDs, lineage, LC balance, growing views, Acquisitions and no Inventory workspace, LC Create From This, historical prepared inoculation, desktop/mobile; no page errors"
+                    "Final 2C.2 workflow browser smoke passed: four recipe categories and default LC Media, duplicate/delete/archive, direct agar/spawn/LC/syringe creation, physical labels, copy/manual override/reuse, Ready agar atomic bulk consumption, permanent IDs, lineage, LC balance, growing views, Acquisitions and no Inventory workspace, LC Create From This, historical prepared inoculation, desktop/mobile; no page errors"
                 )
 
         finally:

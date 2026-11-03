@@ -19,6 +19,7 @@ import {
 } from "../libraryApi";
 import type { Activity, Kind, LibraryRecord, Photo } from "../libraryApi";
 import { MaterialOperationPanel } from "./PreparationWorkflow";
+import ContainerTracking from "../components/ContainerTracking";
 import { CreateFromThis } from "./QuickCreate";
 import { LineagePanel } from "./Provenance";
 import StrainIdentity from "../components/StrainIdentity";
@@ -609,6 +610,10 @@ export function RecordDetail() {
         </button>
       </div>
       <CreateFromThis record={record} />
+      <ContainerTracking
+        record={record}
+        onSaved={() => setRevision((v) => v + 1)}
+      />
       {editing ? (
         <EditForm
           key={record.id}

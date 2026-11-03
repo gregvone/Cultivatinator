@@ -49,6 +49,9 @@ def test_health_and_database(client, settings):
         "stock_transactions",
         "preparation_recipes",
         "lc_media_default",
+        "container_labels",
+        "label_assignments",
+        "cultivation_states",
         "preparation_batches",
         "prepared_materials",
         "container_reservations",
@@ -98,7 +101,7 @@ def test_migrations_repeat_and_persist(settings):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
-                == "0009_lc_default"
+                == "0010_containers"
             )
 
 

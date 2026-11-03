@@ -364,24 +364,6 @@ def edit_record(kind: Kind, code: str, data: EditRecord, request: Request):
             or (kind == "spawn" and values["stage"] not in {"ready", "colonizing"})
         ):
             raise HTTPException(422, "Invalid stage for this record")
-        state = material_state(session, kind, code)
-        if (
-            "material_type" in values
-            and values["material_type"] != getattr(item, "material_type", None)
-            and (state["prepared_id"] or state["balance_tracked"])
-        ):
-            raise HTTPException(
-                409,
-                "Material type is fixed for tracked preparations and source balances",
-            )
-        if (
-            "stage" in values
-            and values["stage"] != getattr(item, "stage", None)
-            and state["lifecycle"] in {"completed", "failed"}
-        ):
-            raise HTTPException(
-                409, "Completed or failed material cannot change readiness"
-            )
         if "material_type" in values:
             types = (
                 PREFIX
@@ -403,6 +385,28 @@ def edit_record(kind: Kind, code: str, data: EditRecord, request: Request):
             )
             if values["material_type"] not in types:
                 raise HTTPException(422, "Invalid material type")
+        state = material_state(session, kind, code)
+        if (
+            "material_type" in values
+            and values["material_type"] != getattr(item, "material_type", None)
+            and (
+                state["prepared_id"]
+                or state["balance_tracked"]
+                or state.get("physical_label")
+            )
+        ):
+            raise HTTPException(
+                409,
+                "Material type is fixed for tracked preparations and source balances",
+            )
+        if (
+            "stage" in values
+            and values["stage"] != getattr(item, "stage", None)
+            and state["lifecycle"] in {"used", "completed", "failed"}
+        ):
+            raise HTTPException(
+                409, "Completed or failed material cannot change readiness"
+            )
         if "origin" in values and values["origin"] is None:
             raise HTTPException(422, "Origin is required")
         if kind in ("physical", "spores", "spawn", "fruiting"):

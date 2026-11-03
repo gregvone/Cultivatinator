@@ -1,4 +1,4 @@
-# Milestone 2C.2 — final cultivation-focused simplification
+# Milestone 2C.2 — final container-label and lifecycle structure
 
 This revision supersedes the earlier 2C.2 inventory and three-category recipe interfaces on `feature/milestone-2c2-preparation` (existing PR #5). Cultivatinator tracks cultures and cultivation history; no Inventory workspace, empty equipment setup, prepared-material creation or ingredient accounting is required in the normal interface.
 
@@ -26,27 +26,31 @@ Filled LC syringes have **no recipe input and no default-setup requirement**. Th
 
 ## Quick Create and permanent IDs
 
-Save after material is already prepared, sterilized and inoculated. Agar selects an active agar recipe and compatible source. Spawn chooses Jar/Bag, a grain Spawn Seed recipe and an eligible agar/LC source. LC jars choose a source, count and optional measured starting volume; default media is automatic. Syringes choose an LC source, count and measured transferred volume. Local dates populate automatically and can be overridden. Notes and appropriate source usage remain available.
+Save after material is already prepared, sterilized and inoculated. Agar selects an active agar recipe and compatible source; agar donors must be explicitly Ready. Spawn chooses Jar/Bag, a grain Spawn Seed recipe and an eligible agar/LC source. LC jars choose a source, count and optional measured starting volume; default media is automatic. Syringes choose an LC source, count and measured transferred volume. Local dates populate automatically and can be overridden. Notes and appropriate source usage remain available.
 
-Every destination receives its own AG/LC/SJ/SB permanent ID through the existing allocator. Bulk creation is atomic; a failure rolls back all destinations, balances and ID allocations. Repeated submissions replay the committed result, even after a default recipe changes. Create More starts a distinct request. Completion prominently shows all IDs with copy/selectable-text and individual-record links.
+Every destination receives its own AG/LC/SJ/SB permanent ID through the existing allocator. Bulk creation is atomic; a failure rolls back all destinations, balances and ID allocations. Repeated submissions replay the committed result, even after a default recipe changes. Create More starts a distinct request. Completion prominently shows physical labels with Copy Labels, selectable text and links to permanent records; permanent IDs remain secondary.
 
-**Create From This** on LC and agar records opens the appropriate Quick Create entry with the exact physical source preselected. Compatible sources/recipes are filtered, LC jars use the default automatically, and syringes never request media selection. Ordinary transfers preserve the genetic culture line and record exact physical source provenance. Spores remain independent pending establishments until the existing successful-culture workflow creates each line. New spawn starts **Colonizing**; Ready for Spawning is a later explicit action.
+**Create From This** on LC and agar records opens the appropriate Quick Create entry with the exact physical source preselected. Compatible sources/recipes are filtered, LC jars use the default automatically, and syringes never request media selection. Ordinary transfers preserve the genetic culture line and record exact physical source provenance. Spores remain independent pending establishments until the existing successful-culture workflow creates each line. New agar and spawn start **Colonizing**. Mark Ready / Mark Ready for Spawning are explicit dated actions. A Ready agar donor is Used once after all destinations succeed in a single operation, releasing its P label. LC retains measured partial-transfer semantics.
 
 Spore-print collection remains unchanged. Actual spawning/fruiting execution remains deferred.
 
 ## LC remaining volume
 
-LC jar/syringe details show **Remaining Culture Material** and a measured correction form with a reason. No Inventory visit is needed. Known source balances require measured usage, validate sufficient stock and deduct once across the bulk operation. Five bags at 5 mL deduct 25 mL; 100 mL becomes 75 mL. Zero-known LC becomes Depleted and cannot be reused. Corrections can restore a measured or unknown balance without reviving completed/failed cultures.
+LC jar/syringe details show **Remaining Culture Material** and a measured correction form with a reason. No Inventory visit is needed. Known source balances require measured usage, validate sufficient stock and deduct once across the bulk operation. Five bags at 5 mL deduct 25 mL; 100 mL becomes 75 mL. Zero-known LC becomes Depleted and cannot supply transfers; its L label stays occupied until explicit completion/retirement or failure. Corrections can restore a measured or unknown balance without reviving completed/failed cultures.
 
 Unknown balances remain unknown. Filled syringes receive measured transferred volume; LC jar starting totals are optional measured quantities. Precise Decimal compatible-unit conversion, immutable usage audit, revision checks and idempotency remain functional independently of media-recipe selection. Initial acquisition quantities are never silently imported as remaining volume.
 
 ## Growing workspaces and historical compatibility
 
-Laboratory lists active agar, LC and pending spore establishments. Cultivation lists colonizing jars/bags and ready spawn. Search/filter controls include completed, failed and archived history; rows show permanent IDs, known strain/line, source, recipe, dates and lifecycle. Record details retain photographs, history, genealogy and source/recipe snapshots.
+Laboratory lists active agar, LC and pending spore establishments. Cultivation lists colonizing jars/bags and ready spawn. Search/filter controls include completed, failed and archived history; rows emphasize physical labels, with permanent IDs, known strain/line, source, recipe, dates and lifecycle accessible. Record details retain photographs, history, genealogy and source/recipe snapshots.
 
-Historical preparation data remains accessible through record history and `/history/materials`; old URLs redirect. Existing Preparing rows can transition to Ready without new deductions or altered timestamps; previously ready material can complete its existing inoculation using original IDs. Historical Complete/Failed releases tracked reservations once. Normal direct creation has no container reservations. Generic supply management and new preparation screens are absent from application navigation.
+Historical preparation data remains accessible through record history and `/history/materials`; old URLs redirect. Existing Preparing rows can transition to Ready without new deductions or altered timestamps; previously ready material can complete its existing inoculation using original IDs. Historical Complete/Failed releases tracked reservations once. Normal direct creation has automatic physical-label occupancy, without stock pool reservations. Generic supply management and new preparation screens are absent from application navigation.
 
 Existing accounting tables/APIs, transactions, preparation batches, reservations, snapshots and migrations are preserved, with no destructive reset. LC accounting continues using the existing precise ledger internally. These compatibility records do not impose new inventory requirements.
+
+## Reusable physical labels and lifecycle
+
+[Container labels](CONTAINER_LABELS.md) defines allocation, prefixes, label history, transition rules, legacy compatibility and the additive **0010_containers** migration. It supersedes earlier donor-remains-active behavior: only Ready agar can supply an operation, and successful agar transfers consume the donor once, even for multiple destinations. Spawn consumption remains 2C.3. Labels are primary everyday identifiers; permanent record IDs alone resolve historical relationships.
 
 ## API and migration changes
 
@@ -65,7 +69,7 @@ Existing accounting tables/APIs, transactions, preparation batches, reservations
 .venv/bin/python scripts/preparation_browser_smoke.py /usr/bin/chromium
 ```
 
-All checks use temporary local databases and disposable Docker resources. Final verification passed: **122 backend tests**, **79 frontend tests** across seven files, the production build, fresh/repeated Alembic upgrade/current/check at **0009_lc_default** with no schema drift, and all four browser smoke suites. Browser checks exercise all four LC Create From This actions, default setup, selector-free LC creation, inherited syringe media, 100 mL → 75 mL usage, Acquisitions, Add Strain, old URL redirects, historical prepared records, photographs/lineage and mobile layouts with no page errors. Local Docker build and non-root recreation/persistence checks passed, including the default designation, inherited media, balances, idempotent replay and existing FR/photos/history. Obsolete tests for generic Inventory/new-preparation UI were replaced; historical accounting compatibility tests remain. One existing upstream Starlette/AnyIO deprecation warning remains; no final test or build failures remain. GitHub API metadata access returned Forbidden, so PR delivery is verified through its existing Git branch. No Debian data is accessed.
+All checks use temporary local databases and disposable Docker resources. See [container correction validation](CONTAINER_LABELS.md#validation) for current results. Earlier 0009 validation was 122 backend and 79 frontend tests. New tests cover allocation, lifecycle and history; prior accounting/lineage/photo compatibility tests remain. No Debian data is accessed.
 
 ## Debian installation context
 
@@ -96,4 +100,4 @@ Rollback requires the **matching pre-upgrade application and stopped-data backup
 
 ## Deferred to 2C.3
 
-Actual spawning, spawn-to-bulk consumption, fruiting substrate allocation/ratios, flushes/harvests, advanced observations, contamination propagation and detailed cultivation metrics remain deferred. Substrate definitions are fully manageable now. No merge or deployment is performed.
+Actual spawning, spawn-to-bulk consumption, fruiting substrate amounts/optional ratios and flushes/harvests remain 2C.3. Basic performance and experimental genetics follow later, without mandatory daily logs. Substrate definitions are fully manageable now. No merge or deployment is performed.

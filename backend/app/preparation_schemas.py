@@ -232,7 +232,16 @@ class StockEdit(Command):
     reason: Annotated[Notes, Field(min_length=1)]
 
 
+class LabelChoice(Input):
+    label: Text | None = None
+    new_label: bool = False
+    reusable: bool | None = None
+
+
 class DirectCreation(Command):
+    label_choices: list[LabelChoice] | None = Field(
+        default=None, min_length=1, max_length=100
+    )
     material_type: MaterialType
     recipe_id: Text | None = None
     source_kind: Literal["physical", "spores"]
@@ -256,6 +265,15 @@ class RecipeOut(RecipeData):
 
 
 class PreparedOut(Input):
+    inoculation_date: str | None = None
+    completed_date: str | None = None
+    physical_label: str | None = None
+    label_reusable: bool | None = None
+    label_occupied: bool = False
+    growth_stage: str | None = None
+    ready_date: str | None = None
+    used_date: str | None = None
+    failed_date: str | None = None
     id: str
     batch_id: str
     material_type: MaterialType
@@ -288,6 +306,15 @@ class LedgerOut(Input):
 
 
 class LifecycleOut(Input):
+    label_reusable: bool | None = None
+    label_occupied: bool = False
+    inoculation_date: str | None = None
+    ready_date: str | None = None
+    used_date: str | None = None
+    completed_date: str | None = None
+    failed_date: str | None = None
+    physical_label: str | None = None
+    growth_stage: str | None = None
     lifecycle: str
     stock_item_id: str | None = None
     remaining_quantity: Decimal | None = None
