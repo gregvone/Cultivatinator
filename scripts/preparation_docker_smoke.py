@@ -257,6 +257,104 @@ try:
         and row["snapshot"]["recipe"]["name"] == "Retained LC Media"
         for row in syringe_result["materials"]
     )
+
+    # Operational 2C.3 writes share the same retained volume as older history.
+    def fruit_command(path, data, key=None):
+        return request(
+            "/api/fruiting/" + path, {"request_key": key or str(uuid4()), **data}
+        )
+
+    tent = {
+        "tent_name": "Retained single tent",
+        "temperature": "22",
+        "temperature_unit": "C",
+        "humidity": "85",
+        "fae": "Low fan",
+    }
+    fruit_command("environment", {"expected_revision": 0, "environment": tent})
+    substrate = command(
+        "recipes",
+        {
+            "name": "Retained Substrate",
+            "recipe_type": "substrate",
+            "batch_yield": 1,
+            "ingredients": [{"name": "Hardwood", "quantity": "1000", "unit": "g"}],
+        },
+    )
+    grow_payload = {
+        "spawn_id": a["records"][0]["id"],
+        "recipe_id": substrate["id"],
+        "count": 2,
+        "spawning_date": "2026-01-01",
+    }
+    grown = fruit_command("create", grow_payload, "docker-operational-grow")
+    grow_id = grown["containers"][0]["id"]
+    other_grow = grown["containers"][1]["id"]
+
+    def grow_stage(action, day):
+        return fruit_command(
+            f"records/{grow_id}/stage", {"action": action, "action_date": day}
+        )
+
+    grow_stage("pinning", "2026-01-03")
+    grow_stage("fruiting", "2026-01-05")
+    harvest_one = fruit_command(
+        f"records/{grow_id}/harvests",
+        {
+            "harvest_date": "2026-01-07",
+            "wet_grams": "100",
+            "potency": 4,
+            "potency_notes": "Subjective grower assessment",
+        },
+    )
+    fruit_command(
+        f"records/{grow_id}/harvests", {"harvest_date": "2026-01-08", "wet_grams": "50"}
+    )
+    fruit_command(
+        f"harvests/{harvest_one['id']}/edit",
+        {
+            "expected_revision": 1,
+            "harvest_date": "2026-01-07",
+            "wet_grams": "100",
+            "dry_grams": "10",
+            "potency": 4,
+            "potency_notes": "Subjective grower assessment",
+        },
+    )
+    grow_stage("next_flush", "2026-01-10")
+    grow_stage("fruiting", "2026-01-12")
+    fruit_command(
+        f"records/{grow_id}/harvests",
+        {"harvest_date": "2026-01-14", "wet_grams": "80", "dry_grams": "8"},
+    )
+    fruit_command(
+        f"records/{grow_id}/environment",
+        {
+            "change_date": "2026-01-06",
+            "notes": "Observed humidity adjustment",
+            "environment": {**tent, "humidity": "88"},
+        },
+    )
+    fruit_command(
+        "environment",
+        {"expected_revision": 1, "environment": {**tent, "humidity": "90"}},
+    )
+    harvest_req = urllib.request.Request(
+        base + f"/api/fruiting/harvests/{harvest_one['id']}/photos",
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    with urllib.request.urlopen(harvest_req) as response:
+        harvest_photo = json.load(response)
+    grow_before = request(f"/api/fruiting/records/{grow_id}")
+    harvest_history_before = request(
+        f"/api/fruiting/harvests/{harvest_one['id']}/history"
+    )
+    assert grow_before["record"]["label_occupied"]
+    assert grow_before["results"]["wet_grams"] == "230.000"
+    assert grow_before["results"]["dry_grams"] == "18.000"
+    assert grow_before["run"]["environment_snapshot"]["humidity"] == "85"
+    assert grow_before["environment"]["humidity"] == "88"
     source_before = request("/api/library/physical/" + direct_source["id"])
     assert source_before["lifecycle"] == "used" and not source_before["label_occupied"]
     depleted_before = request("/api/library/physical/" + lc["id"])
@@ -278,7 +376,7 @@ try:
     assert request("/api/library/strains")[0]["name"] == "Container persistence strain"
     p = request(f"/api/provenance/lines/{clone['line']['id']}")
     assert p["parents"] == [{"parent_id": a["line"]["id"], "confidence": "confirmed"}]
-    assert request(f"/api/library/spawn/{a['records'][0]['id']}")["stage"] == "ready"
+    assert request(f"/api/library/spawn/{a['records'][0]['id']}")["stage"] == "used"
     with urllib.request.urlopen(base + photo["url"]) as r:
         assert r.read() == png.getvalue()
     assert (
@@ -320,8 +418,43 @@ try:
         for row in direct_result["materials"]
     )
     assert request("/api/preparation/transactions") == ledger_before
+    assert request(f"/api/fruiting/records/{grow_id}") == grow_before
+    assert (
+        request(f"/api/fruiting/harvests/{harvest_one['id']}/history")
+        == harvest_history_before
+    )
+    assert request("/api/fruiting/environment")["environment"]["humidity"] == "90"
+    assert (
+        request(f"/api/fruiting/harvests/{harvest_one['id']}/photos")[0]["id"]
+        == harvest_photo["id"]
+    )
+    with urllib.request.urlopen(base + harvest_photo["url"]) as response:
+        assert response.read() == png.getvalue()
+    assert fruit_command("create", grow_payload, "docker-operational-grow") == grown
+    ended = fruit_command(
+        f"records/{grow_id}/stage",
+        {"action": "complete", "action_date": "2026-01-17"},
+        "docker-finish-grow",
+    )
+    assert (
+        not ended["record"]["label_occupied"] and ended["results"]["cycle_days"] == 16
+    )
+    assert (
+        fruit_command(
+            f"records/{grow_id}/stage",
+            {"action": "complete", "action_date": "2026-01-17"},
+            "docker-finish-grow",
+        )
+        == ended
+    )
+    assert request("/api/containers/available?material_type=tray")["available"] == [
+        grown["containers"][0]["physical_label"]
+    ]
+    fruit_command(
+        f"records/{other_grow}/stage", {"action": "failed", "action_date": "2026-01-17"}
+    )
     print(
-        "Milestone 2C.2 Docker smoke passed: non-root port 8085, 2B data/photos/FR identity, immutable preparation snapshots and ledger, depletion, one-time release, direct creation without container stock, recipe definitions, LC default/inherited media and idempotency preserved across recreation"
+        "Milestones 2C.2/2C.3 Docker smoke passed: non-root port 8085, 2B data/photos/FR identity, immutable preparation snapshots and ledger, depletion, one-time release, direct creation without container stock, recipe definitions, LC default/inherited media and idempotency, operational single-source grows, flushes, harvest edits/history/photos, environment snapshots and explicit label release preserved across recreation"
     )
 finally:
     subprocess.run([*DOCKER, "rm", "-f", name], capture_output=True)

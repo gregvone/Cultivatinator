@@ -761,7 +761,7 @@ export function EditForm({
                   ? ["supplier", "supplier_reference", "supplier_batch"]
                   : []),
                 "acquisition_date",
-                "stage",
+                ...(record.fruiting_stage ? [] : ["stage"]),
                 "material_type",
                 "quantity",
                 "unit",

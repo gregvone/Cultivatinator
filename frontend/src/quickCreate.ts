@@ -69,9 +69,8 @@ export const quickCreate = [
     kinds: ["spawn"],
     physical: [],
     description:
-      "Select a Ready spawn jar or bag for a future spawning operation.",
-    deferred:
-      "Actual spawning, substrate allocation, and spawn consumption will be available in Milestone 2C.3. No fruiting container is created and no spawn is marked Used here.",
+      "Create fruiting containers from one Ready spawn jar or bag and a Substrate recipe.",
+    deferred: null,
   },
 ] as const;
 export type QuickOperation = (typeof quickCreate)[number];

@@ -1,5 +1,7 @@
 # Milestone 2C.2 — final container-label and lifecycle structure
 
+2C.2 is merged. Operational spawning, fruiting, flushes and harvests are implemented in [Milestone 2C.3](MILESTONE_2C3.md); references to deferred 2C.3 work below describe the 2C.2 delivery boundary.
+
 This revision supersedes the earlier 2C.2 inventory and three-category recipe interfaces on `feature/milestone-2c2-preparation` (existing PR #5). Cultivatinator tracks cultures and cultivation history; no Inventory workspace, empty equipment setup, prepared-material creation or ingredient accounting is required in the normal interface.
 
 ## Navigation and acquisitions

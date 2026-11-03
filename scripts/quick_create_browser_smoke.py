@@ -137,8 +137,10 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                     ).to_be_visible()
                     if slug == "fruiting-container":
                         expect(
-                            page.get_by_text("OPERATION NOT YET AVAILABLE", exact=True)
-                        ).to_be_visible()
+                            page.get_by_role(
+                                "button", name="Create Fruiting Containers", exact=True
+                            )
+                        ).to_be_disabled()
                         assert (
                             page.get_by_role("button", name="Save", exact=True).count()
                             == 0
@@ -234,8 +236,10 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                     "spawn:" + spawn["records"][0]["id"]
                 )
                 expect(
-                    page.get_by_text("OPERATION NOT YET AVAILABLE", exact=True)
-                ).to_be_visible()
+                    page.get_by_role(
+                        "button", name="Create Fruiting Containers", exact=True
+                    )
+                ).to_be_disabled()
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth"
                 ), "Mobile workflow overflow"
@@ -247,7 +251,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-quick-create-browser-") 
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Milestone 2C.1 browser smoke passed: six entries, no writes from source selection, spawning still deferred, source filtering/preselection, Acquisitions, legacy redirect, clean catalog, real spore collection, 2B FR identity/provenance, desktop/mobile; no page errors"
+                    "Milestone 2C.1 browser smoke passed: six entries, no writes from source selection, single-source spawning form available, source filtering/preselection, Acquisitions, legacy redirect, clean catalog, real spore collection, 2B FR identity/provenance, desktop/mobile; no page errors"
                 )
         finally:
             process.terminate()

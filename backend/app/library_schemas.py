@@ -153,6 +153,8 @@ class StrainReference(BaseModel):
 
 
 class RecordOut(BaseModel):
+    fruiting_stage: str | None = None
+    current_flush: int | None = None
     physical_label: str | None = None
     label_reusable: bool | None = None
     label_occupied: bool = False

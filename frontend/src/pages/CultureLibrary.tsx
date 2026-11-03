@@ -1,6 +1,8 @@
+import { FruitingPanel } from "./Fruiting";
+import PhotoGallery from "../components/PhotoGallery";
 import { cultivationStatus } from "../containerApi";
-import { useEffect, useRef, useState } from "react";
-import { Dna, ImagePlus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Dna } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import {
   EmptyState,
@@ -18,7 +20,7 @@ import {
   sporeTypes,
   title,
 } from "../libraryApi";
-import type { Activity, Kind, LibraryRecord, Photo } from "../libraryApi";
+import type { Activity, Kind, LibraryRecord } from "../libraryApi";
 import { MaterialOperationPanel } from "./PreparationWorkflow";
 import ContainerTracking from "../components/ContainerTracking";
 import { CreateFromThis } from "./QuickCreate";
@@ -27,20 +29,17 @@ import StrainIdentity from "../components/StrainIdentity";
 import { EditForm } from "./LibraryForms";
 
 function RecordLink({ record }: { record: LibraryRecord }) {
+  const biological =
+    record.material_type === "agar_plate" || record.kind === "fruiting";
   return (
     <Link to={`/culture-library/${record.kind}/${record.id}`}>
       {title(record)}{" "}
       <small>
-        {record.id} ·{" "}
-        {record.material_type === "agar_plate"
-          ? cultivationStatus(record)
-          : record.status}
+        {record.id} · {biological ? cultivationStatus(record) : record.status}
         {record.material_type === "agar_plate" &&
           record.status === "archived" &&
           " · Archived record"}
-        {record.material_type !== "agar_plate" &&
-        record.lifecycle &&
-        record.lifecycle !== "active"
+        {!biological && record.lifecycle && record.lifecycle !== "active"
           ? ` · ${record.lifecycle}`
           : ""}
       </small>
@@ -326,175 +325,6 @@ export function CultureLibrary() {
     </>
   );
 }
-function PhotoViewer({
-  photo,
-  code,
-  onClose,
-}: {
-  photo: Photo;
-  code: string;
-  onClose: () => void;
-}) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
-  return (
-    <dialog
-      ref={dialog}
-      className="photo-viewer"
-      onCancel={onClose}
-      aria-label="Photograph viewer"
-    >
-      <button autoFocus onClick={onClose}>
-        Close photograph
-      </button>
-      <img src={photo.url} alt={`Photograph of ${code}`} />
-    </dialog>
-  );
-}
-function PhotoGallery({
-  kind,
-  code,
-  onChange,
-}: {
-  kind: Kind;
-  code: string;
-  onChange: () => void;
-}) {
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const [view, setView] = useState<Photo | null>(null);
-  useEffect(() => {
-    let live = true;
-    libraryApi<Photo[]>(`${kind}/${code}/photos`)
-      .then((p) => {
-        if (live) setPhotos(p);
-      })
-      .catch((e) => {
-        if (live) setError(e.message);
-      });
-    return () => {
-      live = false;
-    };
-  }, [kind, code, revision]);
-  async function action(fn: () => Promise<unknown>, message: string) {
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      await fn();
-      setRevision((v) => v + 1);
-      onChange();
-      setNotice(message);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Photo operation failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <section className="panel gallery-panel">
-      <h2>
-        <ImagePlus size={18} aria-hidden="true" />
-        Photographs
-      </h2>
-      <p>
-        JPEG, PNG or WebP · up to 10 MB and 24 megapixels per image · originals
-        retained
-      </p>
-      <label className="field">
-        <span>Attach photographs</span>
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          disabled={busy}
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            e.target.value = "";
-            if (files.length)
-              void action(async () => {
-                for (const file of files) {
-                  const body = new FormData();
-                  body.append("file", file);
-                  await libraryApi(`${kind}/${code}/photos`, "POST", body);
-                }
-              }, `${files.length} photograph(s) attached`);
-          }}
-        />
-      </label>
-      {busy && <p role="status">Saving photographs…</p>}
-      {notice && <p role="status">{notice}</p>}
-      {error && (
-        <div role="alert">
-          {error}
-          <p>Refresh the gallery to check which photographs were saved.</p>
-          <button
-            onClick={() => {
-              setError("");
-              setRevision(revision + 1);
-            }}
-          >
-            Refresh gallery
-          </button>
-        </div>
-      )}
-      {!photos.length && <p className="muted">No photographs attached.</p>}
-      <div className="photo-grid">
-        {photos.map((p, i) => (
-          <figure key={p.id}>
-            <button
-              className="photo-open"
-              onClick={() => setView(p)}
-              aria-label={`Open photograph ${i + 1}`}
-            >
-              <img
-                src={p.thumbnail_url}
-                alt={`Photograph ${i + 1} of ${code}`}
-              />
-            </button>
-            <figcaption>
-              {p.is_cover ? (
-                <span className="badge">Cover photograph</span>
-              ) : (
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void action(
-                      () => libraryApi(`photos/${p.id}/cover`, "POST"),
-                      "Cover photograph updated",
-                    )
-                  }
-                >
-                  Use as cover
-                </button>
-              )}
-              <button
-                disabled={busy}
-                onClick={() => {
-                  if (window.confirm("Remove this photograph permanently?"))
-                    void action(
-                      () => libraryApi(`photos/${p.id}`, "DELETE"),
-                      "Photograph removed",
-                    );
-                }}
-              >
-                Remove
-              </button>
-            </figcaption>
-          </figure>
-        ))}
-      </div>
-      {view && (
-        <PhotoViewer photo={view} code={code} onClose={() => setView(null)} />
-      )}
-    </section>
-  );
-}
 export function RecordDetail() {
   const { kind: rawKind, code = "" } = useParams();
   const kind = rawKind as Kind;
@@ -548,6 +378,8 @@ export function RecordDetail() {
   if (error)
     return <ErrorState error={error} retry={() => setRevision(revision + 1)} />;
   if (!record) return null;
+  const biological =
+    record.material_type === "agar_plate" || kind === "fruiting";
   async function statusChange() {
     if (!record) return;
     const next = record.status === "active" ? "archived" : "active";
@@ -605,17 +437,24 @@ export function RecordDetail() {
       )}
       <PageHeader
         title={title(record)}
-        description={`${record.id} · ${kindNames[kind]} · ${record.material_type === "agar_plate" ? cultivationStatus(record) : record.status}${record.material_type !== "agar_plate" && record.lifecycle && record.lifecycle !== "active" ? ` · ${record.lifecycle}` : ""}`}
+        description={`${record.id} · ${kindNames[kind]} · ${biological ? cultivationStatus(record) : record.status}${!biological && record.lifecycle && record.lifecycle !== "active" ? ` · ${record.lifecycle}` : ""}`}
       />
       {(notice || location.state?.message) && (
         <p className="success-message" role="status">
           {notice || location.state.message}
         </p>
       )}
-      <ContainerTracking
-        record={record}
-        onSaved={() => setRevision((v) => v + 1)}
-      />
+      {kind === "fruiting" ? (
+        <FruitingPanel
+          record={record}
+          onSaved={() => setRevision((v) => v + 1)}
+        />
+      ) : (
+        <ContainerTracking
+          record={record}
+          onSaved={() => setRevision((v) => v + 1)}
+        />
+      )}
       <div className="actions">
         <button onClick={() => setEditing(!editing)}>Edit information</button>
         <button disabled={busy} onClick={() => void statusChange()}>
@@ -658,7 +497,11 @@ export function RecordDetail() {
               </div>
             )}
             {Object.entries(labels)
-              .filter(([k]) => record[k as keyof LibraryRecord] != null)
+              .filter(
+                ([k]) =>
+                  (k !== "stage" || kind !== "fruiting") &&
+                  record[k as keyof LibraryRecord] != null,
+              )
               .map(([k, label]) => (
                 <div key={k}>
                   <dt>{label}</dt>

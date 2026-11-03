@@ -360,6 +360,8 @@ def transactions(request: Request, item_id: str | None = None):
 
 
 def recipe_out(row, session=None):
+    from .fruiting_models import FruitingRun
+
     contents = json.loads(row.contents)
     if session:
         for ingredient in contents.get("ingredients", []):
@@ -383,6 +385,11 @@ def recipe_out(row, session=None):
                 session.scalar(
                     select(PreparationBatch.id)
                     .where(PreparationBatch.recipe_id == row.id)
+                    .limit(1)
+                )
+                or session.scalar(
+                    select(FruitingRun.fruiting_id)
+                    .where(FruitingRun.recipe_id == row.id)
                     .limit(1)
                 )
             )

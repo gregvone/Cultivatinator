@@ -310,6 +310,34 @@ def allocate_new_biological_labels(session, context):
                 release_label(
                     session, "fruiting", row.id, None, "Explicit end of growing cycle"
                 )
+        if isinstance(row, FruitingContainer) and row.stage == "finished":
+            from .fruiting_models import FruitingRun
+
+            table = FruitingRun.__table__
+            state = tracking_state(session, "fruiting", row.id)
+            phase = state.get("growth_stage")
+            if phase in {"completed", "failed"}:
+                session.connection().execute(
+                    update(table)
+                    .where(
+                        table.c.fruiting_id == row.id,
+                        table.c.stage.not_in(["completed", "failed"]),
+                    )
+                    .values(
+                        stage=phase,
+                        **{
+                            (
+                                "completed_date"
+                                if phase == "completed"
+                                else "failed_date"
+                            ): state.get(
+                                "completed_date"
+                                if phase == "completed"
+                                else "failed_date"
+                            )
+                        },
+                    )
+                )
         if (
             isinstance(row, PreparedMaterial)
             and row.stage == "inoculated"

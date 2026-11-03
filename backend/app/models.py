@@ -314,3 +314,13 @@ class ActivityEvent(OwnerFields, Base):
 from . import preparation_models  # noqa: E402,F401
 
 from . import container_models  # noqa: E402,F401
+
+from .fruiting_models import (
+    FruitingRun,
+    FruitingFlush,
+    HarvestEntry,
+    HarvestRevision,
+    FruitingEnvironment,
+    FruitingEnvironmentChange,
+    HarvestPhoto,
+)  # noqa: E402,F401

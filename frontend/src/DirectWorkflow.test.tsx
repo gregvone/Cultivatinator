@@ -291,31 +291,35 @@ test("spawn creation selects jar or bag with grain recipes and uses stable retry
   });
 });
 test("Cultivation lists source, recipe, dates and filters completed spawn", async () => {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(
-    response([
-      {
-        ...source,
-        id: "SJ-0001",
-        kind: "spawn",
-        material_type: "spawn_jar",
-        stage: "colonizing",
-        lifecycle: "active",
-        created_at: "2026-01-01",
-        cultivation: {
-          source: { id: source.id, kind: "physical", date: "2026-01-02" },
-          snapshot: { recipe: formula },
-        },
-      },
-      {
-        ...source,
-        id: "SB-0001",
-        kind: "spawn",
-        material_type: "spawn_bag",
-        lifecycle: "failed",
-        created_at: "2026-01-01",
-        cultivation: null,
-      },
-    ]),
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+    response(
+      String(input).includes("/api/fruiting")
+        ? []
+        : [
+            {
+              ...source,
+              id: "SJ-0001",
+              kind: "spawn",
+              material_type: "spawn_jar",
+              stage: "colonizing",
+              lifecycle: "active",
+              created_at: "2026-01-01",
+              cultivation: {
+                source: { id: source.id, kind: "physical", date: "2026-01-02" },
+                snapshot: { recipe: formula },
+              },
+            },
+            {
+              ...source,
+              id: "SB-0001",
+              kind: "spawn",
+              material_type: "spawn_bag",
+              lifecycle: "failed",
+              created_at: "2026-01-01",
+              cultivation: null,
+            },
+          ],
+    ),
   );
   mount(<Growing workspace="cultivation" />);
   expect(await screen.findByRole("link", { name: /SJ-0001/ })).toHaveAttribute(
