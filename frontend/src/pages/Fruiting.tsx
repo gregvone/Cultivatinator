@@ -1,3 +1,6 @@
+import RecordNextAction from "../components/RecordNextAction";
+import StrainIdentity from "../components/StrainIdentity";
+import CollapsiblePanel from "../components/CollapsiblePanel";
 import { PhotoSelection, usePhotoUploads } from "../components/PhotoUploads";
 import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
@@ -200,8 +203,7 @@ export function NewFruiting({
         values={v}
         set={set}
       />
-      <details>
-        <summary>Optional quantities and notes</summary>
+      <CollapsiblePanel title="Optional quantities and notes" level={3}>
         <Field
           name="spawn_grams"
           label="Spawn per container (g, optional)"
@@ -223,7 +225,7 @@ export function NewFruiting({
           values={v}
           set={set}
         />
-      </details>
+      </CollapsiblePanel>
       <LabelChoices
         material={v.material_type}
         count={Number(v.count)}
@@ -314,6 +316,9 @@ export function FruitingList() {
               <Link to={`/culture-library/fruiting/${r.id}`}>{title(r)}</Link>
             </h3>
             <p>
+              <StrainIdentity record={r} />
+            </p>
+            <p>
               Current Status: {cultivationStatus(r)}
               {r.current_flush && ` · Flush ${r.current_flush}`}
             </p>
@@ -321,6 +326,9 @@ export function FruitingList() {
               Permanent record: {r.id}
               {r.status === "archived" ? " · Archived record" : ""}
             </small>
+            <div className="actions">
+              <RecordNextAction record={r} />
+            </div>
           </li>
         ))}
       </ul>
@@ -517,7 +525,7 @@ function HarvestCard({
           onCancel={() => setEditing(false)}
         />
       ) : (
-        <button onClick={() => setEditing(true)}>
+        <button className="button secondary" onClick={() => setEditing(true)}>
           Edit Harvest {entry.id}
         </button>
       )}
@@ -529,9 +537,11 @@ function HarvestCard({
         refreshToken={photoRevision}
         compact
       />
-      <details
-        onToggle={async (e) => {
-          if (e.currentTarget.open && !history) {
+      <CollapsiblePanel
+        title="Measurement history"
+        level={4}
+        onExpand={async () => {
+          if (!history) {
             try {
               setHistory(await fruitingApi(`harvests/${entry.id}/history`));
             } catch (err) {
@@ -542,7 +552,6 @@ function HarvestCard({
           }
         }}
       >
-        <summary>Measurement history</summary>
         {error && <p role="alert">{error}</p>}
         {history?.map((h) => (
           <p key={h.revision}>
@@ -552,7 +561,7 @@ function HarvestCard({
             {h.snapshot.potency ?? "Not assessed"}
           </p>
         ))}
-      </details>
+      </CollapsiblePanel>
     </section>
   );
 }
@@ -738,9 +747,11 @@ function GrowStageForm({
 export function FruitingPanel({
   record,
   onSaved,
+  sourceContent,
 }: {
   record: LibraryRecord;
   onSaved: () => void;
+  sourceContent?: ReactNode;
 }) {
   const [data, setData] = useState<FruitingDetail | null>(null);
   const [error, setError] = useState("");
@@ -821,50 +832,21 @@ export function FruitingPanel({
         </strong>
       </p>
       <p>Current flush: {data.run?.current_flush ?? "Not recorded"}</p>
-      <p>Permanent record: {record.id}</p>
-      {data.source ? (
-        <p>
-          Source spawn:{" "}
-          <Link to={`/culture-library/spawn/${data.source.id}`}>
-            {data.source.physical_label || data.source.id}
-          </Link>{" "}
-          <small>Permanent source: {data.source.id}</small>
-        </p>
-      ) : (
-        <p>
-          Earlier source links are available in provenance below; no spawning
-          event is assumed.
-        </p>
-      )}
-      <p>Spawning date: {data.run?.spawning_date || "Not recorded"}</p>
-
-      {data.run?.failed_date && <p>Failed: {data.run.failed_date}</p>}
-      {data.run?.failed_date && data.run.closing_notes && (
-        <p>{data.run.closing_notes}</p>
-      )}
-      {data.legacy && (
-        <p>
-          Legacy registration: earlier stages, quantities, recipes and
-          environment remain unknown unless recorded. New actions record events
-          from now onward.
-        </p>
-      )}
+      <dl className="record-metrics">
+        <div>
+          <dt>Wet yield (measured)</dt>
+          <dd>{quantity(data.results.wet_grams)}</dd>
+        </div>
+        <div>
+          <dt>Dry yield (measured)</dt>
+          <dd>{quantity(data.results.dry_grams)}</dd>
+        </div>
+        <div>
+          <dt>Flushes harvested</dt>
+          <dd>{data.results.flushes_with_harvests}</dd>
+        </div>
+      </dl>
       <div className="actions">
-        {active &&
-          buttons
-            .filter((b) => b.visible)
-            .map((b) => (
-              <button
-                key={b.action}
-                disabled={!!action || harvesting}
-                onClick={() => {
-                  setAction(b.action);
-                  setHarvesting(false);
-                }}
-              >
-                {b.label}
-              </button>
-            ))}
         {active && ["fruiting", "harvest"].includes(stage || "") && (
           <button
             className="primary"
@@ -877,172 +859,259 @@ export function FruitingPanel({
             Record Harvest
           </button>
         )}
+        {active &&
+          buttons
+            .filter((b) => b.visible)
+            .map((b) => (
+              <button
+                key={b.action}
+                className={
+                  ["complete", "failed"].includes(b.action)
+                    ? "danger"
+                    : b.action === "next_flush"
+                      ? "secondary"
+                      : "primary"
+                }
+                disabled={!!action || harvesting}
+                onClick={() => {
+                  setAction(b.action);
+                  setHarvesting(false);
+                }}
+              >
+                {b.label}
+              </button>
+            ))}
       </div>
-      {action && (
-        <GrowStageForm
-          key={action}
-          id={record.id}
-          action={action}
-          label={buttons.find((b) => b.action === action)!.label}
-          onRecordSaved={() => setRevision((v) => v + 1)}
-          onSaved={() => {
-            setAction("");
-            reload();
-          }}
-          onCancel={() => setAction("")}
-        />
-      )}
-      {harvesting && active && (
-        <HarvestForm
-          fruitingId={record.id}
-          onRecordSaved={() => setRevision((v) => v + 1)}
-          onSaved={() => {
-            setHarvesting(false);
-            reload();
-          }}
-          onCancel={() => setHarvesting(false)}
-        />
-      )}
-      <ContainerTracking record={record} onSaved={reload} labelsOnly />
-      <details>
-        <summary>Substrate recipe and spawning quantities</summary>
-        {data.run?.recipe_snapshot ? (
-          <>
-            <h3>
-              Substrate: {data.run.recipe_snapshot.name} · revision{" "}
-              {data.run.recipe_snapshot.revision}
-            </h3>
-            <ul>
-              {data.run.recipe_snapshot.ingredients.map((i, index) => (
-                <li key={index}>
-                  {i.name || i.item_id}: {i.quantity} {i.unit}
-                </li>
-              ))}
-            </ul>
-            <p>{data.run.recipe_snapshot.instructions}</p>
-            <p>{data.run.recipe_snapshot.notes}</p>
-          </>
-        ) : (
-          <p>Substrate recipe not recorded.</p>
+      <CollapsiblePanel
+        title="Current Growing Cycle"
+        defaultOpen={active}
+        revealWhen={!!action || harvesting}
+      >
+        <p>Spawning date: {data.run?.spawning_date || "Not recorded"}</p>
+
+        {data.run?.failed_date && <p>Failed: {data.run.failed_date}</p>}
+        {data.run?.failed_date && data.run.closing_notes && (
+          <p>{data.run.closing_notes}</p>
         )}
-        <p>
-          Spawn per container: {quantity(data.run?.spawn_grams)} · Substrate per
-          container: {quantity(data.run?.substrate_grams)}
-        </p>
-      </details>
-      <details>
-        <summary>Fruiting environment</summary>
-        <h3>Current grow environment</h3>
-        <EnvironmentSnapshot value={data.environment} />
-        <details>
-          <summary>Original environment snapshot</summary>
-          <EnvironmentSnapshot value={data.run?.environment_snapshot || null} />
-        </details>
-        {data.environment_changes.map((c) => (
-          <section key={c.id}>
-            <h4>{c.change_date}</h4>
-            <p>{c.notes}</p>
-            <EnvironmentSnapshot value={c.settings} />
-          </section>
-        ))}
-        {active && !changing && (
-          <button onClick={() => setChanging(true)}>
-            Record Environment Change
-          </button>
+        {data.legacy && (
+          <p>
+            Legacy registration: earlier stages, quantities, recipes and
+            environment remain unknown unless recorded. New actions record
+            events from now onward.
+          </p>
         )}
-        {changing && active && (
-          <EnvironmentChangeForm
+        {action && (
+          <GrowStageForm
+            key={action}
             id={record.id}
-            current={data.environment}
+            action={action}
+            label={buttons.find((b) => b.action === action)!.label}
+            onRecordSaved={() => setRevision((v) => v + 1)}
             onSaved={() => {
-              setChanging(false);
+              setAction("");
               reload();
             }}
-            onCancel={() => setChanging(false)}
+            onCancel={() => setAction("")}
           />
         )}
-      </details>
-      <h3>Grow Results</h3>
-      <p>Flushes with harvests: {data.results.flushes_with_harvests}</p>
-      <p>
-        Total measured wet: {quantity(data.results.wet_grams)} · Total measured
-        dry: {quantity(data.results.dry_grams)}
-      </p>
-      <p>
-        Wet measurements: {data.results.wet_measured_count}/
-        {data.results.harvest_count} · Dry measurements:{" "}
-        {data.results.dry_measured_count}/{data.results.harvest_count}. Missing
-        weights stay unknown.
-      </p>
-      <p>
-        Days to first pinning: {data.results.days_to_first_pinning ?? "Unknown"}{" "}
-        · Days to first harvest:{" "}
-        {data.results.days_to_first_harvest ?? "Unknown"} · Completed cycle
-        days: {data.results.cycle_days ?? "Unknown"}
-      </p>
-      <h3>Flushes & Harvest History</h3>
-      {!data.flushes.length && <p>No flushes recorded.</p>}
-      {data.flushes.map((f) => (
-        <section key={f.number}>
-          <h3>Flush {f.number}</h3>
-          <section className="pinning-history">
-            <h4>Pinning — {f.pinning_date || "Not recorded"}</h4>
-            {f.pinning_notes && <p>{f.pinning_notes}</p>}
-            {f.pinning_date && (
-              <PhotoGallery
-                kind="fruiting"
-                code={record.id}
-                pinningFlush={f.number}
-                onChange={reload}
-                refreshToken={revision}
-                compact
-              />
-            )}
-          </section>
-          <section className="fruiting-history">
-            <h4>Fruiting — {f.fruiting_date || "Not recorded"}</h4>
-            {f.fruiting_notes && <p>{f.fruiting_notes}</p>}
-            {f.fruiting_date && (
-              <PhotoGallery
-                kind="fruiting"
-                code={record.id}
-                fruitingFlush={f.number}
-                onChange={reload}
-                refreshToken={revision}
-                compact
-              />
-            )}
-          </section>
-          <p>
-            Measured wet: {quantity(f.wet_grams)} · Measured dry:{" "}
-            {quantity(f.dry_grams)}
-          </p>
-          {data.harvests
-            .filter((h) => h.flush_number === f.number)
-            .map((h) => (
-              <HarvestCard
-                key={h.id + "-" + h.revision}
-                entry={h}
-                photoRevision={revision}
-                onSaved={reload}
-              />
-            ))}
-        </section>
-      ))}
-      {data.run?.completed_date && (
-        <section className="completion-history">
-          <h3>Grow Completed — {data.run.completed_date}</h3>
-          {data.run.closing_notes && <p>{data.run.closing_notes}</p>}
-          <PhotoGallery
-            kind="fruiting"
-            code={record.id}
-            completion
-            onChange={reload}
-            refreshToken={revision}
-            compact
+        {harvesting && active && (
+          <HarvestForm
+            fruitingId={record.id}
+            onRecordSaved={() => setRevision((v) => v + 1)}
+            onSaved={() => {
+              setHarvesting(false);
+              reload();
+            }}
+            onCancel={() => setHarvesting(false)}
           />
-        </section>
-      )}
+        )}
+        <ContainerTracking record={record} onSaved={reload} labelsOnly />
+      </CollapsiblePanel>
+      <CollapsiblePanel title="Grow Journal" defaultOpen>
+        {!data.flushes.length && <p>No flushes recorded.</p>}
+        {data.flushes.map((f) => (
+          <CollapsiblePanel
+            key={f.number}
+            title={`Flush ${f.number}`}
+            level={3}
+            defaultOpen={
+              f.number ===
+              (data.run?.current_flush ?? data.flushes.at(-1)?.number)
+            }
+            summary={`${quantity(f.wet_grams)} wet · ${quantity(f.dry_grams)} dry · ${f.harvest_count} ${f.harvest_count === 1 ? "harvest" : "harvests"}`}
+          >
+            <section className="pinning-history">
+              <h4>Pinning — {f.pinning_date || "Not recorded"}</h4>
+              {f.pinning_notes && <p>{f.pinning_notes}</p>}
+              {f.pinning_date && (
+                <PhotoGallery
+                  kind="fruiting"
+                  code={record.id}
+                  pinningFlush={f.number}
+                  onChange={reload}
+                  refreshToken={revision}
+                  compact
+                />
+              )}
+            </section>
+            <section className="fruiting-history">
+              <h4>Fruiting — {f.fruiting_date || "Not recorded"}</h4>
+              {f.fruiting_notes && <p>{f.fruiting_notes}</p>}
+              {f.fruiting_date && (
+                <PhotoGallery
+                  kind="fruiting"
+                  code={record.id}
+                  fruitingFlush={f.number}
+                  onChange={reload}
+                  refreshToken={revision}
+                  compact
+                />
+              )}
+            </section>
+            <p>
+              Measured wet: {quantity(f.wet_grams)} · Measured dry:{" "}
+              {quantity(f.dry_grams)}
+            </p>
+            {data.harvests
+              .filter((h) => h.flush_number === f.number)
+              .map((h) => (
+                <HarvestCard
+                  key={h.id + "-" + h.revision}
+                  entry={h}
+                  photoRevision={revision}
+                  onSaved={reload}
+                />
+              ))}
+          </CollapsiblePanel>
+        ))}
+        {data.run?.completed_date && (
+          <CollapsiblePanel
+            className="completion-history"
+            level={3}
+            title={`Grow Completed — ${data.run.completed_date}`}
+            defaultOpen
+          >
+            {data.run.closing_notes && <p>{data.run.closing_notes}</p>}
+            <PhotoGallery
+              kind="fruiting"
+              code={record.id}
+              completion
+              onChange={reload}
+              refreshToken={revision}
+              compact
+            />
+          </CollapsiblePanel>
+        )}
+      </CollapsiblePanel>
+      <CollapsiblePanel title="Source & Genetics">
+        <p>Permanent record: {record.id}</p>
+        {data.source ? (
+          <p>
+            Source spawn:{" "}
+            <Link to={`/culture-library/spawn/${data.source.id}`}>
+              {data.source.physical_label || data.source.id}
+            </Link>{" "}
+            <small>Permanent source: {data.source.id}</small>
+          </p>
+        ) : (
+          <p>
+            Earlier source links are available in provenance below; no spawning
+            event is assumed.
+          </p>
+        )}
+        {sourceContent}
+      </CollapsiblePanel>
+      <CollapsiblePanel title="Substrate & Environment">
+        <CollapsiblePanel
+          title="Substrate recipe and spawning quantities"
+          level={3}
+        >
+          {data.run?.recipe_snapshot ? (
+            <>
+              <h3>
+                Substrate: {data.run.recipe_snapshot.name} · revision{" "}
+                {data.run.recipe_snapshot.revision}
+              </h3>
+              <ul>
+                {data.run.recipe_snapshot.ingredients.map((i, index) => (
+                  <li key={index}>
+                    {i.name || i.item_id}: {i.quantity} {i.unit}
+                  </li>
+                ))}
+              </ul>
+              <p>{data.run.recipe_snapshot.instructions}</p>
+              <p>{data.run.recipe_snapshot.notes}</p>
+            </>
+          ) : (
+            <p>Substrate recipe not recorded.</p>
+          )}
+          <p>
+            Spawn per container: {quantity(data.run?.spawn_grams)} · Substrate
+            per container: {quantity(data.run?.substrate_grams)}
+          </p>
+        </CollapsiblePanel>
+        <CollapsiblePanel title="Fruiting environment" level={3}>
+          <h3>Current grow environment</h3>
+          <EnvironmentSnapshot value={data.environment} />
+          <CollapsiblePanel title="Original environment snapshot" level={3}>
+            <EnvironmentSnapshot
+              value={data.run?.environment_snapshot || null}
+            />
+          </CollapsiblePanel>
+          {data.environment_changes.map((c) => (
+            <section key={c.id}>
+              <h4>{c.change_date}</h4>
+              <p>{c.notes}</p>
+              <EnvironmentSnapshot value={c.settings} />
+            </section>
+          ))}
+          {active && !changing && (
+            <button onClick={() => setChanging(true)}>
+              Record Environment Change
+            </button>
+          )}
+          {changing && active && (
+            <EnvironmentChangeForm
+              id={record.id}
+              current={data.environment}
+              onSaved={() => {
+                setChanging(false);
+                reload();
+              }}
+              onCancel={() => setChanging(false)}
+            />
+          )}
+        </CollapsiblePanel>
+      </CollapsiblePanel>
+      <CollapsiblePanel title="Detailed Results">
+        <ul className="record-list">
+          {data.flushes.map((f) => (
+            <li key={f.number}>
+              Flush {f.number} — wet {quantity(f.wet_grams)} · dry{" "}
+              {quantity(f.dry_grams)} · {f.harvest_count} harvest(s). Wet
+              measurements: {f.wet_measured_count}/{f.harvest_count} · Dry
+              measurements: {f.dry_measured_count}/{f.harvest_count}.
+            </li>
+          ))}
+        </ul>
+        <p>Flushes with harvests: {data.results.flushes_with_harvests}</p>
+        <p>
+          Total measured wet: {quantity(data.results.wet_grams)} · Total
+          measured dry: {quantity(data.results.dry_grams)}
+        </p>
+        <p>
+          Wet measurements: {data.results.wet_measured_count}/
+          {data.results.harvest_count} · Dry measurements:{" "}
+          {data.results.dry_measured_count}/{data.results.harvest_count}.
+          Missing weights stay unknown.
+        </p>
+        <p>
+          Days to first pinning:{" "}
+          {data.results.days_to_first_pinning ?? "Unknown"} · Days to first
+          harvest: {data.results.days_to_first_harvest ?? "Unknown"} · Completed
+          cycle days: {data.results.cycle_days ?? "Unknown"}
+        </p>
+      </CollapsiblePanel>
     </section>
   );
 }

@@ -94,3 +94,8 @@ Migration 0012 adds Pinning notes and typed FR/flush photo relationships without
 
 
 Migration 0013 extends that workflow to Fruiting and Finish Grow. It adds nullable per-flush Fruiting notes and `journal_photos` links constrained to a recorded Fruiting flush or the grow's recorded completion. Photos remain ordinary FR-owned attachments with event metadata; the existing storage/validation/viewer/removal implementation is reused. Prior migrations, photographs and events are preserved. Inline completion retains its saved response and retry queue through terminal-status refreshes so a failed file never repeats completion or reusable-label release. The timeline displays Pinning, Fruiting and individual Harvest galleries per flush, then Grow Completed with its own date, notes and gallery.
+
+
+## Milestone 2C.4: shared UI disclosure
+
+`CollapsiblePanel.tsx` supplies independent native details/summary sections with mounted children, nonpersistent expansion state, accessible controls and automatic validation disclosure. `RecordHeader.tsx` standardizes identity/status/dates; `RecordNextAction.tsx` derives existing workflow links from the existing eligibility helper. Fruiting history groups flushes without changing their ordering or photo URLs; compact gallery controls retain upload state while hidden. Record navigation resets panel defaults, whereas refreshes and collapses retain forms/retry queues. Shared CSS standardizes primary, secondary and terminal controls. No backend or database changes are involved. See [2C.4 operations and scope](MILESTONE_2C4.md).

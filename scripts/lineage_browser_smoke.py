@@ -55,6 +55,15 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                 page = browser.new_page(viewport={"width": 1440, "height": 1100})
                 errors = []
                 page.on("pageerror", lambda e: errors.append(str(e)))
+
+                def open_genetics():
+                    toggle = page.get_by_role(
+                        "button", name="Source & Genetics", exact=True
+                    )
+                    if not toggle.evaluate("el => el.closest('details').open"):
+                        toggle.click()
+                    expect(toggle).to_have_attribute("aria-expanded", "true")
+
                 page.goto(base + "/culture-library/acquire")
                 page.get_by_label("Strain selection").select_option("new")
                 page.get_by_label("Strain name *", exact=True).fill("Browser Oyster")
@@ -75,7 +84,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                 expect(
                     page.get_by_role("heading", name="J-01", exact=False)
                 ).to_be_visible()
-                expect(page.get_by_text("ready", exact=True)).to_be_visible()
+                expect(
+                    page.get_by_text("Current Status: Ready for Spawning", exact=True)
+                ).to_be_visible()
                 page.goto(base + "/culture-library/register-grow")
                 page.get_by_label(
                     "J-01 (record SJ-0001) · Browser Oyster · CL-0001 · ready",
@@ -95,7 +106,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                 expect(
                     page.get_by_role("heading", name="GB-0001", exact=True)
                 ).to_be_visible()
+                open_genetics()
                 page.locator('a[href="/culture-library/fruiting/FR-0001"]').click()
+                open_genetics()
                 page.get_by_role(
                     "button", name="Establish Tissue Clone", exact=True
                 ).click()
@@ -107,7 +120,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                 expect(
                     page.get_by_role("heading", name="Browser clone", exact=True)
                 ).to_be_visible()
+                open_genetics()
                 expect(page.get_by_text("confirmed", exact=True)).to_be_visible()
+                open_genetics()
                 page.get_by_role("button", name="Create Isolate", exact=True).click()
                 page.get_by_label("Optional name", exact=True).fill("Browser isolate")
                 page.get_by_role("button", name="Save", exact=True).click()
@@ -115,12 +130,14 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                     page.get_by_role("heading", name="Browser isolate", exact=True)
                 ).to_be_visible()
                 page.goto(base + "/culture-library/fruiting/FR-0001")
+                open_genetics()
                 page.get_by_role("button", name="Collect Spores", exact=True).click()
                 page.get_by_label("Collection date (optional)").fill("2026-10-01")
                 page.get_by_role("button", name="Save", exact=True).click()
                 expect(
                     page.get_by_role("heading", name="SP-0001", exact=True)
                 ).to_be_visible()
+                open_genetics()
                 page.get_by_role("button", name="Establish Culture", exact=True).click()
                 page.get_by_label("Optional name", exact=True).fill("Spore-derived one")
                 page.get_by_role("button", name="Save", exact=True).click()
@@ -128,6 +145,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                     page.get_by_role("heading", name="Spore-derived one", exact=True)
                 ).to_be_visible()
                 page.goto(base + "/culture-library/spores/SP-0001")
+                open_genetics()
                 page.get_by_role("button", name="Establish Culture", exact=True).click()
                 page.get_by_label("Optional name", exact=True).fill("Spore-derived two")
                 page.get_by_role("button", name="Save", exact=True).click()
@@ -152,12 +170,14 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                 assert r.status == 201, r.text()
                 mixed = r.json()["containers"][0]
                 page.goto(base + f"/culture-library/fruiting/{mixed['id']}")
+                open_genetics()
                 expect(
                     page.get_by_text(
                         "Mixed named strains: no synthetic strain is created",
                         exact=True,
                     )
                 ).to_be_visible()
+                open_genetics()
                 page.get_by_role(
                     "button", name="Establish Tissue Clone", exact=True
                 ).click()
@@ -168,10 +188,12 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                 expect(
                     page.get_by_role("heading", name="Mixed-source clone", exact=True)
                 ).to_be_visible()
+                open_genetics()
                 expect(page.get_by_text("uncertain", exact=True)).to_be_visible()
                 expect(
                     page.get_by_text("Possible genetic parent", exact=True)
                 ).to_have_count(2)
+                open_genetics()
                 page.get_by_role("button", name="Correct ancestry", exact=True).click()
                 page.get_by_label(
                     "Confirmed parent (or restore unknown ancestry)"
@@ -180,7 +202,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-lineage-browser-") as te
                     "Verified source label"
                 )
                 page.get_by_role("button", name="Save", exact=True).click()
+                open_genetics()
                 expect(page.get_by_text("confirmed", exact=True)).to_be_visible()
+                page.get_by_role("button", name="Record History", exact=False).click()
                 expect(
                     page.get_by_text("Verified source label", exact=False)
                 ).to_be_visible()

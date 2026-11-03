@@ -126,6 +126,35 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                     "3"
                 )
                 page.get_by_label("Spawning date *", exact=True).fill("2026-01-01")
+                optional = page.get_by_role(
+                    "button", name="Optional quantities and notes", exact=True
+                )
+                expect(optional).to_have_attribute("aria-expanded", "false")
+                optional.focus()
+                page.keyboard.press("Enter")
+                expect(optional).to_have_attribute("aria-expanded", "true")
+                page.get_by_label("Spawn per container (g, optional)", exact=True).fill(
+                    "-1"
+                )
+                page.get_by_label("Grow notes", exact=True).fill("Retained notes")
+                optional.focus()
+                page.keyboard.press("Space")
+                expect(optional).to_have_attribute("aria-expanded", "false")
+                page.get_by_role(
+                    "button", name="Create Fruiting Containers", exact=True
+                ).click()
+                expect(optional).to_have_attribute("aria-expanded", "true")
+                expect(
+                    page.get_by_label("Spawn per container (g, optional)", exact=True)
+                ).to_be_focused()
+                assert page.request.get(base + "/api/fruiting/").json() == []
+                page.get_by_label("Spawn per container (g, optional)", exact=True).fill(
+                    "100"
+                )
+                expect(page.get_by_label("Grow notes", exact=True)).to_have_value(
+                    "Retained notes"
+                )
+                optional.click()
                 page.get_by_role(
                     "button", name="Create Fruiting Containers", exact=True
                 ).click()
@@ -144,6 +173,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                 code = link.get_attribute("href").rsplit("/", 1)[1]
                 link.click()
                 expect(page.get_by_role("heading", level=1)).to_contain_text("F-01")
+                expect(page.locator(".record-header .badge").first).to_be_visible()
                 expect(
                     page.get_by_text("Current Status: Colonizing", exact=True)
                 ).to_be_visible()
@@ -181,6 +211,19 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                             ),
                             exact=True,
                         ).set_input_files([picture(name) for name in photos])
+                    notes = f"{label} journal notes"
+                    page.get_by_label("Stage notes (optional)", exact=True).fill(notes)
+                    cycle = page.get_by_role(
+                        "button", name="Current Growing Cycle", exact=True
+                    )
+                    cycle.focus()
+                    page.keyboard.press("Enter")
+                    expect(cycle).to_have_attribute("aria-expanded", "false")
+                    cycle.focus()
+                    page.keyboard.press("Space")
+                    expect(
+                        page.get_by_label("Stage notes (optional)", exact=True)
+                    ).to_have_value(notes)
                     page.get_by_role(
                         "button", name="Save Grow Status", exact=True
                     ).click()
@@ -194,6 +237,14 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                             page.get_by_text("Grow Completed saved.", exact=True)
                         ).to_be_visible()
                         assert not current()["record"]["label_occupied"]
+                        cycle.click()
+                        expect(cycle).to_have_attribute("aria-expanded", "false")
+                        cycle.click()
+                        expect(
+                            page.get_by_text(
+                                "retry.png: Simulated photo upload failure", exact=True
+                            )
+                        ).to_be_visible()
                         page.get_by_role(
                             "button", name="Retry remaining photos", exact=True
                         ).click()
@@ -334,6 +385,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                 ).locator("..")
                 image = BytesIO()
                 Image.new("RGB", (20, 20), "#558899").save(image, format="PNG")
+                card.get_by_role("button", name="Add Photos", exact=True).click()
                 card.get_by_label("Attach photographs", exact=True).set_input_files(
                     [
                         {
@@ -406,6 +458,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                     page.get_by_text("Current Status: Fruiting", exact=True)
                 ).to_be_visible()
                 record_harvest("2026-01-15", "80", dry="8")
+                page.get_by_role(
+                    "button", name="Substrate & Environment", exact=True
+                ).click()
                 page.get_by_text("Fruiting environment", exact=True).click()
                 page.get_by_role(
                     "button", name="Record Environment Change", exact=True
@@ -461,7 +516,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                 ]:
                     section = page.get_by_role(
                         "heading", name=name, exact=True
-                    ).locator("..")
+                    ).locator("xpath=ancestor::section[1]")
                     expect(
                         section.get_by_role(
                             "button", name="Open photograph 1", exact=True
@@ -480,6 +535,37 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                 assert result["results"]["days_to_first_pinning"] == 2
                 assert result["results"]["days_to_first_harvest"] == 6
                 assert not result["record"]["label_occupied"]
+                page.reload()
+                first_flush = page.get_by_role("button", name="Flush 1", exact=False)
+                second_flush = page.get_by_role("button", name="Flush 2", exact=False)
+                expect(first_flush).to_have_attribute("aria-expanded", "false")
+                expect(second_flush).to_have_attribute("aria-expanded", "true")
+                first_flush.focus()
+                page.keyboard.press("Enter")
+                expect(first_flush).to_have_attribute("aria-expanded", "true")
+                expect(second_flush).to_have_attribute("aria-expanded", "true")
+                first_flush.click()
+                page.screenshot(
+                    path="/tmp/cultivatinator-polish-journal-desktop.png",
+                    full_page=True,
+                )
+                page.set_viewport_size({"width": 390, "height": 844})
+                expect(page.locator(".record-header .badge").first).to_be_visible()
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= innerWidth"
+                )
+                for name in ["Add Photos", "Edit Harvest " + first["id"]]:
+                    control = page.get_by_role("button", name=name, exact=True).first
+                    # The first harvest lives in the intentionally collapsed previous flush.
+                    if name.startswith("Edit"):
+                        first_flush.click()
+                    box = control.bounding_box()
+                    assert box and box["height"] >= 44, (name, box)
+                first_flush.click()
+                page.screenshot(
+                    path="/tmp/cultivatinator-polish-journal-mobile.png", full_page=True
+                )
+                page.set_viewport_size({"width": 1440, "height": 1100})
                 page.goto(base + "/cultivation")
                 expect(
                     page.locator(f'a[href="/culture-library/fruiting/{code}"]')
@@ -488,7 +574,7 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                     "completed"
                 )
                 expect(
-                    page.locator(f'a[href="/culture-library/fruiting/{code}"]')
+                    page.locator(f'a[href="/culture-library/fruiting/{code}"]').first
                 ).to_be_visible()
                 page.goto(base + "/settings")
                 page.get_by_text(
@@ -537,10 +623,23 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-fruiting-browser-") as t
                 page.screenshot(
                     path="/tmp/cultivatinator-fruiting-mobile.png", full_page=True
                 )
+                page.set_viewport_size({"width": 768, "height": 1024})
+                for route in [
+                    "/culture-library/fruiting/" + code,
+                    "/laboratory",
+                    "/recipes/lc-media",
+                    "/reports",
+                    "/settings",
+                ]:
+                    page.goto(base + route)
+                    expect(page.locator("h1")).to_be_visible()
+                    assert page.evaluate(
+                        "document.documentElement.scrollWidth <= innerWidth"
+                    ), (route + " tablet overflow")
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Milestone 2C.3 browser smoke passed: one spawn to three F labels, dated stages, two flushes, multiple harvests, subjective potency, inline Pinning/Next Flush/Fruiting/Harvest/Finish Grow photos, exact multi-photo uploads, safe failed-upload retry, later dry weights, original/current environment, explicit completion, totals/timing, label reuse/history, desktop/mobile; no page errors"
+                    "Milestone 2C.4 browser smoke passed: keyboard panels, invalid hidden-field disclosure/focus, retained form/photo retry state, independent current/older flushes, mobile touch targets; one spawn to three F labels, dated stages, two flushes, multiple harvests, subjective potency, inline Pinning/Next Flush/Fruiting/Harvest/Finish Grow photos, exact multi-photo uploads, safe failed-upload retry, later dry weights, original/current environment, explicit completion, totals/timing, label reuse/history, desktop/mobile; no page errors"
                 )
 
         finally:
