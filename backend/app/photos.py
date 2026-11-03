@@ -40,6 +40,19 @@ def load_photo(session, photo_id):
 
 @router.post("/{kind}/{code}/photos", response_model=PhotoOut, status_code=201)
 def upload(kind: Kind, code: str, request: Request, file: UploadFile):
+    return store_upload(kind, code, request, file)
+
+
+def store_upload(
+    kind: Kind,
+    code: str,
+    request: Request,
+    file: UploadFile,
+    harvest_id=None,
+    pinning_flush=None,
+    journal_type=None,
+    journal_flush=None,
+):
     data = file.file.read(MAX_BYTES + 1)
     if len(data) > MAX_BYTES:
         raise HTTPException(413, "Each photo must be 10 MB or smaller")
@@ -100,7 +113,69 @@ def upload(kind: Kind, code: str, request: Request, file: UploadFile):
                 **{OWNER[kind]: code},
             )
             session.add(photo)
-            event(session, kind, code, "photo_attached", "Photograph attached")
+            session.flush()
+            if harvest_id:
+                from .fruiting_models import HarvestEntry, HarvestPhoto
+
+                harvest = session.get(HarvestEntry, harvest_id)
+                if not harvest or kind != "fruiting" or harvest.fruiting_id != code:
+                    raise HTTPException(
+                        422, "Harvest does not belong to this fruiting record"
+                    )
+                session.add(HarvestPhoto(photo_id=photo.id, harvest_id=harvest_id))
+            if pinning_flush is not None:
+                from .fruiting import pinning_event
+                from .fruiting_models import PinningPhoto
+
+                if kind != "fruiting" or harvest_id is not None:
+                    raise HTTPException(422, "Choose one photo event")
+                pinning_event(session, code, pinning_flush)
+                session.add(
+                    PinningPhoto(
+                        photo_id=photo.id, fruiting_id=code, flush_number=pinning_flush
+                    )
+                )
+            journal_description = ""
+            if journal_type is not None:
+                from .fruiting import journal_event
+                from .fruiting_models import JournalPhoto
+
+                if (
+                    kind != "fruiting"
+                    or harvest_id is not None
+                    or pinning_flush is not None
+                    or journal_type not in {"fruiting", "completed"}
+                    or (journal_type == "completed" and journal_flush is not None)
+                ):
+                    raise HTTPException(422, "Choose one photo event")
+                journal_event(session, code, journal_type, journal_flush)
+                session.add(
+                    JournalPhoto(
+                        photo_id=photo.id,
+                        fruiting_id=code,
+                        event_type=journal_type,
+                        flush_number=journal_flush,
+                    )
+                )
+                journal_description = " to " + (
+                    f"Fruiting, flush {journal_flush}"
+                    if journal_type == "fruiting"
+                    else "Grow Completed"
+                )
+            event(
+                session,
+                kind,
+                code,
+                "photo_attached",
+                "Photograph attached"
+                + journal_description
+                + (f" to harvest {harvest_id}" if harvest_id else "")
+                + (
+                    f" to Pinning, flush {pinning_flush}"
+                    if pinning_flush is not None
+                    else ""
+                ),
+            )
             session.flush()
             result = photo_out(photo)
         return result
@@ -175,6 +250,25 @@ def remove(photo_id: str, request: Request):
                     tomb = path.with_name(f".{uuid4()}.removed")
                     path.rename(tomb)
                     staged.append((path, tomb))
+            from .fruiting_models import HarvestPhoto, PinningPhoto, JournalPhoto
+
+            journal_link = session.get(JournalPhoto, photo.id)
+            journal_description = (
+                (
+                    " from "
+                    + (
+                        f"Fruiting, flush {journal_link.flush_number}"
+                        if journal_link.event_type == "fruiting"
+                        else "Grow Completed"
+                    )
+                )
+                if journal_link
+                else ""
+            )
+            pinning_link = session.get(PinningPhoto, photo.id)
+            pinning_flush = pinning_link.flush_number if pinning_link else None
+            harvest_link = session.get(HarvestPhoto, photo.id)
+            harvest_id = harvest_link.harvest_id if harvest_link else None
             was_cover = photo.is_cover
             session.delete(photo)
             session.flush()
@@ -186,7 +280,20 @@ def remove(photo_id: str, request: Request):
                 )
                 if fallback:
                     fallback.is_cover = 1
-            event(session, kind, code, "photo_removed", "Photograph removed")
+            event(
+                session,
+                kind,
+                code,
+                "photo_removed",
+                "Photograph removed"
+                + journal_description
+                + (f" from harvest {harvest_id}" if harvest_id else "")
+                + (
+                    f" from Pinning, flush {pinning_flush}"
+                    if pinning_flush is not None
+                    else ""
+                ),
+            )
     except Exception:
         for path, tomb in staged:
             tomb.rename(path)

@@ -610,6 +610,22 @@ def describe(session, kind, code):
             batch.batch_origin,
             batch.allocation_mode,
         )
+        from .fruiting_models import FruitingRun
+
+        operational = session.scalar(
+            select(FruitingRun)
+            .join(FruitingContainer, FruitingContainer.id == FruitingRun.fruiting_id)
+            .where(
+                FruitingContainer.batch_id == batch.id,
+                FruitingRun.operation_id.is_not(None),
+            )
+            .limit(1)
+        )
+        if operational:
+            result.provenance_mode = (
+                "Recorded spawning operation; one spawn source consumed in full."
+            )
+            result.origin_date = operational.spawning_date
         lines_for(batch, row if kind == "fruiting" else None)
         if kind == "batches":
             for item in session.scalars(
@@ -640,8 +656,29 @@ def describe(session, kind, code):
             for source in session.scalars(
                 select(BatchSource).where(BatchSource.spawn_id == code)
             ):
+                from .fruiting_models import FruitingRun
+
+                operation = session.scalar(
+                    select(FruitingRun.operation_id)
+                    .join(
+                        FruitingContainer,
+                        FruitingContainer.id == FruitingRun.fruiting_id,
+                    )
+                    .where(
+                        FruitingContainer.batch_id == source.batch_id,
+                        FruitingRun.source_spawn_id == code,
+                        FruitingRun.operation_id.is_not(None),
+                    )
+                    .limit(1)
+                )
+                if operation:
+                    result.provenance_mode = "Recorded spawning consumed this source in full. Manually documented links remain separate."
                 link(
-                    "Manual grow provenance · not consumption",
+                    (
+                        "Spawned to grow · consumed in full"
+                        if operation
+                        else "Manual grow provenance · not consumption"
+                    ),
                     "batches",
                     record(session, "batches", source.batch_id),
                 )

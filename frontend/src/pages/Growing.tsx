@@ -1,3 +1,4 @@
+import { FruitingList } from "./Fruiting";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { cultivationStatus } from "../containerApi";
@@ -48,7 +49,7 @@ export default function Growing({
         description={
           workspace === "laboratory"
             ? "Growing agar and liquid cultures, with their source and recipe history."
-            : "Colonizing spawn jars and bags, ready spawn and completed growing records."
+            : "Growing spawn and fruiting containers, with dated flush and harvest history."
         }
       />
       <h2>
@@ -174,12 +175,7 @@ export default function Growing({
           </li>
         ))}
       </ul>
-      {workspace === "cultivation" && (
-        <p>
-          Actual spawning, substrate allocation and harvest tracking remain
-          planned for 2C.3.
-        </p>
-      )}
+      {workspace === "cultivation" && <FruitingList />}
     </>
   );
 }

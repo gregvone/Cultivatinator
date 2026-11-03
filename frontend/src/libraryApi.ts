@@ -13,6 +13,8 @@ export interface Photo {
   thumbnail_url: string;
 }
 export interface LibraryRecord {
+  fruiting_stage?: string | null;
+  current_flush?: number | null;
   physical_label?: string | null;
   label_reusable?: boolean | null;
   label_occupied?: boolean;

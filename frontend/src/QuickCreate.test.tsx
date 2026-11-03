@@ -223,11 +223,9 @@ test.each([
     if (id === "fruiting-container") {
       await userEvent.selectOptions(select, expected[0]);
       expect(
-        screen.getByText("OPERATION NOT YET AVAILABLE"),
-      ).toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: /save|create|register/i }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("button", { name: "Create Fruiting Containers" }),
+      ).toBeDisabled();
+      expect(screen.getByLabelText("Substrate recipe *")).toBeInTheDocument();
     }
     expect(
       fetch.mock.calls.every(

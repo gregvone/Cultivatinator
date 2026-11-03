@@ -1,3 +1,4 @@
+import FruitingEnvironmentSettings from "../components/FruitingEnvironment";
 import { Info, Archive } from "lucide-react";
 import type { AppInfo } from "../api";
 import { useApi } from "../useApi";
@@ -42,6 +43,7 @@ export default function Settings() {
           </p>
         </Panel>
       )}
+      <FruitingEnvironmentSettings />
       <div className="settings-backup">
         <Panel title="Backup & Restore" icon={Archive}>
           <EmptyState

@@ -43,6 +43,10 @@ export function useAvailableLabels(material: string, reusable?: boolean) {
 export const phaseName = (stage?: string | null, spawn = false) =>
   ({
     colonizing: "Colonizing",
+    unrecorded: "Stage not recorded",
+    pinning: "Pinning",
+    fruiting: "Fruiting",
+    harvest: "Harvest",
     ready: spawn ? "Ready for Spawning" : "Ready",
     used: "Used",
     failed: "Failed",
@@ -57,10 +61,16 @@ export const phaseName = (stage?: string | null, spawn = false) =>
 export type CultivationRecord = Partial<
   Pick<
     LibraryRecord,
-    "material_type" | "growth_stage" | "lifecycle" | "stage" | "status"
+    | "material_type"
+    | "growth_stage"
+    | "lifecycle"
+    | "stage"
+    | "status"
+    | "fruiting_stage"
   >
 > & { kind?: string };
 export function cultivationStatus(record: CultivationRecord) {
+  if (record.fruiting_stage) return phaseName(record.fruiting_stage);
   const terminal = ["used", "failed", "completed", "depleted"].find(
     (stage) =>
       record.lifecycle === stage ||
@@ -68,6 +78,10 @@ export function cultivationStatus(record: CultivationRecord) {
       record.stage === stage,
   );
   if (terminal) return phaseName(terminal);
+  if (record.kind === "fruiting" && (!record.stage || record.stage === "ready"))
+    return "Stage not recorded";
+  if (record.kind === "fruiting" && record.stage === "finished")
+    return "Completed";
   if (record.material_type === "agar_plate") {
     if (record.growth_stage === "ready") return "Ready";
     if (record.growth_stage === "colonizing") return "Germinating";

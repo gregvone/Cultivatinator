@@ -145,7 +145,7 @@ export default function Dashboard() {
               ) : (
                 <EmptyState
                   icon={Sprout}
-                  title="Growing-cycle monitoring is planned."
+                  title="No active cultivation records."
                   description="Browse registered spawn, grow batches, and fruiting containers in the Culture Library. Operational monitoring comes in a later stage."
                 />
               )}

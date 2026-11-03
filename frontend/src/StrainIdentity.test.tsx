@@ -67,6 +67,28 @@ test("FR list and properties use the same derived partial identity", async () =>
         warnings: ["Some strain identities are unknown"],
         provenance_mode: "Manual provenance",
       };
+    else if (url.includes("/api/fruiting/records/"))
+      data = {
+        record: fruit,
+        source: null,
+        legacy: true,
+        run: null,
+        harvests: [],
+        flushes: [],
+        environment_changes: [],
+        environment: null,
+        results: {
+          harvest_count: 0,
+          flushes_with_harvests: 0,
+          wet_grams: null,
+          dry_grams: null,
+          wet_measured_count: 0,
+          dry_measured_count: 0,
+          days_to_first_pinning: null,
+          days_to_first_harvest: null,
+          cycle_days: null,
+        },
+      };
     else if (url.endsWith("/fruiting/FR-0001")) data = fruit;
     else if (url.includes("/fruiting?")) data = [fruit];
     return new Response(JSON.stringify(data), { status: 200 });
@@ -84,7 +106,7 @@ test("FR list and properties use the same derived partial identity", async () =>
   expect(await screen.findByText(/Partial identification:/)).toHaveTextContent(
     "Partial identification: Oyster; Unknown sources",
   );
-  await user.click(screen.getByRole("link", { name: /FR-0001 · active/ }));
+  await user.click(screen.getByRole("link", { name: /FR-0001/ }));
   const properties = await screen.findByRole("heading", {
     name: "Record information",
   });

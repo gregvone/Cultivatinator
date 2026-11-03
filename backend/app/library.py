@@ -140,6 +140,11 @@ def output(session, kind, row):
         values["strain_name"] = session.get(Strain, strain_id).name
     if kind == "fruiting":
         values.update(fruiting_strain_identity(session, row))
+        from .fruiting_models import FruitingRun
+
+        run = session.get(FruitingRun, row.id)
+        values["fruiting_stage"] = run.stage if run else None
+        values["current_flush"] = run.current_flush if run else None
     cover = session.scalar(
         select(PhotoAttachment).where(
             getattr(PhotoAttachment, OWNER[kind]) == row.id,
@@ -385,6 +390,13 @@ def edit_record(kind: Kind, code: str, data: EditRecord, request: Request):
             )
             if values["material_type"] not in types:
                 raise HTTPException(422, "Invalid material type")
+        if kind == "fruiting" and "stage" in values and values["stage"] != item.stage:
+            from .fruiting_models import FruitingRun
+
+            if session.get(FruitingRun, code) and values["stage"] != "finished":
+                raise HTTPException(
+                    409, "Use the dated fruiting stage actions for this grow"
+                )
         state = material_state(session, kind, code)
         if (
             "material_type" in values

@@ -99,9 +99,11 @@ export function LabelChoices({
 export default function ContainerTracking({
   record,
   onSaved,
+  labelsOnly = false,
 }: {
   record: TrackingRecord;
   onSaved: () => void;
+  labelsOnly?: boolean;
 }) {
   const supported =
     ["physical", "spawn", "fruiting", "prepared"].includes(record.kind) &&
@@ -117,14 +119,16 @@ export default function ContainerTracking({
       "other",
     ].includes(record.material_type || "");
   if (!supported) return null;
-  return <Tracking record={record} onSaved={onSaved} />;
+  return <Tracking record={record} onSaved={onSaved} labelsOnly={labelsOnly} />;
 }
 function Tracking({
   record,
   onSaved,
+  labelsOnly,
 }: {
   record: TrackingRecord;
   onSaved: () => void;
+  labelsOnly: boolean;
 }) {
   const command = useInventoryCommand("containers");
   const [labelOpen, setLabelOpen] = useState(false);
@@ -161,10 +165,18 @@ function Tracking({
   }
   return (
     <section className="panel workflow-source">
-      <h2>{agar ? "Culture Status" : "Container & Cultivation Status"}</h2>
-      <p>
-        <strong>Current Status: {cultivationStatus(record)}</strong>
-      </p>
+      <h2>
+        {labelsOnly
+          ? "Physical Label"
+          : agar
+            ? "Culture Status"
+            : "Container & Cultivation Status"}
+      </h2>
+      {!labelsOnly && (
+        <p>
+          <strong>Current Status: {cultivationStatus(record)}</strong>
+        </p>
+      )}
       <p>
         Physical label:{" "}
         <strong>{record.physical_label || "Not assigned"}</strong>
@@ -184,7 +196,8 @@ function Tracking({
               {record.physical_label ? "Change Label" : "Assign Label"}
             </button>
           )}
-          {(agar || spawn) &&
+          {!labelsOnly &&
+            (agar || spawn) &&
             record.kind !== "prepared" &&
             phase !== "ready" &&
             record.status === "active" && (
@@ -197,15 +210,17 @@ function Tracking({
                 {spawn ? "Mark Ready for Spawning" : "Mark Ready"}
               </button>
             )}
-          <button
-            onClick={() => {
-              setAction("failed");
-              setDate(localToday());
-            }}
-          >
-            Mark Failed
-          </button>
-          {!agar && !spawn && (
+          {!labelsOnly && (
+            <button
+              onClick={() => {
+                setAction("failed");
+                setDate(localToday());
+              }}
+            >
+              Mark Failed
+            </button>
+          )}
+          {!labelsOnly && !agar && !spawn && (
             <button
               onClick={() => {
                 setAction("complete");

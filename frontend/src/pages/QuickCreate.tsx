@@ -1,3 +1,4 @@
+import { NewFruiting } from "./Fruiting";
 import { cultivationStatus } from "../containerApi";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
@@ -208,11 +209,11 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
     <div className="direct-source">
       <h2>Select source material</h2>
       <p>
-        Agar sources must be explicitly Ready; Germinating, Used, Failed and
-        unrecorded-readiness plates are unavailable. LC and spore sources follow
-        their own eligibility rules. Known source balances are validated at
-        submission; unknown balances remain unknown. Confirm biological
-        suitability before inoculation.
+        {operation.id === "fruiting-container"
+          ? "Select one Ready spawn jar or bag. It supplies all destinations in this operation and becomes Used."
+          : operation.id === "spore-print"
+            ? "Select a tracked fruiting container for an already collected spore print."
+            : "Agar sources must be explicitly Ready; Germinating, Used, Failed and unrecorded-readiness plates are unavailable. LC and spore sources follow their own eligibility rules. Known source balances are validated at submission; unknown balances remain unknown. Confirm biological suitability before inoculation."}
       </p>
       {loading ? (
         <p role="status">Loading source choices…</p>
@@ -305,7 +306,14 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
     <>
       <Link to="/">← Dashboard</Link>
       <PageHeader title={operation.title} description={operation.description} />
-      {direct ? (
+      {operation.id === "fruiting-container" ? (
+        <NewFruiting
+          source={!loading && !error ? selected : undefined}
+          sourceControl={sourceControl}
+          onCreated={() => setAttempt((n) => n + 1)}
+          onSourceInvalid={() => setAttempt((n) => n + 1)}
+        />
+      ) : direct ? (
         <DirectCreate
           key={operation.id}
           operation={operation.id}

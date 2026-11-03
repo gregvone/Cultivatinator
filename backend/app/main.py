@@ -11,6 +11,7 @@ from .photos import router as photo_router
 from .provenance import router as provenance_router
 from .preparation import router as preparation_router
 from .containers import router as container_router
+from .fruiting import router as fruiting_router
 from .config import VERSION, Settings
 from .database import initialize, make_engine
 
@@ -36,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(provenance_router)
     app.include_router(preparation_router)
     app.include_router(container_router)
+    app.include_router(fruiting_router)
     app.include_router(library_router)
     app.include_router(photo_router)
 
