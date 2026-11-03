@@ -144,6 +144,10 @@ try:
             accept_downloads=True, viewport={"width": 1440, "height": 1100}
         )
         page = context.new_page()
+        # Chrome on an HTTP LAN origin exposes getRandomValues but not randomUUID.
+        page.add_init_script(
+            "Object.defineProperty(Crypto.prototype, 'randomUUID', {value: undefined, configurable: true})"
+        )
         page.set_default_timeout(15000)
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
@@ -209,6 +213,8 @@ try:
             r"One-time browser setup code \(store privately until used\): (\S+)", logs
         ).group(1)
         page.goto(base + "/settings")
+        assert page.evaluate("typeof crypto.randomUUID") == "undefined"
+        assert page.evaluate("typeof crypto.getRandomValues") == "function"
         page.get_by_label("One-time setup code", exact=True).fill(bootstrap)
         page.get_by_label("Administrator passphrase", exact=True).fill(
             "Disposable browser backup password"

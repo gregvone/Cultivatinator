@@ -1,6 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BackupRestore from "./components/BackupRestore";
+import * as restoreRequest from "./restoreRequest";
+
+const secureRandom = globalThis.crypto.getRandomValues.bind(globalThis.crypto);
+beforeEach(() => vi.stubGlobal("crypto", { getRandomValues: secureRandom }));
+afterEach(() => vi.unstubAllGlobals());
 
 const code = "12345678-1234-4234-8234-123456789abc";
 const backup = {
@@ -340,4 +345,176 @@ test("schedule defaults and updates include the named time zone and retention", 
     ...schedule,
     enabled: false,
   });
+});
+
+function mockUpload(result = { ...preview, source: "upload" }) {
+  const send = vi.fn();
+  vi.stubGlobal(
+    "XMLHttpRequest",
+    class {
+      status = 200;
+      responseText = JSON.stringify(result);
+      upload = {};
+      onload: (() => void) | null = null;
+      open = vi.fn();
+      setRequestHeader = vi.fn();
+      send(file: File) {
+        send(file);
+        queueMicrotask(() => this.onload?.());
+      }
+    },
+  );
+  return send;
+}
+
+async function choosePreview(source: "stored" | "upload") {
+  if (source === "stored") {
+    await userEvent.click(screen.getByRole("button", { name: "Restore" }));
+  } else {
+    await userEvent.click(
+      screen.getByRole("button", { name: /Restore from ZIP/ }),
+    );
+    await userEvent.upload(
+      screen.getByLabelText("Backup ZIP"),
+      new File(["ZIP"], "backup.zip", { type: "application/zip" }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Upload and Verify ZIP" }),
+    );
+  }
+}
+
+test.each(["stored", "upload"] as const)(
+  "%s HTTP restore sends a valid stable UUID and exposes structured confirmation errors",
+  async (source) => {
+    mockUpload();
+    const fetch = mockServer({
+      backups: [backup],
+      route: (path) =>
+        path === "/restore/confirm"
+          ? json(
+              {
+                detail: [
+                  {
+                    loc: ["body", "request_id"],
+                    msg: "Injected request validation failure",
+                  },
+                ],
+              },
+              422,
+            )
+          : undefined,
+    });
+    render(<BackupRestore />);
+    await ready();
+    expect(globalThis.crypto.randomUUID).toBeUndefined();
+    await choosePreview(source);
+    await screen.findByRole("region", { name: "Confirm cultivation restore" });
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: /I understand/ }),
+    );
+    const confirm = screen.getByRole("button", {
+      name: "Restore and Replace Current Data",
+    });
+    await userEvent.click(confirm);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Restore did not start: request_id: Injected request validation failure",
+    );
+    expect(alert).toHaveFocus();
+    await userEvent.click(confirm);
+    const calls = fetch.mock.calls.filter(
+      ([path]) => path === "/api/backups/restore/confirm",
+    );
+    expect(calls).toHaveLength(2);
+    const first = JSON.parse(calls[0][1]?.body as string);
+    const retry = JSON.parse(calls[1][1]?.body as string);
+    expect(first.request_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(retry.request_id).toBe(first.request_id);
+    expect(first.preview_id).toBe(code);
+  },
+);
+
+test.each(["stored", "upload"] as const)(
+  "%s restore does not stage or expose confirmation without a valid request ID",
+  async (source) => {
+    const send = mockUpload();
+    vi.spyOn(restoreRequest, "newRestoreRequestId").mockReturnValueOnce("");
+    const fetch = mockServer({ backups: [backup] });
+    render(<BackupRestore />);
+    await ready();
+    await choosePreview(source);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "request ID is missing or invalid",
+    );
+    expect(
+      screen.queryByRole("region", { name: "Confirm cultivation restore" }),
+    ).not.toBeInTheDocument();
+    expect(
+      fetch.mock.calls.some(
+        ([path]) =>
+          path === "/api/backups/restore/stored" ||
+          path === "/api/backups/restore/confirm",
+      ),
+    ).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+  },
+);
+
+test("replacing a visible preview cancels the old preview before staging another", async () => {
+  const fetch = mockServer({ backups: [backup] });
+  render(<BackupRestore />);
+  await ready();
+  await choosePreview("stored");
+  await screen.findByRole("region", { name: "Confirm cultivation restore" });
+  await choosePreview("stored");
+  await waitFor(() =>
+    expect(
+      fetch.mock.calls.filter(
+        ([path]) => path === "/api/backups/restore/stored",
+      ),
+    ).toHaveLength(2),
+  );
+  const calls = fetch.mock.calls.map(
+    ([path, init]) => `${init?.method}:${path}`,
+  );
+  const cancellation = calls.indexOf(
+    `DELETE:/api/backups/restore/preview/${code}`,
+  );
+  expect(cancellation).toBeGreaterThan(0);
+  expect(cancellation).toBeLessThan(
+    calls.lastIndexOf("POST:/api/backups/restore/stored"),
+  );
+});
+
+test("post-upload preparation failure cancels the staged preview and leaves no misleading confirmation or upload control", async () => {
+  let catalogs = 0;
+  mockUpload();
+  const fetch = mockServer({
+    route: (path) =>
+      path === "/catalog" && ++catalogs > 1
+        ? json({ detail: "Could not refresh backups" }, 503)
+        : undefined,
+  });
+  render(<BackupRestore />);
+  await ready();
+  await choosePreview("upload");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Could not prepare restore. No restore was started. Could not refresh backups",
+  );
+  expect(
+    fetch.mock.calls.some(
+      ([path, init]) =>
+        path === `/api/backups/restore/preview/${code}` &&
+        init?.method === "DELETE",
+    ),
+  ).toBe(true);
+  expect(
+    screen.queryByRole("region", { name: "Confirm cultivation restore" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Cancel upload" }),
+  ).not.toBeInTheDocument();
 });

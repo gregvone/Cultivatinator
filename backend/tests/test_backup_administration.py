@@ -724,3 +724,36 @@ def test_failed_uploaded_retention_cleans_unpresented_helper_preview(
     assert response.status_code == 400
     assert list(service.previews.iterdir()) == []
     assert list(store.uploads.iterdir()) == []
+
+
+@pytest.mark.parametrize("source", ["stored", "upload"])
+@pytest.mark.parametrize("request_id", [None, "", "not-a-uuid"])
+def test_invalid_http_restore_request_id_starts_no_job_and_preview_can_be_cancelled(
+    administration, source, request_id
+):
+    client, service, root, state = administration
+    unlock(client)
+    backup = saved(client)
+    if source == "stored":
+        response = client.post(
+            "/api/backups/restore/stored", json={"id": backup["stored"]["id"]}
+        )
+    else:
+        data = client.get(backup["download_url"]).content
+        response = client.post("/api/backups/restore/upload", content=data)
+    assert response.status_code == 200
+    preview_id = response.json()["id"]
+    payload = {"preview_id": preview_id, "confirmation": "REPLACE-PERSISTENT-DATA"}
+    if request_id is not None:
+        payload["request_id"] = request_id
+    rejected = client.post("/api/backups/restore/confirm", json=payload)
+    assert rejected.status_code == 422
+    assert any(
+        error["loc"] == ["body", "request_id"] for error in rejected.json()["detail"]
+    )
+    assert service.latest() is None
+    assert (
+        client.delete("/api/backups/restore/preview/" + preview_id).status_code == 200
+    )
+    assert list(service.previews.iterdir()) == []
+    assert len(client.get("/api/backups/catalog").json()["backups"]) == 1

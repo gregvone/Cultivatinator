@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import CollapsiblePanel from "./CollapsiblePanel";
+import { isRestoreRequestId, newRestoreRequestId } from "../restoreRequest";
 
 type Admin = {
   available: boolean;
@@ -108,7 +109,9 @@ export default function BackupRestore() {
   const [download, setDownload] = useState(true);
   const [retain, setRetain] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [preview, setPreview] = useState<
+    (Preview & { requestId: string }) | null
+  >(null);
   const [confirmed, setConfirmed] = useState(false);
   const [operation, setOperation] = useState<Operation | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
@@ -116,11 +119,18 @@ export default function BackupRestore() {
   const controller = useRef<AbortController | null>(null);
   const xhr = useRef<XMLHttpRequest | null>(null);
   const pending = useRef(false);
-  const restoreKey = useRef("");
+  const errorElement = useRef<HTMLParagraphElement>(null);
   const active = Boolean(operation && !terminal.has(operation.status));
   const disabled = Boolean(
     busy || active || operation?.status === "recovery_required",
   );
+
+  useEffect(() => {
+    if (error) {
+      errorElement.current?.scrollIntoView?.({ block: "center" });
+      errorElement.current?.focus();
+    }
+  }, [error]);
 
   async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(`/api/backups${path}`, {
@@ -140,7 +150,14 @@ export default function BackupRestore() {
       throw new AdministrationError(
         typeof value?.detail === "string"
           ? value.detail
-          : `Backup operation failed (HTTP ${response.status}).`,
+          : Array.isArray(value?.detail)
+            ? value.detail
+                .map(
+                  (issue: { loc?: unknown[]; msg?: string }) =>
+                    `${issue.loc?.filter((part) => part !== "body").join(".") || "Request"}: ${issue.msg || "Invalid value"}`,
+                )
+                .join("; ")
+            : `Backup operation failed (HTTP ${response.status}).`,
         response.status,
       );
     }
@@ -306,16 +323,59 @@ export default function BackupRestore() {
       }
     });
   }
-  async function selectStored(backup: Backup) {
-    await perform("Verifying restore backup…", async () => {
-      const result = await api<Preview>("/restore/stored", {
-        method: "POST",
-        body: JSON.stringify({ id: backup.id }),
-      });
-      setPreview(result);
+  async function prepareRestorePreview(
+    prepare: () => Promise<Preview>,
+    afterPreparation?: () => Promise<void>,
+  ) {
+    // Fail before staging anything if secure randomness is unavailable. Keep the
+    // validated key in the same state as its preview, including on safe retries.
+    const requestId = newRestoreRequestId();
+    if (!isRestoreRequestId(requestId))
+      throw new Error(
+        "Restore did not start: the secure request ID is missing or invalid. Verify the backup again.",
+      );
+    let staged: Preview | undefined;
+    try {
+      if (preview) {
+        await api(`/restore/preview/${preview.id}`, { method: "DELETE" });
+        setPreview(null);
+        setConfirmed(false);
+      }
+      staged = await prepare();
+      if (
+        !isRestoreRequestId(staged?.id) ||
+        staged.compatibility !== "verified"
+      )
+        throw new Error(
+          "The server did not return a valid verified restore preview.",
+        );
+      await afterPreparation?.();
       setConfirmed(false);
-      restoreKey.current = crypto.randomUUID();
-    });
+      setPreview({ ...staged, requestId });
+    } catch (reason) {
+      let cleanup = "";
+      if (isRestoreRequestId(staged?.id)) {
+        try {
+          await api(`/restore/preview/${staged.id}`, { method: "DELETE" });
+        } catch {
+          cleanup =
+            " The staged preview could not be cancelled and will expire automatically after 15 minutes.";
+        }
+      }
+      throw new Error(
+        `Could not prepare restore. No restore was started. ${reason instanceof Error ? reason.message : "Preview preparation failed."}${cleanup}`,
+      );
+    }
+  }
+  async function selectStored(backup: Backup) {
+    await perform("Verifying restore backup…", () =>
+      prepareRestorePreview(() =>
+        api<Preview>("/restore/stored", {
+          method: "POST",
+          body: JSON.stringify({ id: backup.id }),
+        }),
+      ),
+    );
   }
   async function upload(event: FormEvent) {
     event.preventDefault();
@@ -324,51 +384,65 @@ export default function BackupRestore() {
       return;
     }
     await perform("Uploading…", async () => {
-      const result = await new Promise<Preview>((resolve, reject) => {
-        const request = new XMLHttpRequest();
-        xhr.current = request;
-        request.open("POST", `/api/backups/restore/upload?retain=${retain}`);
-        request.withCredentials = true;
-        request.setRequestHeader("Content-Type", "application/zip");
-        request.setRequestHeader("X-Backup-CSRF", admin?.csrf || "");
-        request.upload.onprogress = (progress) => {
-          if (progress.lengthComputable)
-            setBusy(
-              progress.loaded === progress.total
-                ? "Verifying uploaded backup…"
-                : `Uploading… ${Math.round((progress.loaded / progress.total) * 100)}%`,
+      await prepareRestorePreview(async () => {
+        try {
+          return await new Promise<Preview>((resolve, reject) => {
+            const request = new XMLHttpRequest();
+            xhr.current = request;
+            request.open(
+              "POST",
+              `/api/backups/restore/upload?retain=${retain}`,
             );
-        };
-        request.onload = () => {
-          try {
-            const value = JSON.parse(request.responseText);
-            if (request.status < 200 || request.status >= 300)
-              throw new Error(value.detail || "Upload verification failed");
-            resolve(value);
-          } catch (reason) {
-            reject(reason);
-          }
-        };
-        request.onerror = () =>
-          reject(
-            new Error(
-              "Upload interrupted. No restore was started; retry the upload.",
-            ),
-          );
-        request.onabort = () =>
-          reject(new Error("Upload cancelled. No restore was started."));
-        request.send(file);
-      });
-      xhr.current = null;
-      setPreview(result);
-      setConfirmed(false);
-      restoreKey.current = crypto.randomUUID();
+            request.withCredentials = true;
+            request.setRequestHeader("Content-Type", "application/zip");
+            request.setRequestHeader("X-Backup-CSRF", admin?.csrf || "");
+            request.upload.onprogress = (progress) => {
+              if (progress.lengthComputable)
+                setBusy(
+                  progress.loaded === progress.total
+                    ? "Verifying uploaded backup…"
+                    : `Uploading… ${Math.round((progress.loaded / progress.total) * 100)}%`,
+                );
+            };
+            request.onload = () => {
+              try {
+                const value = JSON.parse(request.responseText);
+                if (request.status < 200 || request.status >= 300)
+                  throw new Error(
+                    typeof value.detail === "string"
+                      ? value.detail
+                      : `Upload verification failed (HTTP ${request.status}).`,
+                  );
+                resolve(value);
+              } catch (reason) {
+                reject(reason);
+              }
+            };
+            request.onerror = () =>
+              reject(
+                new Error(
+                  "Upload interrupted. No restore was started; retry the upload.",
+                ),
+              );
+            request.onabort = () =>
+              reject(new Error("Upload cancelled. No restore was started."));
+            request.send(file);
+          });
+        } finally {
+          xhr.current = null;
+        }
+      }, refresh);
       setFile(null);
-      await refresh();
     });
   }
   async function restoreGrow() {
     if (!preview || !confirmed) return;
+    if (!isRestoreRequestId(preview.requestId)) {
+      setError(
+        "Restore did not start: the request ID is missing or invalid. Cancel this preview and verify the backup again.",
+      );
+      return;
+    }
     await perform("Starting restore…", async () => {
       // Keep this key on an uncertain response: retry cannot create a second job.
       try {
@@ -376,7 +450,7 @@ export default function BackupRestore() {
           method: "POST",
           body: JSON.stringify({
             preview_id: preview.id,
-            request_id: restoreKey.current,
+            request_id: preview.requestId,
             confirmation: "REPLACE-PERSISTENT-DATA",
           }),
         });
@@ -384,10 +458,10 @@ export default function BackupRestore() {
         setPreview(null);
       } catch (reason) {
         if (reason instanceof AdministrationError && reason.status < 500)
-          throw reason;
+          throw new Error(`Restore did not start: ${reason.message}`);
         // The helper may have committed the job before the app connection stopped.
         setOperation({
-          id: restoreKey.current,
+          id: preview.requestId,
           status: "verifying",
           message:
             "Restore request sent. Reconnecting to retrieve the authoritative outcome.",
@@ -408,7 +482,11 @@ export default function BackupRestore() {
         Protect the committed database, photographs, thumbnails, files and
         settings. Git, source, Compose, .env and existing backups are excluded.
       </p>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert" ref={errorElement} tabIndex={-1}>
+          {error}
+        </p>
+      )}
       {notice && (
         <p role="status" className="success-message">
           {notice}
@@ -934,7 +1012,11 @@ export default function BackupRestore() {
               <div className="actions">
                 <button
                   className="danger"
-                  disabled={disabled || !confirmed}
+                  disabled={
+                    disabled ||
+                    !confirmed ||
+                    !isRestoreRequestId(preview.requestId)
+                  }
                   onClick={() => void restoreGrow()}
                 >
                   Restore and Replace Current Data
