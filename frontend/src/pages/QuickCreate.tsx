@@ -1,3 +1,4 @@
+import { cultivationStatus } from "../containerApi";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
@@ -207,9 +208,11 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
     <div className="direct-source">
       <h2>Select source material</h2>
       <p>
-        Active sources exclude completed, failed and depleted material. Known
-        source balances are validated at submission; unknown balances remain
-        unknown. Confirm biological suitability before inoculation.
+        Agar sources must be explicitly Ready; Germinating, Used, Failed and
+        unrecorded-readiness plates are unavailable. LC and spore sources follow
+        their own eligibility rules. Known source balances are validated at
+        submission; unknown balances remain unknown. Confirm biological
+        suitability before inoculation.
       </p>
       {loading ? (
         <p role="status">Loading source choices…</p>
@@ -253,7 +256,20 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
           {requested && !selected && (
             <p role="alert">
               The linked source is unavailable or unsuitable for this operation.
-              Choose another active source.
+              Choose an eligible source.
+              {(operation.kinds as readonly string[]).includes(
+                params.get("source_kind") || "",
+              ) &&
+                params.get("source_id") && (
+                  <>
+                    {" "}
+                    <Link
+                      to={`/culture-library/${encodeURIComponent(params.get("source_kind")!)}/${encodeURIComponent(params.get("source_id")!)}`}
+                    >
+                      Open source record to review readiness
+                    </Link>
+                  </>
+                )}
             </p>
           )}
           {!records.length && (
@@ -265,12 +281,13 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
           )}
           {selected && (
             <div className="source-summary">
-              <h3>Selected source · {selected.id}</h3>
+              <h3>
+                Selected source · {selected.physical_label || selected.id}
+              </h3>
               <p>
                 <StrainIdentity record={selected} />
-                {selected.line_id &&
-                  ` · Culture line ${selected.line_id}`} ·{" "}
-                {selected.stage || selected.status}
+                {selected.line_id && ` · Culture line ${selected.line_id}`} ·
+                Current Status: {cultivationStatus(selected)}
               </p>
               <Link to={`/culture-library/${selected.kind}/${selected.id}`}>
                 View source record
@@ -295,6 +312,7 @@ function WorkflowEntry({ operation }: { operation: QuickOperation }) {
           source={!loading && !error ? selected : undefined}
           sourceControl={sourceControl}
           onCreated={() => setAttempt((n) => n + 1)}
+          onSourceInvalid={() => setAttempt((n) => n + 1)}
         />
       ) : (
         <>

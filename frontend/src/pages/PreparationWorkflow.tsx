@@ -1,3 +1,5 @@
+import { verifyAgarSource } from "../quickCreate";
+import { cultivationStatus } from "../containerApi";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -328,17 +330,22 @@ export function InoculationForm({
   const liquid = source?.material_type?.startsWith("lc_");
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!source) return;
-    const r = await command.send<{ materials: Prepared[] }>("inoculate", {
-      prepared_ids: actualIds,
-      source_kind: source.kind,
-      source_id: source.id,
-      usage_per_container: v.usage_per_container || null,
-      unit: v.unit,
-      inoculation_date: v.inoculation_date || null,
-      destination_volume_ml: v.destination_volume_ml || null,
-      notes: v.notes || null,
-    });
+    if (!source || command.busy) return;
+    const r = await command.send<{ materials: Prepared[] }>(
+      "inoculate",
+      {
+        prepared_ids: actualIds,
+        source_kind: source.kind,
+        source_id: source.id,
+        usage_per_container: v.usage_per_container || null,
+        unit: v.unit,
+        inoculation_date: v.inoculation_date || null,
+        destination_volume_ml: v.destination_volume_ml || null,
+        notes: v.notes || null,
+      },
+      "POST",
+      () => verifyAgarSource(source, operation),
+    );
     if (r)
       navigate("/history/materials", {
         state: {
@@ -521,8 +528,9 @@ export function MaterialOperationPanel({
     <section className="panel workflow-source">
       <h2>Cultivation & Source History</h2>
       <p>
-        Lifecycle: {record.lifecycle || "active"} · Remaining Culture Material:{" "}
-        {record.remaining_quantity ?? "Unknown"} {record.remaining_unit || ""}
+        Cultivation status: {cultivationStatus(record)} · Remaining Culture
+        Material: {record.remaining_quantity ?? "Unknown"}{" "}
+        {record.remaining_unit || ""}
       </p>
       <p>
         Balances are explicitly measured or remain unknown; initial registration

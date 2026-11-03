@@ -287,6 +287,10 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                             full_page=True,
                         )
                         raise
+                    if operation == "agar-plate":
+                        expect(
+                            page.get_by_text("Current Status: Germinating", exact=True)
+                        ).to_have_count(count)
                     labels = (
                         page.get_by_label("Physical labels for copying", exact=True)
                         .input_value()
@@ -344,6 +348,28 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 expect(
                     page.get_by_role("link", name="P-01 · Agar plate", exact=True)
                 ).to_be_visible()
+                plate_row = page.locator(".record-list > li").filter(
+                    has=page.get_by_role("link", name="P-01 · Agar plate", exact=True)
+                )
+                expect(
+                    plate_row.get_by_text("Current Status: Germinating", exact=True)
+                ).to_be_visible()
+                page.goto(
+                    base
+                    + "/quick-create/agar-plate?source_kind=physical&source_id="
+                    + plates[0]
+                )
+                expect(
+                    page.get_by_text("The linked source is unavailable", exact=False)
+                ).to_be_visible()
+                expect(
+                    page.get_by_label("Source material").locator(
+                        f'option[value="physical:{plates[0]}"]'
+                    )
+                ).to_have_count(0)
+                expect(
+                    page.get_by_role("button", name="Create Agar plate", exact=True)
+                ).to_be_disabled()
                 page.goto(base + "/cultivation")
                 expect(
                     page.get_by_role("link", name="B-01 · Spawn bag", exact=True)
@@ -366,12 +392,45 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 expect(
                     page.get_by_role("button", name="Mark Ready", exact=True)
                 ).to_be_visible()
+                expect(
+                    page.get_by_text("Current Status: Germinating", exact=True)
+                ).to_be_visible()
+                expect(
+                    page.get_by_label("Lifecycle action", exact=False)
+                ).to_have_count(0)
+                expect(
+                    page.get_by_role(
+                        "button", name="Complete / Retire Container", exact=True
+                    )
+                ).to_have_count(0)
                 page.get_by_role("button", name="Mark Ready", exact=True).click()
                 page.get_by_label("Lifecycle date", exact=True).fill("2026-11-02")
                 page.get_by_role("button", name="Save Status", exact=True).click()
                 expect(
                     page.get_by_text("Ready date: 2026-11-02", exact=True)
                 ).to_be_visible()
+                expect(
+                    page.get_by_text("Current Status: Ready", exact=True)
+                ).to_be_visible()
+                page.goto(base + "/laboratory")
+                plate_row = page.locator(".record-list > li").filter(
+                    has=page.get_by_role("link", name="P-01 · Agar plate", exact=True)
+                )
+                expect(
+                    plate_row.get_by_text("Current Status: Ready", exact=True)
+                ).to_be_visible()
+                for operation_slug in ("agar-plate", "lc-container", "spawn"):
+                    page.goto(
+                        base
+                        + f"/quick-create/{operation_slug}?source_kind=physical&source_id="
+                        + plates[0]
+                    )
+                    expect(
+                        page.get_by_label("Source material", exact=True)
+                    ).to_have_value("physical:" + plates[0])
+                    expect(
+                        page.get_by_text("Current Status: Ready", exact=False)
+                    ).to_be_visible()
                 donor_jars = direct("spawn", grain["id"], 5, source_code=plates[0])
                 donor = page.request.get(
                     base + "/api/library/physical/" + plates[0]
@@ -416,6 +475,9 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     page.get_by_role("button", name="Mark Ready", exact=True)
                 ).to_have_count(0)
                 expect(page.get_by_text("Used date:", exact=False)).to_be_visible()
+                expect(
+                    page.get_by_text("Current Status: Used", exact=True)
+                ).to_be_visible()
                 page.goto(base + "/recipes/detail/" + agar["id"])
                 expect(
                     page.get_by_role("button", name="Archive Recipe", exact=True)
@@ -507,6 +569,70 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                     page.request.get(base + "/api/library/physical/" + old["id"]).status
                     == 200
                 )
+                # Unrecorded legacy/acquired readiness stays unknown until explicit action.
+                legacy = post(
+                    "/api/library/receive-culture",
+                    {"line": {}, "material": {"material_type": "agar_plate"}},
+                )["physical"][0]
+                page.goto(base + "/culture-library/physical/" + legacy["id"])
+                expect(
+                    page.get_by_text(
+                        "Current Status: Readiness not recorded", exact=True
+                    )
+                ).to_be_visible()
+                expect(page.get_by_text("Ready date:", exact=False)).to_have_count(0)
+                page.get_by_role("button", name="Mark Ready", exact=True).click()
+                page.get_by_role("button", name="Save Status", exact=True).click()
+                expect(
+                    page.get_by_text("Current Status: Ready", exact=True)
+                ).to_be_visible()
+                page.goto(
+                    base
+                    + "/quick-create/agar-plate?source_kind=physical&source_id="
+                    + legacy["id"]
+                )
+                # The earlier agar recipe is archived; make a fresh active definition.
+                stale_recipe = operation(
+                    "recipes",
+                    {
+                        "name": "Readiness check agar",
+                        "recipe_type": "agar",
+                        "batch_yield": 1,
+                        "ingredients": [{"name": "Agar", "quantity": "1", "unit": "g"}],
+                    },
+                )
+                page.reload()
+                page.locator("#recipe_id").select_option(stale_recipe["id"])
+                expect(page.get_by_label("Source material", exact=True)).to_have_value(
+                    "physical:" + legacy["id"]
+                )
+                response = page.request.post(
+                    base + f"/api/containers/records/physical/{legacy['id']}/state",
+                    data={"request_key": str(uuid4()), "action": "failed"},
+                )
+                assert response.status == 200, response.text()
+                creation_writes = []
+                page.on(
+                    "request",
+                    lambda request: (
+                        creation_writes.append(request.url)
+                        if request.method == "POST"
+                        and request.url.endswith("/api/preparation/create")
+                        else None
+                    ),
+                )
+                page.get_by_role("button", name="Create Agar plate", exact=True).click()
+                expect(
+                    page.get_by_text(
+                        "This agar source is no longer eligible", exact=False
+                    )
+                ).to_be_visible()
+                assert creation_writes == [], creation_writes
+                page.goto(base + "/culture-library/physical/" + legacy["id"])
+                expect(
+                    page.get_by_text("Current Status: Failed", exact=True)
+                ).to_be_visible()
+                expect(page.get_by_text("Released", exact=False)).to_be_visible()
                 page.set_viewport_size({"width": 390, "height": 844})
                 for path in (
                     "/recipes",

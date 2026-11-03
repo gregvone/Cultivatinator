@@ -208,12 +208,13 @@ test("legacy Preparing readiness is an explicit action and expired preparation i
   expect(call[0]).toBe("/api/preparation/ready");
   expect(JSON.parse(call[1]!.body as string).prepared_ids).toEqual([row.id]);
 });
-test("Complete/Failed requires a reason and sends the explicit lifecycle date and notes", async () => {
+test("Historical lifecycle starts unselected, requires a reason and sends the explicit lifecycle date and notes", async () => {
   const fetch = mocks();
   const saved = vi.fn();
   mount(<FinishForm path="materials/AG-0001/finish" onSaved={saved} />);
   const u = userEvent.setup();
-  await u.selectOptions(screen.getByLabelText("Lifecycle action"), "failed");
+  expect(screen.getByLabelText("Lifecycle action *")).toHaveValue("");
+  await u.selectOptions(screen.getByLabelText("Lifecycle action *"), "failed");
   await u.type(screen.getByLabelText("Lifecycle reason *"), "Contamination");
   await u.type(
     screen.getByLabelText("Lifecycle notes"),

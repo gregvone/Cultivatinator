@@ -1,4 +1,4 @@
-import { phaseName } from "./containerApi";
+import { cultivationStatus } from "./containerApi";
 import {
   CircleDot,
   Syringe,
@@ -8,7 +8,7 @@ import {
   Sprout,
 } from "lucide-react";
 import type { LibraryRecord } from "./libraryApi";
-import { cultureTypes, sporeTypes, growTypes } from "./libraryApi";
+import { libraryApi, cultureTypes, sporeTypes, growTypes } from "./libraryApi";
 
 const agar = ["agar_plate", "slant"];
 const liquid = ["lc_jar", "lc_syringe"];
@@ -127,7 +127,7 @@ export function sourceLabel(record: LibraryRecord) {
     (
       { ...cultureTypes, ...sporeTypes, ...growTypes } as Record<string, string>
     )[record.material_type ?? ""] || "Fruiting container";
-  return `${record.physical_label || record.id}${record.physical_label ? ` (record ${record.id})` : ""}${record.name ? ` · ${record.name}` : ""} · ${material} · ${strain}${record.line_id ? ` · Line ${record.line_id}` : ""} · ${phaseName(record.growth_stage || record.stage || record.status, record.kind === "spawn")}`;
+  return `${record.physical_label || record.id}${record.physical_label ? ` (record ${record.id})` : ""}${record.name ? ` · ${record.name}` : ""} · ${material} · ${strain}${record.line_id ? ` · Line ${record.line_id}` : ""} · ${cultivationStatus(record)}`;
 }
 export function availableOperations(record: LibraryRecord) {
   return quickCreate.filter((op) => eligibleSource(op, record));
@@ -135,4 +135,23 @@ export function availableOperations(record: LibraryRecord) {
 // A record ID is always paired with its kind; never infer a genetic source from a strain.
 export function sourceKey(record: Pick<LibraryRecord, "kind" | "id">) {
   return `${record.kind}:${record.id}`;
+}
+
+export async function verifyAgarSource(
+  source: LibraryRecord,
+  operation: string,
+) {
+  if (source.material_type !== "agar_plate") return;
+  const fresh = await libraryApi<LibraryRecord>(`${source.kind}/${source.id}`);
+  const workflow = quickCreate.find((op) => op.id === operation);
+  if (
+    fresh.id !== source.id ||
+    fresh.kind !== source.kind ||
+    !workflow ||
+    !eligibleSource(workflow, fresh)
+  ) {
+    throw new Error(
+      `This agar source is no longer eligible (${cultivationStatus(fresh)}). Choose a Ready plate.`,
+    );
+  }
 }

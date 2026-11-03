@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { phaseName } from "../containerApi";
+import { cultivationStatus } from "../containerApi";
 import { PageHeader } from "../components/UI";
 import StrainIdentity from "../components/StrainIdentity";
 import { useInventoryList, materialNames } from "../preparationApi";
@@ -84,7 +84,7 @@ export default function Growing({
           <option value="active">Active</option>
           {workspace === "laboratory" ? (
             <>
-              <option value="colonizing">Colonizing agar</option>
+              <option value="colonizing">Germinating agar</option>
               <option value="ready">Ready agar</option>
               <option value="depleted">Depleted LC</option>
               <option value="agar_plate">Agar cultures</option>
@@ -144,16 +144,9 @@ export default function Growing({
               {r.line_id && ` · Culture line ${r.line_id}`}
             </p>
             <p>
-              Status:{" "}
-              {r.pending_establishment
-                ? `Pending spore establishment · ${phaseName(r.growth_stage)}`
-                : phaseName(
-                    r.lifecycle !== "active"
-                      ? r.lifecycle
-                      : r.growth_stage || r.stage || r.lifecycle,
-                    r.kind === "spawn",
-                  )}{" "}
-              · {r.status}
+              Current Status: {cultivationStatus(r)}
+              {r.pending_establishment && " · Pending spore establishment"}
+              {r.status === "archived" && " · Archived record"}
             </p>
             <p>
               Inoculated: {r.cultivation?.source?.date || "Not recorded"} ·

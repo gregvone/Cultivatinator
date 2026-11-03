@@ -152,13 +152,18 @@ export function useInventoryCommand(namespace = "preparation") {
     path: string,
     payload: unknown,
     method = "POST",
+    validateNewCommand?: () => Promise<void>,
   ): Promise<T | undefined> {
     const signature = JSON.stringify([path, method, payload]);
-    if (prior.current?.signature !== signature)
-      prior.current = { signature, key: newRequestKey() };
     setBusy(true);
     setError("");
     try {
+      if (prior.current?.signature !== signature) {
+        await validateNewCommand?.();
+        prior.current = { signature, key: newRequestKey() };
+      }
+      // Replays must reach the existing request key even if the first command
+      // consumed its agar source before its response was lost.
       return await libraryApi<T>(
         path,
         method,

@@ -317,6 +317,9 @@ def test_legacy_records_are_unlabeled_until_explicit_assignment_and_ready(settin
         old = client.get("/api/library/physical/AG-0090").json()
         assert old["physical_label"] is None and old["growth_stage"] is None
         assert old["created_at"] == "2026-01-01"
+        assert old["ready_date"] is None
+        media = recipe(client, "agar")
+        create(client, "agar_plate", old, media, count=1, unit="plate", status=409)
         r = client.post(
             "/api/containers/records/physical/AG-0090/label",
             json={"request_key": "assign-existing-label"},
@@ -324,7 +327,6 @@ def test_legacy_records_are_unlabeled_until_explicit_assignment_and_ready(settin
         assert r.status_code == 200, r.text
         assert r.json()["physical_label"] == "P-01"
         action(client, "physical", "AG-0090", "ready")
-        media = recipe(client, "agar")
         created = create(
             client, "agar_plate", {"id": "AG-0090"}, media, count=1, unit="plate"
         )["materials"][0]
@@ -461,3 +463,63 @@ def test_manual_fruiting_labels_reserve_requested_free_labels_before_auto(client
         "F-02",
         "F-01",
     ]
+
+
+@pytest.mark.parametrize(
+    "destination,recipe_type",
+    [
+        ("agar_plate", "agar"),
+        ("lc_jar", "lc"),
+        ("spawn_jar", "grain"),
+    ],
+)
+def test_agar_readiness_views_agree_and_stale_selected_source_is_rejected(
+    client, destination, recipe_type
+):
+    source = jars(client)[0]
+    formula = recipe(client, recipe_type)
+    if recipe_type == "lc":
+        post(
+            client,
+            "lc-default",
+            {"recipe_id": formula["id"], "expected_revision": formula["revision"]},
+            200,
+        )
+
+    def views():
+        detail = client.get("/api/library/physical/" + source["id"]).json()
+        listing = next(
+            r
+            for r in client.get("/api/library/physical").json()
+            if r["id"] == source["id"]
+        )
+        growing = next(
+            r
+            for r in client.get("/api/preparation/growing?workspace=laboratory").json()
+            if r["id"] == source["id"]
+        )
+        return [detail, listing, growing]
+
+    assert all(
+        r["growth_stage"] == "colonizing" and r["ready_date"] is None for r in views()
+    )
+    assert all(
+        r["status"] == "active" for r in views()
+    )  # Visibility does not imply Ready.
+    create(client, destination, source, formula, count=2, unit="plate", status=409)
+    action(client, "physical", source["id"], "ready")
+    assert all(
+        r["growth_stage"] == "ready" and r["ready_date"] == "2026-11-01"
+        for r in views()
+    )
+    selected = views()[0]
+    action(client, "physical", source["id"], "failed")
+    before = client.get("/api/preparation/materials").json()
+    labels_before = available(client, destination)
+    create(client, destination, selected, formula, count=2, unit="plate", status=409)
+    assert client.get("/api/preparation/materials").json() == before
+    assert available(client, destination) == labels_before
+    assert all(
+        r["growth_stage"] == "failed" and not r["label_occupied"] for r in views()
+    )
+    assert "P-01" in available(client)["available"]

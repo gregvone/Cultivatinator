@@ -1,3 +1,5 @@
+import { cultivationStatus } from "../containerApi";
+import { verifyAgarSource } from "../quickCreate";
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -21,11 +23,13 @@ export default function DirectCreate({
   source,
   sourceControl,
   onCreated,
+  onSourceInvalid,
 }: {
   operation: string;
   source?: LibraryRecord;
   sourceControl: ReactNode;
   onCreated?: () => void;
+  onSourceInvalid?: () => void;
 }) {
   const recipes = useInventoryList<Recipe>(
     "recipes",
@@ -93,22 +97,36 @@ export default function DirectCreate({
   async function save(e: FormEvent) {
     e.preventDefault();
     if (!source) return;
-    const r = await command.send<{ materials: Prepared[] }>("create", {
-      material_type: v.material_type,
-      ...(labels.length ? { label_choices: labels } : {}),
-      recipe_id:
-        v.material_type === "agar_plate" || v.material_type.startsWith("spawn_")
-          ? v.recipe_id || null
-          : null,
-      source_kind: source.kind,
-      source_id: source.id,
-      count: Number(v.count),
-      inoculation_date: v.inoculation_date,
-      usage_per_container: v.usage_per_container || null,
-      unit: usageUnit,
-      destination_volume_ml: v.destination_volume_ml || null,
-      notes: v.notes || null,
-    });
+    if (command.busy) return;
+    const r = await command.send<{ materials: Prepared[] }>(
+      "create",
+      {
+        material_type: v.material_type,
+        ...(labels.length ? { label_choices: labels } : {}),
+        recipe_id:
+          v.material_type === "agar_plate" ||
+          v.material_type.startsWith("spawn_")
+            ? v.recipe_id || null
+            : null,
+        source_kind: source.kind,
+        source_id: source.id,
+        count: Number(v.count),
+        inoculation_date: v.inoculation_date,
+        usage_per_container: v.usage_per_container || null,
+        unit: usageUnit,
+        destination_volume_ml: v.destination_volume_ml || null,
+        notes: v.notes || null,
+      },
+      "POST",
+      async () => {
+        try {
+          await verifyAgarSource(source, operation);
+        } catch (error) {
+          onSourceInvalid?.();
+          throw error;
+        }
+      },
+    );
     if (r) {
       setResult(r.materials);
       onCreated?.();
@@ -140,6 +158,9 @@ export default function DirectCreate({
                 Open {r.physical_label || r.id}
               </Link>
               <small>Permanent record: {r.id}</small>
+              {r.material_type === "agar_plate" && (
+                <p>Current Status: {cultivationStatus(r)}</p>
+              )}
               {!r.physical_id &&
                 !r.spawn_id &&
                 " · Pending independent spore establishment"}

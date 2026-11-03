@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import type { LibraryRecord } from "../libraryApi";
 import { localToday } from "../libraryApi";
 import { useInventoryCommand } from "../preparationApi";
-import { phaseName, useAvailableLabels } from "../containerApi";
+import { cultivationStatus, useAvailableLabels } from "../containerApi";
 import type { LabelChoice } from "../containerApi";
 type TrackingRecord = Partial<Omit<LibraryRecord, "kind">> & {
   id: string;
@@ -161,7 +161,10 @@ function Tracking({
   }
   return (
     <section className="panel workflow-source">
-      <h2>Container & Cultivation Status</h2>
+      <h2>{agar ? "Culture Status" : "Container & Cultivation Status"}</h2>
+      <p>
+        <strong>Current Status: {cultivationStatus(record)}</strong>
+      </p>
       <p>
         Physical label:{" "}
         <strong>{record.physical_label || "Not assigned"}</strong>
@@ -169,12 +172,6 @@ function Tracking({
           ` · ${record.label_occupied ? "Occupied" : "Released"}`}
       </p>
       <p>Permanent record: {record.id}</p>
-      <p>
-        Status:{" "}
-        {terminal
-          ? phaseName(record.growth_stage || record.lifecycle, spawn)
-          : phaseName(phase || record.lifecycle, spawn)}
-      </p>
       {record.inoculation_date && <p>Inoculated: {record.inoculation_date}</p>}
       {record.ready_date && <p>Ready date: {record.ready_date}</p>}
       {record.used_date && <p>Used date: {record.used_date}</p>}

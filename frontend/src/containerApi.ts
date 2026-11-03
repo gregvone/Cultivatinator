@@ -1,3 +1,4 @@
+import type { LibraryRecord } from "./libraryApi";
 import { useEffect, useState } from "react";
 import { libraryApi } from "./libraryApi";
 export const containerApi = <T>(path: string, method = "GET", body?: unknown) =>
@@ -51,3 +52,29 @@ export const phaseName = (stage?: string | null, spawn = false) =>
   })[stage || ""] ||
   stage ||
   "Not recorded";
+
+// Record visibility is administrative; it never establishes agar readiness.
+export type CultivationRecord = Partial<
+  Pick<
+    LibraryRecord,
+    "material_type" | "growth_stage" | "lifecycle" | "stage" | "status"
+  >
+> & { kind?: string };
+export function cultivationStatus(record: CultivationRecord) {
+  const terminal = ["used", "failed", "completed", "depleted"].find(
+    (stage) =>
+      record.lifecycle === stage ||
+      record.growth_stage === stage ||
+      record.stage === stage,
+  );
+  if (terminal) return phaseName(terminal);
+  if (record.material_type === "agar_plate") {
+    if (record.growth_stage === "ready") return "Ready";
+    if (record.growth_stage === "colonizing") return "Germinating";
+    return "Readiness not recorded";
+  }
+  return phaseName(
+    record.growth_stage || record.stage || record.lifecycle || record.status,
+    record.kind === "spawn",
+  );
+}

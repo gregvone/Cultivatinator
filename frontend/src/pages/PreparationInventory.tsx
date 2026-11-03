@@ -1,3 +1,4 @@
+import { cultivationStatus } from "../containerApi";
 import ContainerTracking from "../components/ContainerTracking";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
@@ -767,7 +768,7 @@ export function FinishForm({
   onSaved: () => void;
 }) {
   const [v, setV] = useState<Values>({
-    action: "complete",
+    action: "",
     action_date: localToday(),
     reason: "",
     notes: "",
@@ -788,7 +789,8 @@ export function FinishForm({
       <h3>Complete or Mark Failed</h3>
       <p>
         This preserves the record and releases a tracked reusable allocation
-        exactly once. Ordinary transfers do not complete a donor plate.
+        exactly once. Growing agar uses Mark Ready or Mark Failed on its culture
+        record; successful transfers automatically mark the donor Used.
       </p>
       <Field
         name="finish_action"
@@ -797,7 +799,12 @@ export function FinishForm({
           Object.entries(v).map(([k, x]) => [`finish_${k}`, x]),
         )}
         set={(n, x) => set(n.replace("finish_", ""), x)}
-        options={{ complete: "Complete", failed: "Mark Failed" }}
+        required
+        options={{
+          "": "Choose a historical action",
+          complete: "Complete",
+          failed: "Mark Failed",
+        }}
       />
       <Field
         name="finish_action_date"
@@ -982,7 +989,20 @@ export function PreparedDetail() {
         <>
           <section className="panel workflow-source">
             <h2>
-              {materialNames[row.material_type]} · {stageName(row.stage)}
+              {materialNames[row.material_type]} ·{" "}
+              {row.growth_stage ||
+              row.physical_id ||
+              row.spawn_id ||
+              row.stage === "inoculated"
+                ? cultivationStatus({
+                    ...row,
+                    lifecycle:
+                      row.stage === "failed" || row.stage === "completed"
+                        ? row.stage
+                        : "active",
+                    kind: row.spawn_id ? "spawn" : "physical",
+                  })
+                : stageName(row.stage)}
             </h2>
             <p>
               Batch {row.batch_id} · Prepared{" "}

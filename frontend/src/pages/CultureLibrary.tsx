@@ -1,3 +1,4 @@
+import { cultivationStatus } from "../containerApi";
 import { useEffect, useRef, useState } from "react";
 import { Dna, ImagePlus } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
@@ -30,8 +31,16 @@ function RecordLink({ record }: { record: LibraryRecord }) {
     <Link to={`/culture-library/${record.kind}/${record.id}`}>
       {title(record)}{" "}
       <small>
-        {record.id} · {record.status}
-        {record.lifecycle && record.lifecycle !== "active"
+        {record.id} ·{" "}
+        {record.material_type === "agar_plate"
+          ? cultivationStatus(record)
+          : record.status}
+        {record.material_type === "agar_plate" &&
+          record.status === "archived" &&
+          " · Archived record"}
+        {record.material_type !== "agar_plate" &&
+        record.lifecycle &&
+        record.lifecycle !== "active"
           ? ` · ${record.lifecycle}`
           : ""}
       </small>
@@ -596,13 +605,17 @@ export function RecordDetail() {
       )}
       <PageHeader
         title={title(record)}
-        description={`${record.id} · ${kindNames[kind]} · ${record.status}${record.lifecycle && record.lifecycle !== "active" ? ` · ${record.lifecycle}` : ""}`}
+        description={`${record.id} · ${kindNames[kind]} · ${record.material_type === "agar_plate" ? cultivationStatus(record) : record.status}${record.material_type !== "agar_plate" && record.lifecycle && record.lifecycle !== "active" ? ` · ${record.lifecycle}` : ""}`}
       />
       {(notice || location.state?.message) && (
         <p className="success-message" role="status">
           {notice || location.state.message}
         </p>
       )}
+      <ContainerTracking
+        record={record}
+        onSaved={() => setRevision((v) => v + 1)}
+      />
       <div className="actions">
         <button onClick={() => setEditing(!editing)}>Edit information</button>
         <button disabled={busy} onClick={() => void statusChange()}>
@@ -610,10 +623,6 @@ export function RecordDetail() {
         </button>
       </div>
       <CreateFromThis record={record} />
-      <ContainerTracking
-        record={record}
-        onSaved={() => setRevision((v) => v + 1)}
-      />
       {editing ? (
         <EditForm
           key={record.id}
@@ -679,6 +688,10 @@ export function RecordDetail() {
                   <dd>Unknown</dd>
                 </div>
               )}
+            <div>
+              <dt>Record visibility</dt>
+              <dd>{record.status === "active" ? "Active" : "Archived"}</dd>
+            </div>
             <div>
               <dt>Registered</dt>
               <dd>{new Date(record.created_at).toLocaleString()}</dd>
