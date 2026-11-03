@@ -1,6 +1,6 @@
 # Cultivatinator
 
-A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2C.4: UI & Workflow Polish** adds shared collapsible panels, clearer actions and compact growing journals to the existing cultivation workflows. See [2C.4 layout and validation](docs/MILESTONE_2C4.md).
+A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2D.1: Performance Dashboard & Cultivation Comparisons** adds read-only yield, timing, flush and outcome reports with measured sample counts and traceable grow records. See [2D.1 calculations and coverage](docs/MILESTONE_2D1.md) and [2C.4 layouts](docs/MILESTONE_2C4.md).
 
 The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; spawn and fruiting counts reflect active registered records; monitoring and unimplemented modules remain empty. No demonstration records or login are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
 
@@ -29,8 +29,8 @@ Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI 
 sudo install -d -m 0755 /opt/stacks
 sudo git clone https://github.com/gregvone/Cultivatinator.git /opt/stacks/cultivatinator
 cd /opt/stacks/cultivatinator
-# For the Milestone 2C.4 review implementation:
-sudo git switch feature/milestone-2c4-ui-polish
+# For the Milestone 2D.1 review implementation:
+sudo git switch feature/milestone-2d1-performance
 sudo install -d -o 10001 -g 10001 -m 0750 /storage/tv/cultivatinator
 sudo docker compose up -d --build --wait
 sudo docker compose ps

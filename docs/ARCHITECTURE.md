@@ -99,3 +99,10 @@ Migration 0013 extends that workflow to Fruiting and Finish Grow. It adds nullab
 ## Milestone 2C.4: shared UI disclosure
 
 `CollapsiblePanel.tsx` supplies independent native details/summary sections with mounted children, nonpersistent expansion state, accessible controls and automatic validation disclosure. `RecordHeader.tsx` standardizes identity/status/dates; `RecordNextAction.tsx` derives existing workflow links from the existing eligibility helper. Fruiting history groups flushes without changing their ordering or photo URLs; compact gallery controls retain upload state while hidden. Record navigation resets panel defaults, whereas refreshes and collapses retain forms/retry queues. Shared CSS standardizes primary, secondary and terminal controls. No backend or database changes are involved. See [2C.4 operations and scope](MILESTONE_2C4.md).
+
+
+## Milestone 2D.1: read-only performance reporting
+
+`reports.py` exposes GET `/api/reports/performance` with typed Pydantic contracts in `report_schemas.py`. Four set/aggregate SELECTs resolve per-FR measurements, recorded dates, labels and shared/specific/acquired sources under a consistent read transaction. Integer milligram sums and Decimal per-container averages avoid harvest-count weighting and missing-as-zero errors. Genetics use actual source line/strain IDs; recipe grouping uses immutable run snapshots/revisions, never editable recipe contents. No schema, historical record or cultivation mutation changes are required.
+
+`Reports.tsx`, `reportApi.ts` and `PerformanceBars.tsx` use existing navigation/UI/error handling, CSS horizontal bars and accessible expandable tables. Unknown/mixed identities remain unranked; measured samples/source counts, incomplete exclusions, separate current active scope, date bounds and terminal failure denominators are explicit. See [2D.1 calculation and population rules](MILESTONE_2D1.md).
