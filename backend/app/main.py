@@ -16,6 +16,9 @@ from .fruiting import router as fruiting_router
 from .reports import router as reports_router
 from .backups import router as backup_router, MutationGate, expire_backups
 from .backup_format import lease, clean_stale_backups, RESTORE_MARKER, BackupError
+from .backup_manager import BackupManager
+from .maintenance_protocol import HelperClient
+from .backup_management import router as backup_management_router
 from .config import VERSION, Settings
 from .database import initialize, make_engine
 
@@ -37,8 +40,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     )
                 clean_stale_backups(settings.data_dir)
                 initialize(settings, engine)
+                app.state.backup_manager = BackupManager(app)
                 async with anyio.create_task_group() as tasks:
                     tasks.start_soon(expire_backups, app)
+                    tasks.start_soon(app.state.backup_manager.run)
                     try:
                         yield
                     finally:
@@ -51,7 +56,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Cultivatinator", version=VERSION, lifespan=lifespan)
     app.state.mutation_gate = anyio.Lock()
-    app.add_middleware(MutationGate, gate=app.state.mutation_gate)
+    app.state.maintenance_mode = False
+    app.state.maintenance = HelperClient(
+        settings.maintenance_socket, settings.maintenance_key
+    )
+    app.add_middleware(MutationGate, gate=app.state.mutation_gate, state=app.state)
     app.state.backups = {}
     app.state.settings = settings
     app.state.engine = engine
@@ -62,6 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(fruiting_router)
     app.include_router(reports_router)
     app.include_router(backup_router)
+    app.include_router(backup_management_router)
     app.include_router(library_router)
     app.include_router(photo_router)
 

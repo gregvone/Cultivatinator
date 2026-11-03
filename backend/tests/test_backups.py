@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
 from io import BytesIO
+from types import SimpleNamespace
 import hashlib
 import json
 import shutil
@@ -22,11 +23,24 @@ from app.backup_format import (
     revision,
     inspect_database,
 )
-from test_foundation import client, settings  # noqa: F401
+from test_foundation import settings  # noqa: F401
+from app.backup_access import require_admin, admin_or_machine
 from test_fruiting import spawn, stage, harvest, detail
 from test_library import image_bytes, upload
 from test_pinning_photos import attach as pin_photo
 from test_provenance import establish
+
+
+@pytest.fixture
+def client(settings):
+    # Archive/transaction regression tests isolate authorization; the real
+    # socket/session/CSRF boundary is exercised in test_backup_administration.
+    app = create_app(settings)
+    app.dependency_overrides[require_admin] = lambda: {"unlocked": True}
+    app.dependency_overrides[admin_or_machine] = lambda: None
+    app.state.maintenance = SimpleNamespace(call=lambda *args: {'active': False})
+    with TestClient(app) as value:
+        yield value
 
 
 def archive_bytes(client):

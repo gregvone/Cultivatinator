@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 import json
 import shutil
 import sqlite3
@@ -6,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import create_app
 from app.config import Settings
+from app.backup_access import admin_or_machine
 from app.backup_format import BackupError, create_backup, check_archive, ROOTS
 import app.restore_workspace as maintenance
 
@@ -17,7 +19,10 @@ def installation(tmp_path, monkeypatch):
     root = tmp_path / "installation"
     root.mkdir()
     settings = Settings(data_dir=root, frontend_dir=tmp_path / "frontend")
-    with TestClient(create_app(settings)) as client:
+    app = create_app(settings)
+    app.dependency_overrides[admin_or_machine] = lambda: None
+    app.state.maintenance = SimpleNamespace(call=lambda *args: {'active': False})
+    with TestClient(app) as client:
         r = client.post("/api/library/strains", json={"name": "Original point"})
         assert r.status_code == 201
         (root / "files/retained.txt").write_text("original point")

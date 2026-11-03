@@ -13,6 +13,7 @@ import stat
 import subprocess
 import time
 import urllib.request
+from .maintenance_protocol import read_key
 from .backup_format import (
     ROOTS,
     DATABASE,
@@ -148,6 +149,10 @@ class Compose:
         self.file = Path(file).resolve(strict=True)
         self.root = Path(root).resolve(strict=True)
         self.service = service
+        key_file = Path("/run/cultivatinator-maintenance/channel.key")
+        self.maintenance_key = (
+            read_key(key_file).decode() if key_file.exists() else None
+        )
         if not re.fullmatch("[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}", service):
             raise BackupError("Invalid Compose service name")
         # Host /proc and local filesystem checks must refer to the same machine
@@ -243,11 +248,31 @@ class Compose:
     def start(self):
         self.run("start", self.service)
 
-    def open(self, path, timeout=120):
+    def open(self, path, timeout=120, data=None):
         # Only a verified local port belonging to this exact Compose container.
-        return urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
-            f"http://127.0.0.1:{self.port}" + path, timeout=timeout
+        headers = {"Content-Type": "application/json"}
+        if self.maintenance_key:
+            headers["X-Cultivatinator-Maintenance"] = self.maintenance_key
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}" + path, data=data, headers=headers
         )
+        return urllib.request.build_opener(urllib.request.ProxyHandler({})).open(
+            request, timeout=timeout
+        )
+
+    def freeze(self):
+        if self.maintenance_key:
+            with self.open(
+                "/api/backups/maintenance/freeze", data=b'{"enabled":true}'
+            ) as response:
+                response.read()
+
+    def unfreeze(self):
+        if self.maintenance_key:
+            with self.open(
+                "/api/backups/maintenance/freeze", timeout=5, data=b'{"enabled":false}'
+            ) as response:
+                response.read()
 
     def health(self):
         deadline = time.monotonic() + 60
@@ -271,6 +296,7 @@ class Compose:
         )
 
     def safety_backup(self, path):
+        self.freeze()
         try:
             with self.open("/api/backups/download", 1800) as source, path.open(
                 "xb"
@@ -314,7 +340,17 @@ def validate_root(root):
     return root
 
 
-def restore(archive, root, compose_file, recovery=None, confirm=None, controller=None):
+def restore(
+    archive,
+    root,
+    compose_file,
+    recovery=None,
+    confirm=None,
+    controller=None,
+    progress=None,
+):
+    progress = progress or (lambda *args: None)
+    progress("verifying")
     require_root()
     selected = Path(root).resolve(strict=True)
     marker = selected / RESTORE_MARKER
@@ -386,6 +422,7 @@ def restore(archive, root, compose_file, recovery=None, confirm=None, controller
                 "directories": list(ROOTS),
             }
             journal(operation, info)
+            progress("preparing_safety_backup", operation)
             for name in ROOTS:
                 permissions(verified.root / name)
             # Independent, verified online recovery copy before stopping. Original
@@ -396,6 +433,7 @@ def restore(archive, root, compose_file, recovery=None, confirm=None, controller
             cutover = False
             try:
                 stopped = True
+                progress("stopping_application", operation)
                 controller.stop()
                 with lease(root) as fd:
                     os.fchown(fd, 10001, 10001)
@@ -414,13 +452,16 @@ def restore(archive, root, compose_file, recovery=None, confirm=None, controller
                     journal(operation, info)
                     restore_marker(root, operation)
                     cutover = True
+                    progress("restoring_data", operation)
                     for name in ROOTS:
                         move(root / name, original / name)
                         move(verified.root / name, root / name)
                     info["state"] = "replaced"
                     journal(operation, info)
                     restore_marker(root, operation, remove=True)
+                progress("restarting_application", operation)
                 controller.start()
+                progress("verifying_health", operation)
                 controller.health()
                 info["state"] = "completed"
                 journal(operation, info)
@@ -458,6 +499,11 @@ def restore(archive, root, compose_file, recovery=None, confirm=None, controller
                     f"Restore failed; original data retained/restored. Recovery files: {operation}. {error}"
                 ) from error
     finally:
+        if hasattr(controller, "unfreeze"):
+            try:
+                controller.unfreeze()
+            except OSError:
+                pass  # Failed rollback may leave app stopped; preserve recovery state.
         verified.cleanup()
 
 

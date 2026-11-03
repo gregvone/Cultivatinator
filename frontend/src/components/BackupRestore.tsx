@@ -1,130 +1,963 @@
 import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import CollapsiblePanel from "./CollapsiblePanel";
+
+type Admin = {
+  available: boolean;
+  configured: boolean;
+  unlocked: boolean;
+  csrf?: string;
+  detail?: string;
+};
+type Schedule = {
+  enabled: boolean;
+  weekday: number;
+  time: string;
+  timezone: string;
+  retention: number;
+};
+type Backup = {
+  id: string;
+  filename: string;
+  kind: string;
+  created_at: string;
+  size_bytes: number;
+  validation: string;
+  application_version: string;
+  migration_revision: string;
+};
+type Operation = {
+  id: string;
+  status: string;
+  message?: string;
+  recovery_operation?: string;
+};
+type Preview = {
+  id: string;
+  source: string;
+  created_at: string;
+  size_bytes: number;
+  application_version: string;
+  migration_revision: string;
+  compatibility: string;
+};
+type Catalog = {
+  backups: Backup[];
+  storage: { used_bytes: number; available_bytes: number };
+  schedule: {
+    schedule: Schedule;
+    next_run: string | null;
+    last_success: { created_at: string } | null;
+    last_failure: { message: string; at: string } | null;
+    retry_after?: string | null;
+  };
+  active: boolean;
+  operation: Operation | null;
+  job: string | null;
+};
+const terminal = new Set([
+  "complete",
+  "rolled_back",
+  "failed",
+  "recovery_required",
+]);
+const phases: Record<string, string> = {
+  verifying: "Verifying",
+  preparing_safety_backup: "Preparing safety backup",
+  stopping_application: "Stopping application",
+  restoring_data: "Restoring data",
+  restarting_application: "Restarting application",
+  verifying_health: "Verifying health",
+  complete: "Complete",
+  rolled_back: "Rolled back",
+  recovery_required: "Recovery required",
+  failed: "Failed",
+};
+class AdministrationError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+function size(bytes: number) {
+  return bytes < 1024 * 1024
+    ? `${(bytes / 1024).toFixed(1)} KiB`
+    : `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
+}
+function date(value?: string | null, timeZone?: string) {
+  return value
+    ? new Date(value).toLocaleString(
+        undefined,
+        timeZone ? { timeZone, timeZoneName: "short" } : {},
+      )
+    : "None recorded";
+}
+
 export default function BackupRestore() {
-  const [busy, setBusy] = useState(false);
+  const [admin, setAdmin] = useState<Admin | null>(null);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [passphrase, setPassphrase] = useState("");
+  const [bootstrap, setBootstrap] = useState("");
+  const [save, setSave] = useState(true);
+  const [download, setDownload] = useState(true);
+  const [retain, setRetain] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+  const [operation, setOperation] = useState<Operation | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [deleting, setDeleting] = useState<Backup | null>(null);
   const controller = useRef<AbortController | null>(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  async function download() {
-    if (busy || controller.current) return;
-    setBusy(true);
+  const xhr = useRef<XMLHttpRequest | null>(null);
+  const pending = useRef(false);
+  const restoreKey = useRef("");
+  const active = Boolean(operation && !terminal.has(operation.status));
+  const disabled = Boolean(
+    busy || active || operation?.status === "recovery_required",
+  );
+
+  async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const response = await fetch(`/api/backups${path}`, {
+      ...options,
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Backup-CSRF": admin?.csrf || "",
+        ...options.headers,
+      },
+    });
+    const value = await response.json().catch(() => null);
+    if (!response.ok) {
+      if (response.status === 401)
+        setAdmin((old) => (old ? { ...old, unlocked: false } : old));
+      throw new AdministrationError(
+        typeof value?.detail === "string"
+          ? value.detail
+          : `Backup operation failed (HTTP ${response.status}).`,
+        response.status,
+      );
+    }
+    return value as T;
+  }
+  async function refresh() {
+    const result = await api<Catalog>("/catalog");
+    setCatalog(result);
+    setSchedule(result.schedule.schedule);
+    setOperation(result.operation);
+  }
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/backups/admin/session", {
+      cache: "no-store",
+      credentials: "same-origin",
+    })
+      .then((response) => {
+        if (!response.ok)
+          throw new Error("Could not check backup administration");
+        return response.json();
+      })
+      .then((value: Admin) => {
+        if (mounted) setAdmin(value);
+      })
+      .catch((reason: Error) => {
+        if (mounted) setError(reason.message);
+      });
+    return () => {
+      mounted = false;
+      controller.current?.abort();
+      xhr.current?.abort();
+    };
+  }, []);
+  useEffect(() => {
+    if (admin?.unlocked)
+      void refresh().catch((reason: Error) => setError(reason.message));
+  }, [admin?.unlocked]); // Session belongs to the helper and survives app restarts.
+  useEffect(() => {
+    if (!active || !admin?.unlocked) return;
+    let disposed = false;
+    async function poll() {
+      try {
+        const value = await api<{ operation: Operation | null }>(
+          `/restore/status?operation_id=${operation?.id}`,
+        );
+        if (disposed) return;
+        setReconnecting(false);
+        if (value.operation && value.operation.id === operation?.id) {
+          setOperation(value.operation);
+          if (terminal.has(value.operation.status)) {
+            setPreview(null);
+            setConfirmed(false);
+            await refresh();
+          }
+        } else {
+          setOperation({
+            id: operation?.id || "",
+            status: "failed",
+            message:
+              "No restore job was accepted. Current data was not replaced; review the error and retry the confirmed preview.",
+          });
+        }
+      } catch {
+        if (!disposed) setReconnecting(true);
+      }
+    }
+    const timer = window.setInterval(() => void poll(), 2000);
+    void poll();
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [active, admin?.unlocked]);
+
+  async function perform(
+    label: string,
+    action: () => Promise<void>,
+    duringRestore = false,
+  ) {
+    if (pending.current || (active && !duringRestore)) return;
+    pending.current = true;
+    setBusy(label);
     setError("");
     setNotice("");
-    const pending = new AbortController();
-    controller.current = pending;
     try {
-      const response = await fetch("/api/backups/prepare", {
-        method: "POST",
-        signal: pending.signal,
-        headers: { Accept: "application/json" },
-      });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => null);
-        throw new Error(
-          typeof detail?.detail === "string"
-            ? detail.detail
-            : `Backup failed (HTTP ${response.status}).`,
-        );
-      }
-      const result = await response.json();
-      if (
-        !/^\/api\/backups\/prepared\/[0-9a-f-]{36}$/.test(
-          result.download_url,
-        ) ||
-        typeof result.filename !== "string"
-      )
-        throw new Error("The server did not provide a valid backup download.");
-      const link = document.createElement("a");
-      link.href = result.download_url;
-      link.download = result.filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setNotice(
-        "Backup prepared and download requested. Check your browser downloads, then retain a copy outside this server. This message does not confirm that the file was saved externally.",
-      );
+      await action();
     } catch (reason) {
-      if (pending.signal.aborted)
-        setNotice("Backup preparation cancelled. You can retry.");
-      else
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "Backup could not be prepared.",
-        );
+      setError(
+        reason instanceof Error ? reason.message : "Backup operation failed",
+      );
     } finally {
-      setBusy(false);
-      controller.current = null;
+      pending.current = false;
+      setBusy("");
     }
   }
+  async function unlock(event: FormEvent) {
+    event.preventDefault();
+    await perform(
+      "Unlocking…",
+      async () => {
+        const result = await api<Admin>(
+          admin?.configured ? "/admin/unlock" : "/admin/setup",
+          { method: "POST", body: JSON.stringify({ passphrase, bootstrap }) },
+        );
+        setPassphrase("");
+        setBootstrap("");
+        setAdmin(result);
+      },
+      true,
+    );
+  }
+  function nativeDownload(url: string, filename: string) {
+    if (
+      !/^\/api\/backups\/(prepared\/[0-9a-f-]{36}|catalog\/[0-9a-f-]{36}\/download)$/.test(
+        url,
+      )
+    )
+      throw new Error("Invalid backup download URL");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+  async function create() {
+    if (!save && !download) {
+      setError("Choose at least one backup destination.");
+      return;
+    }
+    await perform("Creating and verifying backup…", async () => {
+      const abort = new AbortController();
+      controller.current = abort;
+      try {
+        const result = await api<{
+          stored: Backup | null;
+          download_url: string | null;
+          filename?: string;
+        }>("/create", {
+          method: "POST",
+          body: JSON.stringify({ save, download }),
+          signal: abort.signal,
+        });
+        if (result.download_url)
+          nativeDownload(
+            result.download_url,
+            result.filename || "cultivatinator-backup.zip",
+          );
+        setNotice(
+          `${result.stored ? "Verified backup saved on Debian. " : ""}${result.download_url ? "Download requested. Check your browser downloads; this message does not confirm that the file was saved externally. A failed download does not remove the server copy." : "Manual backups remain until you explicitly delete them."}`,
+        );
+        await refresh();
+      } catch (reason) {
+        if (abort.signal.aborted) {
+          setNotice(
+            "Backup request cancelled. Refresh the list to check whether a verified server copy completed before cancellation. You can retry the download from that copy.",
+          );
+          await refresh();
+        } else throw reason;
+      } finally {
+        controller.current = null;
+      }
+    });
+  }
+  async function selectStored(backup: Backup) {
+    await perform("Verifying restore backup…", async () => {
+      const result = await api<Preview>("/restore/stored", {
+        method: "POST",
+        body: JSON.stringify({ id: backup.id }),
+      });
+      setPreview(result);
+      setConfirmed(false);
+      restoreKey.current = crypto.randomUUID();
+    });
+  }
+  async function upload(event: FormEvent) {
+    event.preventDefault();
+    if (!file) {
+      setError("Select a backup ZIP.");
+      return;
+    }
+    await perform("Uploading…", async () => {
+      const result = await new Promise<Preview>((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        xhr.current = request;
+        request.open("POST", `/api/backups/restore/upload?retain=${retain}`);
+        request.withCredentials = true;
+        request.setRequestHeader("Content-Type", "application/zip");
+        request.setRequestHeader("X-Backup-CSRF", admin?.csrf || "");
+        request.upload.onprogress = (progress) => {
+          if (progress.lengthComputable)
+            setBusy(
+              progress.loaded === progress.total
+                ? "Verifying uploaded backup…"
+                : `Uploading… ${Math.round((progress.loaded / progress.total) * 100)}%`,
+            );
+        };
+        request.onload = () => {
+          try {
+            const value = JSON.parse(request.responseText);
+            if (request.status < 200 || request.status >= 300)
+              throw new Error(value.detail || "Upload verification failed");
+            resolve(value);
+          } catch (reason) {
+            reject(reason);
+          }
+        };
+        request.onerror = () =>
+          reject(
+            new Error(
+              "Upload interrupted. No restore was started; retry the upload.",
+            ),
+          );
+        request.onabort = () =>
+          reject(new Error("Upload cancelled. No restore was started."));
+        request.send(file);
+      });
+      xhr.current = null;
+      setPreview(result);
+      setConfirmed(false);
+      restoreKey.current = crypto.randomUUID();
+      setFile(null);
+      await refresh();
+    });
+  }
+  async function restoreGrow() {
+    if (!preview || !confirmed) return;
+    await perform("Starting restore…", async () => {
+      // Keep this key on an uncertain response: retry cannot create a second job.
+      try {
+        const result = await api<Operation>("/restore/confirm", {
+          method: "POST",
+          body: JSON.stringify({
+            preview_id: preview.id,
+            request_id: restoreKey.current,
+            confirmation: "REPLACE-PERSISTENT-DATA",
+          }),
+        });
+        setOperation(result);
+        setPreview(null);
+      } catch (reason) {
+        if (reason instanceof AdministrationError && reason.status < 500)
+          throw reason;
+        // The helper may have committed the job before the app connection stopped.
+        setOperation({
+          id: restoreKey.current,
+          status: "verifying",
+          message:
+            "Restore request sent. Reconnecting to retrieve the authoritative outcome.",
+        });
+        setReconnecting(true);
+        throw reason;
+      }
+    });
+  }
+
   return (
     <CollapsiblePanel
       title="Backup & Restore"
-      summary="Complete workspace ZIP · local backups"
+      summary="Weekly backups · server storage · safe restore"
       defaultOpen
     >
       <p>
-        Download the committed database, original photos, thumbnails, files and
-        settings. Source code, .git, Docker configuration and .env are excluded.
+        Protect the committed database, photographs, thumbnails, files and
+        settings. Git, source, Compose, .env and existing backups are excluded.
       </p>
-      <div className="actions">
-        <button
-          className="primary"
-          disabled={busy}
-          onClick={() => void download()}
-        >
-          {busy ? "Preparing complete backup…" : "Download Complete Backup"}
-        </button>
-        {busy && (
-          <button onClick={() => controller.current?.abort()}>
-            Cancel backup preparation
-          </button>
-        )}
-      </div>
-      {busy && (
-        <p role="status">
-          Preparing and verifying a consistent snapshot. Application writes wait
-          while it is captured; the download then streams through your browser.
-        </p>
-      )}
-      {error && (
-        <p role="alert">{error} Retry Download Complete Backup when ready.</p>
-      )}
+      {error && <p role="alert">{error}</p>}
       {notice && (
         <p role="status" className="success-message">
           {notice}
         </p>
       )}
-      <p className="muted">
-        Keep an external copy and verify it before relying on it. Prepared
-        download links are single-use and expire after five minutes; temporary
-        server files are removed after download or cancellation.
-      </p>
-      <CollapsiblePanel title="Restore safely on Debian" level={3}>
-        <p>
-          Restore is a host maintenance operation. Use the matching checkout and
-          image. Validate first; the tool asks for explicit replacement
-          confirmation, saves a recovery copy, stops the existing app, replaces
-          only database/, photos/, files/ and settings/, and checks startup. The
-          Git checkout and Compose configuration stay in place.
-        </p>
-        <p>Verification (replace the archive filename):</p>
-        <pre className="backup-command">
-          python3 /storage/tv/cultivatinator/scripts/workspace_backup.py verify
-          /path/to/backup.zip
-        </pre>
-        <p>Restore, with an interactive confirmation:</p>
-        <pre className="backup-command">
-          sudo python3 /storage/tv/cultivatinator/scripts/workspace_backup.py
-          restore /path/to/backup.zip
-        </pre>
-        <p>
-          Retain the recovery directory printed by the tool. If interrupted,
-          follow docs/MILESTONE_2D2.md to recover the retained originals.
-          Browser-driven restore is not provided.
-        </p>
-      </CollapsiblePanel>
+      {!admin ? (
+        <p role="status">Checking backup administration…</p>
+      ) : !admin.available ? (
+        <>
+          <p role="alert">
+            {admin.detail || "The maintenance helper is unavailable."}
+          </p>
+          <p>
+            Complete the one-time Debian helper setup described in
+            docs/MILESTONE_2D2.md. Routine backup and restore then work here.
+          </p>
+        </>
+      ) : !admin.unlocked ? (
+        <form onSubmit={(event) => void unlock(event)} className="backup-form">
+          <h3>
+            {admin.configured
+              ? "Unlock Backup Administration"
+              : "Set Up Backup Administrator"}
+          </h3>
+          {!admin.configured && (
+            <label>
+              One-time setup code
+              <input
+                required
+                value={bootstrap}
+                onChange={(event) => setBootstrap(event.target.value)}
+                autoComplete="off"
+              />
+            </label>
+          )}
+          <label>
+            Administrator passphrase
+            <input
+              type="password"
+              required
+              minLength={12}
+              maxLength={1024}
+              autoComplete={
+                admin.configured ? "current-password" : "new-password"
+              }
+              value={passphrase}
+              onChange={(event) => setPassphrase(event.target.value)}
+            />
+          </label>
+          <p className="muted">
+            Use at least 12 characters. Administration unlocks for 30 minutes
+            and remains separate from cultivation records.
+          </p>
+          <button className="primary" disabled={Boolean(busy)}>
+            {busy ||
+              (admin.configured
+                ? "Unlock Backup Administration"
+                : "Set Administrator Passphrase")}
+          </button>
+        </form>
+      ) : (
+        <>
+          <div className="actions">
+            <span>Backup administration unlocked</span>
+            <button
+              disabled={disabled}
+              onClick={() =>
+                void perform("Locking…", async () => {
+                  await api("/admin/lock", { method: "POST" });
+                  setAdmin({ ...admin, unlocked: false });
+                  setCatalog(null);
+                })
+              }
+            >
+              Lock Administration
+            </button>
+          </div>
+          {busy && (
+            <p role="status">
+              {busy} Application writes wait while a consistent snapshot or
+              maintenance operation is prepared.
+            </p>
+          )}
+          {operation && (
+            <section className="backup-operation" aria-label="Restore outcome">
+              <h3>
+                Restore:{" "}
+                {reconnecting
+                  ? "Reconnecting"
+                  : phases[operation.status] || operation.status}
+              </h3>
+              <p role="status">
+                {reconnecting
+                  ? "The application connection is interrupted. Reconnecting automatically; detailed progress is unavailable until it returns. Do not submit another restore."
+                  : operation.message ||
+                    "Maintenance helper is processing the restore."}
+              </p>
+              <p className="muted">Operation {operation.id}</p>
+              {operation.recovery_operation && (
+                <p>
+                  Recovery files retained:{" "}
+                  <code>{operation.recovery_operation}</code>
+                </p>
+              )}
+              {(reconnecting || operation.status === "recovery_required") && (
+                <p>
+                  If the application cannot reconnect, preserve recovery files
+                  and follow emergency recovery in docs/MILESTONE_2D2.md. On the
+                  Debian host, inspect{" "}
+                  <code>sudo systemctl status cultivatinator-maintenance</code>.
+                  Do not delete the interruption marker or initialize a new
+                  database.
+                </p>
+              )}
+            </section>
+          )}
+          <h3>Create Backup</h3>
+          <fieldset disabled={disabled} className="backup-choices">
+            <legend>Destination</legend>
+            <label>
+              <input
+                type="checkbox"
+                checked={save}
+                onChange={(event) => setSave(event.target.checked)}
+              />{" "}
+              Save backup on Debian server
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={download}
+                onChange={(event) => setDownload(event.target.checked)}
+              />{" "}
+              Download backup to my computer
+            </label>
+          </fieldset>
+          <div className="actions">
+            <button
+              className="primary"
+              disabled={disabled}
+              onClick={() => void create()}
+            >
+              Create Backup
+            </button>
+            {controller.current && (
+              <button onClick={() => controller.current?.abort()}>
+                Cancel backup preparation
+              </button>
+            )}
+            {xhr.current && (
+              <button onClick={() => xhr.current?.abort()}>
+                Cancel upload
+              </button>
+            )}
+          </div>
+          <p className="muted">
+            Keep an external copy. Same-disk backups cannot protect against
+            total disk failure. Check browser downloads before relying on an
+            external copy.
+          </p>
+          {catalog && (
+            <>
+              <CollapsiblePanel
+                title="Automatic Weekly Backups"
+                summary={
+                  catalog.schedule.schedule.enabled ? "Enabled" : "Disabled"
+                }
+                defaultOpen
+              >
+                <dl className="info-list">
+                  <div>
+                    <dt>Last successful automatic backup</dt>
+                    <dd>{date(catalog.schedule.last_success?.created_at)}</dd>
+                  </div>
+                  <div>
+                    <dt>Next scheduled backup</dt>
+                    <dd>
+                      {date(
+                        catalog.schedule.next_run,
+                        catalog.schedule.schedule.timezone,
+                      )}{" "}
+                      ({catalog.schedule.schedule.timezone})
+                    </dd>
+                  </div>
+                </dl>
+                {catalog.schedule.last_failure && (
+                  <p role="alert">
+                    Last automatic backup failure (
+                    {date(catalog.schedule.last_failure.at)}):{" "}
+                    {catalog.schedule.last_failure.message}
+                    {catalog.schedule.retry_after &&
+                      ` Retry after ${date(catalog.schedule.retry_after)}.`}
+                  </p>
+                )}
+                {schedule && (
+                  <form
+                    className="backup-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void perform("Saving schedule…", async () => {
+                        await api("/schedule", {
+                          method: "PUT",
+                          body: JSON.stringify(schedule),
+                        });
+                        await refresh();
+                        setNotice("Weekly backup schedule saved.");
+                      });
+                    }}
+                  >
+                    <fieldset disabled={disabled} className="backup-schedule">
+                      <legend>Weekly schedule</legend>
+                      <label className="backup-check">
+                        <input
+                          type="checkbox"
+                          checked={schedule.enabled}
+                          onChange={(event) =>
+                            setSchedule({
+                              ...schedule,
+                              enabled: event.target.checked,
+                            })
+                          }
+                        />{" "}
+                        Enable automatic backups
+                      </label>
+                      <label>
+                        Day
+                        <select
+                          value={schedule.weekday}
+                          onChange={(event) =>
+                            setSchedule({
+                              ...schedule,
+                              weekday: Number(event.target.value),
+                            })
+                          }
+                        >
+                          {[
+                            "Monday",
+                            "Tuesday",
+                            "Wednesday",
+                            "Thursday",
+                            "Friday",
+                            "Saturday",
+                            "Sunday",
+                          ].map((day, index) => (
+                            <option key={day} value={index}>
+                              {day}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Local time
+                        <input
+                          type="time"
+                          required
+                          value={schedule.time}
+                          onChange={(event) =>
+                            setSchedule({
+                              ...schedule,
+                              time: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Time zone
+                        <input
+                          required
+                          value={schedule.timezone}
+                          onChange={(event) =>
+                            setSchedule({
+                              ...schedule,
+                              timezone: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        Automatic backups to retain
+                        <input
+                          type="number"
+                          required
+                          min={1}
+                          max={52}
+                          value={schedule.retention}
+                          onChange={(event) =>
+                            setSchedule({
+                              ...schedule,
+                              retention: Number(event.target.value),
+                            })
+                          }
+                        />
+                      </label>
+                    </fieldset>
+                    <button disabled={disabled}>Save Schedule</button>
+                  </form>
+                )}
+                <p className="muted">
+                  Defaults: Sunday, 3:00 AM America/New_York, latest 12
+                  successful automatic backups. One missed occurrence is caught
+                  up after startup. Manual and recovery backups are never
+                  automatically pruned.
+                </p>
+              </CollapsiblePanel>
+              <CollapsiblePanel
+                title="Stored Backups"
+                summary={`${catalog.backups.length} backups · ${size(catalog.storage.used_bytes)}`}
+                defaultOpen
+              >
+                <button
+                  disabled={disabled}
+                  onClick={() => void perform("Refreshing backups…", refresh)}
+                >
+                  Refresh Backups
+                </button>
+                <p>
+                  Backup storage: {size(catalog.storage.used_bytes)} used ·{" "}
+                  {size(catalog.storage.available_bytes)} available
+                </p>
+                <p className="muted">
+                  Server directory: backups/ (retained during restore). Newest
+                  first.
+                </p>
+                <div className="backup-list">
+                  {catalog.backups.length === 0 ? (
+                    <p>No stored backups yet.</p>
+                  ) : (
+                    catalog.backups.map((backup) => (
+                      <article className="backup-entry" key={backup.id}>
+                        <h4>
+                          {backup.kind === "weekly" ? "Automatic" : "Manual"} ·{" "}
+                          {date(backup.created_at)}
+                        </h4>
+                        <p>
+                          {size(backup.size_bytes)} ·{" "}
+                          {backup.validation === "verified"
+                            ? "Verified"
+                            : backup.validation.replaceAll("_", " ")}{" "}
+                          · App {backup.application_version} · Database{" "}
+                          {backup.migration_revision}
+                        </p>
+                        <p className="muted">{backup.filename}</p>
+                        <div className="actions">
+                          <button
+                            disabled={disabled}
+                            onClick={() =>
+                              void perform(
+                                "Verifying stored backup…",
+                                async () => {
+                                  try {
+                                    await api(`/catalog/${backup.id}/verify`, {
+                                      method: "POST",
+                                    });
+                                    setNotice("Stored backup verified.");
+                                  } finally {
+                                    await refresh();
+                                  }
+                                },
+                              )
+                            }
+                          >
+                            Verify
+                          </button>
+                          <button
+                            disabled={
+                              disabled || backup.validation !== "verified"
+                            }
+                            onClick={() => {
+                              nativeDownload(
+                                `/api/backups/catalog/${backup.id}/download`,
+                                backup.filename,
+                              );
+                              setNotice(
+                                "Download requested. Check browser downloads; the server copy is retained.",
+                              );
+                            }}
+                          >
+                            Download
+                          </button>
+                          <button
+                            disabled={
+                              disabled || backup.validation !== "verified"
+                            }
+                            onClick={() => void selectStored(backup)}
+                          >
+                            Restore
+                          </button>
+                          <button
+                            className="danger"
+                            disabled={disabled}
+                            onClick={() => setDeleting(backup)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </CollapsiblePanel>
+            </>
+          )}
+          {deleting && (
+            <section
+              className="backup-confirm"
+              aria-label="Confirm backup deletion"
+            >
+              <h3>Delete Stored Backup?</h3>
+              <p>
+                {deleting.filename} will be deleted from this server.
+                Cultivation records are unaffected.
+              </p>
+              <div className="actions">
+                <button
+                  className="danger"
+                  disabled={disabled}
+                  onClick={() =>
+                    void perform("Deleting backup…", async () => {
+                      await api(`/catalog/${deleting.id}`, {
+                        method: "DELETE",
+                        body: JSON.stringify({ confirmation: "DELETE-BACKUP" }),
+                      });
+                      setDeleting(null);
+                      await refresh();
+                      setNotice("Selected backup deleted.");
+                    })
+                  }
+                >
+                  Confirm Delete Backup
+                </button>
+                <button disabled={disabled} onClick={() => setDeleting(null)}>
+                  Keep Backup
+                </button>
+              </div>
+            </section>
+          )}
+          <CollapsiblePanel
+            title="Restore from ZIP"
+            summary="Upload, verify, then confirm"
+          >
+            <form
+              className="backup-form"
+              onSubmit={(event) => void upload(event)}
+            >
+              <label>
+                Backup ZIP
+                <input
+                  type="file"
+                  accept=".zip,application/zip"
+                  disabled={disabled}
+                  onChange={(event) => setFile(event.target.files?.[0] || null)}
+                />
+              </label>
+              <label className="backup-check">
+                <input
+                  type="checkbox"
+                  disabled={disabled}
+                  checked={retain}
+                  onChange={(event) => setRetain(event.target.checked)}
+                />{" "}
+                Keep uploaded ZIP as a manual server backup
+              </label>
+              <button disabled={disabled || !file}>
+                Upload and Verify ZIP
+              </button>
+            </form>
+            <p>
+              Uploading never starts restoration automatically. Uploaded files
+              are temporary unless you choose to keep a server copy.
+            </p>
+          </CollapsiblePanel>
+          {preview && (
+            <section
+              className="backup-confirm"
+              aria-label="Confirm cultivation restore"
+            >
+              <h3>Restore This Backup?</h3>
+              <dl className="info-list">
+                <div>
+                  <dt>Backup date</dt>
+                  <dd>{date(preview.created_at)}</dd>
+                </div>
+                <div>
+                  <dt>Size</dt>
+                  <dd>{size(preview.size_bytes)}</dd>
+                </div>
+                <div>
+                  <dt>Source</dt>
+                  <dd>
+                    {preview.source === "stored"
+                      ? "Server backup"
+                      : "Uploaded ZIP"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Application / database</dt>
+                  <dd>
+                    {preview.application_version} / {preview.migration_revision}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Compatibility</dt>
+                  <dd>
+                    Verified — integrity, relationships and photos checked
+                  </dd>
+                </div>
+              </dl>
+              <p>
+                Current cultivation data will be replaced. An independent safety
+                backup and original data directories will be retained. Git,
+                source, Compose, .env and stored backups stay in place. The app
+                will briefly stop and reconnect automatically.
+              </p>
+              <label className="backup-check">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  disabled={disabled}
+                  onChange={(event) => setConfirmed(event.target.checked)}
+                />{" "}
+                I understand that current cultivation data will be replaced.
+              </label>
+              <div className="actions">
+                <button
+                  className="danger"
+                  disabled={disabled || !confirmed}
+                  onClick={() => void restoreGrow()}
+                >
+                  Restore and Replace Current Data
+                </button>
+                <button
+                  disabled={disabled}
+                  onClick={() =>
+                    void perform("Cancelling restore preview…", async () => {
+                      await api(`/restore/preview/${preview.id}`, {
+                        method: "DELETE",
+                      });
+                      setPreview(null);
+                      setConfirmed(false);
+                    })
+                  }
+                >
+                  Cancel Restore
+                </button>
+              </div>
+            </section>
+          )}
+        </>
+      )}
     </CollapsiblePanel>
   );
 }

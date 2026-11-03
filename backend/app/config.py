@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("../data")
     frontend_dir: Path = Path("../frontend/dist")
     environment: str = "development"
+    maintenance_socket: Path = Path("/run/cultivatinator-maintenance/control.sock")
+    maintenance_key: Path = Path("/run/cultivatinator-maintenance/channel.key")
 
     @property
     def database_path(self) -> Path:

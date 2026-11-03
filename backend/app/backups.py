@@ -1,20 +1,21 @@
-"""Coordinated temporary backup downloads; browser restore is deliberately absent."""
+"""Coordinated temporary downloads and authenticated helper capture/freeze."""
 
 import anyio
 import threading
 import time
 from uuid import UUID, uuid4
-from fastapi import APIRouter, HTTPException, Request
-from starlette.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Request, Depends
+from starlette.responses import FileResponse, JSONResponse
 from .backup_format import BackupError, create_backup
+from .backup_access import require_admin, admin_or_machine, machine_authorized
 
 router = APIRouter(prefix="/api/backups", tags=["Complete workspace backup"])
 TTL = 300
 
 
 class MutationGate:
-    def __init__(self, app, gate):
-        self.app, self.gate = app, gate
+    def __init__(self, app, gate, state=None):
+        self.app, self.gate, self.state = app, gate, state
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http" and scope["method"] not in {
@@ -23,6 +24,19 @@ class MutationGate:
             "OPTIONS",
         }:
             async with self.gate:
+                if (
+                    self.state
+                    and self.state.maintenance_mode
+                    and not scope["path"].startswith("/api/backups/admin/")
+                    and scope["path"] != "/api/backups/maintenance/freeze"
+                ):
+                    await JSONResponse(
+                        {
+                            "detail": "Restore maintenance is in progress. Cultivation changes are temporarily unavailable."
+                        },
+                        status_code=503,
+                    )(scope, receive, send)
+                    return
                 await self.app(scope, receive, send)
         else:
             await self.app(scope, receive, send)
@@ -83,21 +97,38 @@ async def capture(request):
         raise
 
 
-@router.get("/download")
+@router.get("/download", dependencies=[Depends(admin_or_machine)])
 async def download(request: Request):
     if request.query_params:
         raise HTTPException(
             400, "Backup download does not accept filesystem paths or parameters"
         )
-    async with request.app.state.mutation_gate:
-        artifact = await capture(request)
+
+    async def snapshot():
+        async with request.app.state.mutation_gate:
+            return await capture(request)
+
+    if machine_authorized(request):
+        artifact = await snapshot()
+    else:
+        try:
+            async with request.app.state.backup_manager.exclusive("manual download"):
+                artifact = await snapshot()
+        except BackupError as exc:
+            raise HTTPException(409, str(exc)) from exc
     return Download(artifact)
 
 
-@router.post("/prepare", status_code=201)
+@router.post("/prepare", status_code=201, dependencies=[Depends(require_admin)])
 async def prepare(request: Request):
     # MutationGate already covers this whole POST. Do not acquire it twice.
-    artifact = await capture(request)
+    try:
+        async with request.app.state.backup_manager.exclusive(
+            "manual download preparation"
+        ):
+            artifact = await capture(request)
+    except BackupError as exc:
+        raise HTTPException(409, str(exc)) from exc
     token = str(uuid4())
     request.app.state.backups[token] = (time.monotonic() + TTL, artifact)
     return {
@@ -108,7 +139,7 @@ async def prepare(request: Request):
     }
 
 
-@router.get("/prepared/{token}")
+@router.get("/prepared/{token}", dependencies=[Depends(require_admin)])
 async def prepared(token: UUID, request: Request):
     item = request.app.state.backups.pop(str(token), None)
     if item is None:
@@ -122,11 +153,24 @@ async def prepared(token: UUID, request: Request):
     return Download(artifact)
 
 
-@router.delete("/prepared/{token}", status_code=204)
+@router.delete(
+    "/prepared/{token}", status_code=204, dependencies=[Depends(require_admin)]
+)
 async def cancel(token: UUID, request: Request):
     item = request.app.state.backups.pop(str(token), None)
     if item:
         item[1].cleanup()
+
+
+@router.post("/maintenance/freeze")
+async def freeze(request: Request):
+    if not machine_authorized(request):
+        raise HTTPException(403, "Authenticated maintenance channel required")
+    value = await request.json()
+    if set(value) != {"enabled"} or type(value["enabled"]) is not bool:
+        raise HTTPException(400, "Invalid maintenance action")
+    request.app.state.maintenance_mode = value["enabled"]
+    return {"maintenance": value["enabled"]}
 
 
 async def expire_backups(app):

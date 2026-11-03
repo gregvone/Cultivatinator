@@ -24,6 +24,9 @@ image = sys.argv[1] if len(sys.argv) > 1 else "cultivatinator:milestone-2d2"
 temp = Path(tempfile.mkdtemp(prefix="cultivatinator-backup-compose-"))
 root = temp / "installation"
 root.mkdir()
+runtime = temp / "runtime"
+runtime.mkdir()
+(runtime / "channel.key").write_text("c" * 64)
 project = "cultivatinator-backup-" + uuid4().hex[:10]
 with socket.socket() as sock:
     sock.bind(("127.0.0.1", 0))
@@ -37,7 +40,7 @@ services:
     image: {image}
     restart: unless-stopped
     ports: ["127.0.0.1:{port}:8085"]
-    volumes: ["{root}:/data"]
+    volumes: ["{root}:/data", "{runtime}:/run/cultivatinator-maintenance:ro"]
 """
 )
 (root / ".git").mkdir()
@@ -93,6 +96,8 @@ def controller_run(arguments):
         f"type=bind,src={temp},dst={temp}",
         "--mount",
         f"type=bind,src={ROOT},dst=/repo,readonly",
+        "--mount",
+        f"type=bind,src={runtime},dst=/run/cultivatinator-maintenance,readonly",
         "--mount",
         "type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock",
         "--mount",
@@ -150,7 +155,7 @@ def attach(path):
 
 try:
     helper(
-        f"import os;os.chown({str(root)!r},10001,10001);os.chmod({str(root)!r},0o755)"
+        f"import os;os.chown({str(root)!r},10001,10001);os.chmod({str(root)!r},0o755);os.chown({str(runtime)!r},0,10001);os.chmod({str(runtime)!r},0o750);os.chown({str(runtime / 'channel.key')!r},0,10001);os.chmod({str(runtime / 'channel.key')!r},0o640)"
     )
     docker("compose", "-f", str(compose), "up", "-d")
     for _ in range(100):
@@ -216,7 +221,13 @@ try:
     )
     before = get(f"/api/fruiting/records/{code}")
     archive = temp / "complete.zip"
-    with urllib.request.urlopen(base + "/api/backups/download", timeout=300) as r:
+    with urllib.request.urlopen(
+        urllib.request.Request(
+            base + "/api/backups/download",
+            headers={"X-Cultivatinator-Maintenance": "c" * 64},
+        ),
+        timeout=300,
+    ) as r:
         archive.write_bytes(r.read())
     print(controller("verify", archive))
     extra = post("/api/library/strains", {"name": "After backup"})

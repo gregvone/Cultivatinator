@@ -14,3 +14,4 @@ test-results/
 /.cultivatinator-restore.lock
 /.cultivatinator-restore-in-progress.json
 /.cultivatinator-permission-*
+/backups/
