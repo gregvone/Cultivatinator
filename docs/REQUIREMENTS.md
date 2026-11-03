@@ -16,10 +16,14 @@ Universal acquisitions for culture/spores, colonized spawn jars/bags (SJ/SB, Rea
 
 Dashboard Quick Create with six dedicated material entries; context-sensitive active source choices and validated source preselection; source-detail Create From This; Inventory-owned external acquisition and strain management; compatible legacy URL redirects; uncluttered Culture Library reference navigation. The existing spore collection endpoint powers New Spore Print. Other operational entries clearly defer execution without new records or consumption. No models, migrations or backend operations changed. See [2C.1](MILESTONE_2C1.md) and the staged [approved future commitments](ROADMAP.md#milestone-2c-staged-delivery).
 
+## Implemented — Milestone 2C.2
+
+Direct one-save inoculated agar/LC/spawn creation, automatic dates and permanent IDs, exact source lineage/provenance, measured LC accounting on culture details, four recipe categories with immutable snapshots and full management, one designated automatic LC default, inherited syringe media, Acquisitions navigation, Add Strain in Culture Library and growing Laboratory/Cultivation views. Inventory and equipment/ingredient setup are removed from the normal interface; historical records/APIs/migrations remain compatible. Existing photos, mixed FR identity, genealogy and archived history are preserved. See [2C.2 operations](MILESTONE_2C2.md).
+
 ## Approved future requirements — not implemented
 
-- Agar preparation and individual plates, growing cultures, liquid culture preparation, transfers, laboratory observations, germination monitoring and failed cloning/establishment attempts. Successful cloning and spore collection are implemented in 2B.
-- Grain/spawn preparation, inoculation and detailed colonization observations; fruiting automation, flushes and individual harvests. Acquired spawn, manual stages and GB/FR provenance are implemented.
+- Detailed growth/laboratory observations, germination monitoring and failed cloning-attempt workflows. Preparation, routine transfers and record-level failure are implemented in 2C.2. Successful cloning and spore collection are implemented in 2B.
+- Detailed colonization observations, fruiting automation, flushes and individual harvests; actual spawning/FR substrate allocation remains 2C.3. Grain preparation and inoculation are implemented in 2C.2. Acquired spawn, manual stages and GB/FR provenance are implemented.
 - Detailed physical propagation operations, multiple-source laboratory operations and an interactive genealogy editor. Explicit genetic ancestry and manual grow contributions are implemented. Permanent identifiers and individually registered batch containers are implemented in 2A.
 - Biological inventory, raw materials, supplies, consumables, reusable containers, equipment and storage locations; reusable laboratory/substrate recipes; automatic transactional inventory deductions, partial consumption and cost accounting. Initial quantities and optional descriptive per-container purchase prices are implemented in 2A.
 - Laboratory observations, non-photo file attachments, environmental temperature/humidity/growing-area records, and cross-module activity. Culture Library photos and history are implemented.

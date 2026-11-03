@@ -41,6 +41,7 @@ function mockLibrary(empty = false) {
     .mockImplementation(async (input, init) => {
       const url = String(input);
       const method = init?.method || "GET";
+      if (url.includes("/api/preparation/")) return response([]);
       if (url.includes("/api/provenance/"))
         return response({
           origin_type: "external",
@@ -73,14 +74,13 @@ function mockLibrary(empty = false) {
       return response(strain);
     });
 }
-test("empty catalog links to Inventory for strain management", async () => {
+test("Culture Library provides Add Strain without an Inventory workspace", async () => {
   const fetch = mockLibrary(true);
   mount();
   const u = userEvent.setup();
   expect(
     await screen.findByText("Your strain catalog starts here."),
   ).toBeInTheDocument();
-  await u.click(screen.getByRole("link", { name: "Open Inventory" }));
   await u.click(screen.getByRole("link", { name: "Add Strain" }));
   await u.type(screen.getByLabelText("Strain name *"), "New strain");
   await u.click(screen.getByRole("button", { name: "Create strain" }));

@@ -3,6 +3,8 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { PageHeader } from "../components/UI";
 import { Field } from "./LibraryForms";
+import { LabelChoices } from "../components/ContainerTracking";
+import type { LabelChoice } from "../containerApi";
 import {
   allLibraryRecords,
   libraryApi,
@@ -224,7 +226,7 @@ export function AcquisitionForm() {
   );
   return (
     <>
-      <Link to="/inventory">← Inventory</Link>
+      <Link to="/acquisitions">← Acquisitions</Link>
       <PageHeader
         title="Receive Acquisition"
         description="Start tracking at the stage you acquired. Earlier cultivation history stays unknown."
@@ -419,7 +421,7 @@ export function AcquisitionForm() {
                 ? "Confirm acquisition"
                 : "Review acquisition"}
           </button>
-          <Link to="/inventory">Cancel</Link>
+          <Link to="/acquisitions">Cancel</Link>
         </div>
       </form>
     </>
@@ -446,6 +448,8 @@ export function GrowForm() {
     storage_location: "",
     acquisition_date: "",
     source_ids: [] as string[],
+    reusable: false,
+    label_choice: {} as LabelChoice,
   });
   const [containers, setContainers] = useState([empty()]);
   const [error, setError] = useState("");
@@ -472,6 +476,11 @@ export function GrowForm() {
           source_ids: sources,
           containers: containers.map((c) => ({
             ...c,
+            reusable: undefined,
+            label_choice: {
+              ...c.label_choice,
+              ...(c.material_type === "other" ? { reusable: c.reusable } : {}),
+            },
             ...quantityFields(c),
             name: optional(c.name),
             notes: optional(c.notes),
@@ -544,8 +553,9 @@ export function GrowForm() {
                   );
                 }}
               />
-              {s.id} · {s.strain_name || "Unknown strain"} · {s.line_id} ·{" "}
-              {s.stage}
+              {s.physical_label || s.id}
+              {s.physical_label ? ` (record ${s.id})` : ""} ·{" "}
+              {s.strain_name || "Unknown strain"} · {s.line_id} · {s.stage}
             </label>
           ))}
         </fieldset>
@@ -609,7 +619,15 @@ export function GrowForm() {
                 set={(_, value) =>
                   setContainers(
                     containers.map((item, j) =>
-                      j === i ? { ...item, [n]: value } : item,
+                      j === i
+                        ? {
+                            ...item,
+                            [n]: value,
+                            ...(n === "material_type"
+                              ? { label_choice: {} }
+                              : {}),
+                          }
+                        : item,
                     ),
                   )
                 }
@@ -643,6 +661,42 @@ export function GrowForm() {
                 }
               />
             ))}
+            {c.material_type === "other" && (
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={c.reusable}
+                  onChange={(e) =>
+                    setContainers(
+                      containers.map((row, j) =>
+                        j === i
+                          ? {
+                              ...row,
+                              reusable: e.target.checked,
+                              label_choice: {},
+                            }
+                          : row,
+                      ),
+                    )
+                  }
+                />
+                Physically reusable fruiting container
+              </label>
+            )}
+            <LabelChoices
+              key={`${c.material_type}-${c.reusable}`}
+              material={c.material_type}
+              reusable={c.material_type === "other" ? c.reusable : undefined}
+              count={1}
+              choices={[c.label_choice]}
+              onChange={(choice) =>
+                setContainers(
+                  containers.map((row, j) =>
+                    j === i ? { ...row, label_choice: choice[0] || {} } : row,
+                  ),
+                )
+              }
+            />
             {v.allocation_mode === "specific" && (
               <fieldset>
                 <legend>
@@ -666,7 +720,8 @@ export function GrowForm() {
                         )
                       }
                     />
-                    {s.id} · {s.line_id}
+                    {s.physical_label || s.id}
+                    {s.physical_label ? ` (record ${s.id})` : ""} · {s.line_id}
                   </label>
                 ))}
               </fieldset>

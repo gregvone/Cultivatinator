@@ -16,7 +16,7 @@ export function PageHeader({
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      <span className="badge">Milestone 2C.1 · Quick Create</span>
+      <span className="badge">Milestone 2C.2 · Quick Create</span>
     </header>
   );
 }

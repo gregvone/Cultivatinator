@@ -6,3 +6,9 @@
 **/.pytest_cache
 data
 .env
+
+# Production data can coexist with this checkout; never send it as build context.
+/database/
+/photos/
+/files/
+/settings/

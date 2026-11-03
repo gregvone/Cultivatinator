@@ -1,3 +1,4 @@
+import { cultivationStatus } from "./containerApi";
 import {
   CircleDot,
   Syringe,
@@ -7,7 +8,7 @@ import {
   Sprout,
 } from "lucide-react";
 import type { LibraryRecord } from "./libraryApi";
-import { cultureTypes, sporeTypes, growTypes } from "./libraryApi";
+import { libraryApi, cultureTypes, sporeTypes, growTypes } from "./libraryApi";
 
 const agar = ["agar_plate", "slant"];
 const liquid = ["lc_jar", "lc_syringe"];
@@ -20,8 +21,7 @@ export const quickCreate = [
     physical: [...agar, ...liquid],
     description:
       "Start from an existing agar culture, liquid culture, or spore source.",
-    deferred:
-      "Agar preparation, inoculation, and transfers will be available in Milestone 2C.2. Selecting a source here does not create a plate or establish a culture line.",
+    deferred: null,
   },
   {
     id: "lc-syringe",
@@ -31,8 +31,7 @@ export const quickCreate = [
     physical: liquid,
     description:
       "Select an existing liquid culture, preferably an LC container or jar.",
-    deferred:
-      "Filling and transferring liquid culture into a syringe will be available in Milestone 2C.2. No syringe, new culture line, or inventory deduction is created here.",
+    deferred: null,
   },
   {
     id: "lc-container",
@@ -41,8 +40,7 @@ export const quickCreate = [
     kinds: ["physical"],
     physical: [...agar, ...liquid],
     description: "Select an existing agar or liquid culture source.",
-    deferred:
-      "Liquid culture preparation and inoculation will be available in Milestone 2C.2. No container or new culture line is created here.",
+    deferred: null,
   },
   {
     id: "spawn",
@@ -51,9 +49,8 @@ export const quickCreate = [
     kinds: ["physical"],
     physical: [...agar, ...liquid],
     description:
-      "Select an existing agar or liquid culture for a future inoculation.",
-    deferred:
-      "Separate grain preparation and spawn inoculation will be available in Milestone 2C.2. No spawn, reusable-container allocation, or inventory deduction is created here.",
+      "Create inoculated spawn from an existing agar or liquid culture.",
+    deferred: null,
   },
   {
     id: "spore-print",
@@ -83,8 +80,20 @@ export function eligibleSource(
   record: LibraryRecord,
 ) {
   if (
+    ["used", "depleted", "completed", "failed"].includes(
+      record.lifecycle || "active",
+    ) ||
+    (record.balance_tracked &&
+      record.remaining_quantity != null &&
+      /^0*(\.0*)?$/.test(record.remaining_quantity)) ||
     record.status !== "active" ||
     !(operation.kinds as readonly string[]).includes(record.kind)
+  )
+    return false;
+  if (
+    record.kind === "physical" &&
+    record.material_type === "agar_plate" &&
+    record.growth_stage !== "ready"
   )
     return false;
   if (record.kind === "physical")
@@ -118,7 +127,7 @@ export function sourceLabel(record: LibraryRecord) {
     (
       { ...cultureTypes, ...sporeTypes, ...growTypes } as Record<string, string>
     )[record.material_type ?? ""] || "Fruiting container";
-  return `${record.id}${record.name ? ` · ${record.name}` : ""} · ${material} · ${strain}${record.line_id ? ` · Line ${record.line_id}` : ""} · ${record.stage || record.status}`;
+  return `${record.physical_label || record.id}${record.physical_label ? ` (record ${record.id})` : ""}${record.name ? ` · ${record.name}` : ""} · ${material} · ${strain}${record.line_id ? ` · Line ${record.line_id}` : ""} · ${cultivationStatus(record)}`;
 }
 export function availableOperations(record: LibraryRecord) {
   return quickCreate.filter((op) => eligibleSource(op, record));
@@ -126,4 +135,23 @@ export function availableOperations(record: LibraryRecord) {
 // A record ID is always paired with its kind; never infer a genetic source from a strain.
 export function sourceKey(record: Pick<LibraryRecord, "kind" | "id">) {
   return `${record.kind}:${record.id}`;
+}
+
+export async function verifyAgarSource(
+  source: LibraryRecord,
+  operation: string,
+) {
+  if (source.material_type !== "agar_plate") return;
+  const fresh = await libraryApi<LibraryRecord>(`${source.kind}/${source.id}`);
+  const workflow = quickCreate.find((op) => op.id === operation);
+  if (
+    fresh.id !== source.id ||
+    fresh.kind !== source.kind ||
+    !workflow ||
+    !eligibleSource(workflow, fresh)
+  ) {
+    throw new Error(
+      `This agar source is no longer eligible (${cultivationStatus(fresh)}). Choose a Ready plate.`,
+    );
+  }
 }

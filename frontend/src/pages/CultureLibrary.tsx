@@ -1,3 +1,4 @@
+import { cultivationStatus } from "../containerApi";
 import { useEffect, useRef, useState } from "react";
 import { Dna, ImagePlus } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
@@ -18,6 +19,8 @@ import {
   title,
 } from "../libraryApi";
 import type { Activity, Kind, LibraryRecord, Photo } from "../libraryApi";
+import { MaterialOperationPanel } from "./PreparationWorkflow";
+import ContainerTracking from "../components/ContainerTracking";
 import { CreateFromThis } from "./QuickCreate";
 import { LineagePanel } from "./Provenance";
 import StrainIdentity from "../components/StrainIdentity";
@@ -28,7 +31,18 @@ function RecordLink({ record }: { record: LibraryRecord }) {
     <Link to={`/culture-library/${record.kind}/${record.id}`}>
       {title(record)}{" "}
       <small>
-        {record.id} · {record.status}
+        {record.id} ·{" "}
+        {record.material_type === "agar_plate"
+          ? cultivationStatus(record)
+          : record.status}
+        {record.material_type === "agar_plate" &&
+          record.status === "archived" &&
+          " · Archived record"}
+        {record.material_type !== "agar_plate" &&
+        record.lifecycle &&
+        record.lifecycle !== "active"
+          ? ` · ${record.lifecycle}`
+          : ""}
       </small>
     </Link>
   );
@@ -90,8 +104,13 @@ export function CultureLibrary() {
     <>
       <PageHeader
         title="Culture Library"
-        description="Browse strains, cultures, spores, photographs, and source relationships. Create from the dashboard or a source record; receive outside material in Inventory."
+        description="Browse strains, cultures, spores, photographs, and source relationships. Create from the dashboard or a source record; receive outside material in Acquisitions."
       />
+      <div className="actions">
+        <Link className="button primary" to="/culture-library/add-strain">
+          Add Strain
+        </Link>
+      </div>
       <div className="library-tabs" role="group" aria-label="Library views">
         {(Object.keys(kindNames) as Kind[]).map((k) => (
           <button
@@ -203,12 +222,12 @@ export function CultureLibrary() {
                 ? "Your strain catalog starts here."
                 : "No matching records."
             }
-            description="Browse reference records or adjust your search and filters. Receive outside material and manage strains in Inventory."
+            description="Browse reference records or adjust your search and filters. Receive outside material in Acquisitions, or add a reference strain here."
           />
           {kind === "strains" && (
             <div className="empty-action">
-              <Link className="button primary" to="/inventory">
-                Open Inventory
+              <Link className="button primary" to="/acquisitions">
+                Receive outside material
               </Link>
             </div>
           )}
@@ -275,6 +294,12 @@ export function CultureLibrary() {
                     : ""}
                 {r.supplier ? ` · ${r.supplier}` : ""}
               </p>
+              {r.balance_tracked && (
+                <p>
+                  Remaining Culture Material:{" "}
+                  {r.remaining_quantity ?? "Unknown"} {r.remaining_unit}
+                </p>
+              )}
               {r.quantity !== null && (
                 <p>
                   Registered Quantity: {r.quantity} {r.unit}
@@ -580,13 +605,17 @@ export function RecordDetail() {
       )}
       <PageHeader
         title={title(record)}
-        description={`${record.id} · ${kindNames[kind]} · ${record.status}`}
+        description={`${record.id} · ${kindNames[kind]} · ${record.material_type === "agar_plate" ? cultivationStatus(record) : record.status}${record.material_type !== "agar_plate" && record.lifecycle && record.lifecycle !== "active" ? ` · ${record.lifecycle}` : ""}`}
       />
       {(notice || location.state?.message) && (
         <p className="success-message" role="status">
           {notice || location.state.message}
         </p>
       )}
+      <ContainerTracking
+        record={record}
+        onSaved={() => setRevision((v) => v + 1)}
+      />
       <div className="actions">
         <button onClick={() => setEditing(!editing)}>Edit information</button>
         <button disabled={busy} onClick={() => void statusChange()}>
@@ -613,6 +642,13 @@ export function RecordDetail() {
               <dt>Permanent ID</dt>
               <dd>{record.id}</dd>
             </div>
+            {["physical", "spawn", "spores"].includes(kind) && (
+              <MaterialOperationPanel
+                key={`material/${kind}/${code}`}
+                record={record}
+                onSaved={() => setRevision((v) => v + 1)}
+              />
+            )}
             {kind !== "strains" && (
               <div>
                 <dt>Strain</dt>
@@ -653,14 +689,19 @@ export function RecordDetail() {
                 </div>
               )}
             <div>
+              <dt>Record visibility</dt>
+              <dd>{record.status === "active" ? "Active" : "Archived"}</dd>
+            </div>
+            <div>
               <dt>Registered</dt>
               <dd>{new Date(record.created_at).toLocaleString()}</dd>
             </div>
           </dl>
           {(kind === "physical" || kind === "spores") && (
             <p className="license-note">
-              Quantities describe initial registration. Usage and remaining
-              balances are not tracked.
+              Initial registration quantities remain descriptive. Explicit
+              Remaining Culture Material and recorded usage are shown separately
+              below.
             </p>
           )}
         </section>

@@ -381,7 +381,7 @@ def test_migrate_2a_preserves_records_photos_history_and_sequences(settings):
         )
         assert acquisition(client)["line"]["id"] == "CL-0010"
     command.check(config)
-    with pytest.raises(RuntimeError, match="2B data exists"):
+    with pytest.raises(RuntimeError, match="Physical label or lifecycle history exists"):
         command.downgrade(config, "0002_culture_library")
     with TestClient(create_app(settings)) as client:
         assert client.get("/api/library/lines/CL-0009").status_code == 200

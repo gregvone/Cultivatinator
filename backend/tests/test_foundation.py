@@ -44,6 +44,19 @@ def test_health_and_database(client, settings):
         "spore_collections",
         "line_origins",
         "line_parents",
+        "stock_items",
+        "inventory_operations",
+        "stock_transactions",
+        "preparation_recipes",
+        "lc_media_default",
+        "container_labels",
+        "label_assignments",
+        "cultivation_states",
+        "preparation_batches",
+        "prepared_materials",
+        "container_reservations",
+        "material_lifecycles",
+        "material_transfers",
     }
 
 
@@ -88,7 +101,7 @@ def test_migrations_repeat_and_persist(settings):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
-                == "0004_acquisition"
+                == "0010_containers"
             )
 
 

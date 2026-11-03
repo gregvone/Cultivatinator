@@ -17,7 +17,11 @@ from .library_schemas import (
 )
 
 
+from .preparation_schemas import LabelChoice
+
+
 class ContainerInput(Description):
+    label_choice: LabelChoice | None = None
     material_type: Literal["tray", "bag", "block", "other"] = "bag"
     stage: Literal["ready", "colonizing", "fruiting", "finished"] = "ready"
     acquisition_date: date | None = None
@@ -106,6 +110,7 @@ class GrowResult(Input):
 
 
 class EstablishInput(Description):
+    prepared_id: Text | None = None
     origin_date: date | None = None
     material: MaterialInput | None = None
     unknown_strain: bool = False

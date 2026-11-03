@@ -4,8 +4,10 @@ from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import text, select, func
+from sqlalchemy import text, select, func, or_
+from sqlalchemy.orm import Session
 from ..models import PhysicalCulture, Spawn, FruitingContainer
+from ..preparation_models import MaterialLifecycle
 
 from ..config import VERSION
 from ..database import migration_config
@@ -46,24 +48,61 @@ def health(request: Request):
 def dashboard_summary(request: Request):
     summary = DashboardSummary()
     with request.app.state.engine.connect() as connection:
-        summary.counts.active_cultures = connection.scalar(
-            select(func.count())
-            .select_from(PhysicalCulture)
-            .where(PhysicalCulture.status == "active")
-        )
-        for field, model in [
-            ("spawn_containers", Spawn),
-            ("fruiting_units", FruitingContainer),
+        for field, model, owner in [
+            ("active_cultures", PhysicalCulture, MaterialLifecycle.physical_id),
+            ("spawn_containers", Spawn, MaterialLifecycle.spawn_id),
         ]:
-            setattr(
-                summary.counts,
-                field,
-                connection.scalar(
-                    select(func.count())
-                    .select_from(model)
-                    .where(model.status == "active")
-                ),
+            count = connection.scalar(
+                select(func.count())
+                .select_from(model)
+                .outerjoin(MaterialLifecycle, owner == model.id)
+                .where(
+                    model.status == "active",
+                    or_(
+                        MaterialLifecycle.state.is_(None),
+                        MaterialLifecycle.state == "active",
+                    ),
+                )
             )
+            setattr(summary.counts, field, count)
+        summary.counts.fruiting_units = connection.scalar(
+            select(func.count())
+            .select_from(FruitingContainer)
+            .where(
+                FruitingContainer.status == "active",
+                FruitingContainer.stage != "finished",
+            )
+        )
+    from ..library import output
+    from ..schemas import RecordReference
+
+    with Session(request.app.state.engine) as session:
+        for kind, model in (
+            ("physical", PhysicalCulture),
+            ("spawn", Spawn),
+            ("fruiting", FruitingContainer),
+        ):
+            for row in session.scalars(
+                select(model)
+                .where(model.status == "active")
+                .order_by(model.created_at.desc())
+                .limit(12)
+            ):
+                record = output(session, kind, row)
+                if record.lifecycle in {
+                    "used",
+                    "completed",
+                    "failed",
+                    "depleted",
+                } or getattr(row, "stage", None) in {"used", "finished"}:
+                    continue
+                summary.active_cultivation.append(
+                    RecordReference(
+                        record_id=row.id,
+                        title=f"{record.physical_label or row.id} · {record.strain_name or record.material_type or 'Unknown strain'}",
+                        target=f"/culture-library/{kind}/{row.id}",
+                    )
+                )
     return summary
 
 

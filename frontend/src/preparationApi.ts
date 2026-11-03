@@ -1,0 +1,286 @@
+import { useEffect, useRef, useState } from "react";
+import { libraryApi } from "./libraryApi";
+export const preparationApi = <T>(
+  path: string,
+  method = "GET",
+  body?: unknown,
+) => libraryApi<T>(path, method, body, "preparation");
+export interface Stock {
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+  available: string | null;
+  container_type: string | null;
+  physical_id: string | null;
+  spore_id: string | null;
+  revision: number;
+  notes: string | null;
+  storage_location?: string | null;
+  status: string;
+}
+export interface Ingredient {
+  item_id: string;
+  quantity: string;
+  unit: string;
+  name?: string;
+}
+export interface Processing {
+  method: string | null;
+  duration_minutes: number | null;
+  temperature_c: string | null;
+  pressure_psi: string | null;
+  notes: string | null;
+}
+export interface Recipe {
+  is_lc_default?: boolean;
+  description?: string | null;
+  notes?: string | null;
+  updated_at?: string | null;
+  created_at?: string;
+  used?: boolean;
+  id: string;
+  name: string;
+  recipe_type: string;
+  batch_yield: number;
+  ingredients: Ingredient[];
+  instructions: string | null;
+  processing: Processing;
+  shelf_life_days: number | null;
+  revision: number;
+  status: string;
+}
+export interface Prepared {
+  physical_label?: string | null;
+  label_reusable?: boolean | null;
+  label_occupied?: boolean;
+  growth_stage?: string | null;
+  inoculation_date?: string | null;
+  completed_date?: string | null;
+  ready_date?: string | null;
+  used_date?: string | null;
+  failed_date?: string | null;
+  id: string;
+  batch_id: string;
+  material_type: string;
+  stage: string;
+  use_by: string | null;
+  expired: boolean;
+  physical_id: string | null;
+  spawn_id: string | null;
+  source: {
+    physical_label?: string | null;
+    kind: "physical" | "spores";
+    id: string;
+    operation_id: string;
+    date: string | null;
+    usage_quantity: string | null;
+    unit: string;
+  } | null;
+  snapshot: {
+    workflow?: string;
+    media_origin?: "prepared" | "source_transfer" | null;
+    media_source_id?: string | null;
+    recipe_id?: string | null;
+    ingredients: Ingredient[];
+    recipe: Omit<Recipe, "id" | "revision" | "status"> | null;
+    recipe_revision?: number | null;
+    processing: Processing;
+    preparation_date: string | null;
+    notes: string | null;
+    container_name: string;
+  };
+}
+export interface Ledger {
+  id: number;
+  operation_id: string;
+  item_id: string;
+  entry_type: string;
+  amount: string | null;
+  unit: string;
+  before_quantity: string | null;
+  after_quantity: string | null;
+  reason: string;
+  created_at: string;
+}
+export const materialNames: Record<string, string> = {
+  agar_plate: "Agar plate",
+  lc_jar: "LC container / jar",
+  lc_syringe: "LC syringe",
+  spawn_jar: "Spawn jar",
+  spawn_bag: "Spawn bag",
+  fruiting_tray: "Fruiting tray",
+};
+export const stockUnits = {
+  mg: "Milligrams (mg)",
+  g: "Grams (g)",
+  kg: "Kilograms (kg)",
+  oz: "Ounces — weight (oz)",
+  lb: "Pounds (lb)",
+  mL: "Milliliters (mL)",
+  L: "Liters (L)",
+  us_fl_oz: "US fluid ounces (volume)",
+  us_cup: "US cups (volume)",
+  count: "Each / count",
+  each: "Each",
+  plate: "Plate",
+  print: "Print",
+  swab: "Swab",
+  slant: "Slant",
+};
+export const stageName = (value: string) =>
+  ({
+    preparing: "Preparing",
+    ready: "Ready to Inoculate",
+    inoculated: "Inoculated",
+    completed: "Completed",
+    failed: "Failed",
+  })[value] || value;
+export function newRequestKey(random: Crypto = crypto) {
+  if (typeof random.randomUUID === "function") return random.randomUUID();
+  // getRandomValues also works on private-network HTTP origins, where
+  // randomUUID is unavailable. Preserve random retry keys without requiring HTTPS.
+  return Array.from(random.getRandomValues(new Uint8Array(16)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+}
+export function useInventoryCommand(namespace = "preparation") {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const prior = useRef<{ signature: string; key: string } | null>(null);
+  async function send<T>(
+    path: string,
+    payload: unknown,
+    method = "POST",
+    validateNewCommand?: () => Promise<void>,
+  ): Promise<T | undefined> {
+    const signature = JSON.stringify([path, method, payload]);
+    setBusy(true);
+    setError("");
+    try {
+      if (prior.current?.signature !== signature) {
+        await validateNewCommand?.();
+        prior.current = { signature, key: newRequestKey() };
+      }
+      // Replays must reach the existing request key even if the first command
+      // consumed its agar source before its response was lost.
+      return await libraryApi<T>(
+        path,
+        method,
+        {
+          ...(payload as object),
+          request_key: prior.current!.key,
+        },
+        namespace,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save operation");
+      return undefined;
+    } finally {
+      setBusy(false);
+    }
+  }
+  return {
+    busy,
+    error,
+    send,
+    reset: () => {
+      prior.current = null;
+      setError("");
+    },
+  };
+}
+export function useInventoryList<T>(path: string, enabled = true) {
+  const [data, setData] = useState<T[] | null>(null);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let live = true;
+    if (!enabled) {
+      setData([]);
+      return;
+    }
+    setError("");
+    preparationApi<T[]>(path)
+      .then((v) => {
+        if (live) setData(v);
+      })
+      .catch((e) => {
+        if (live) setError(e.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, [path, revision, enabled]);
+  return { data, error, reload: () => setRevision((v) => v + 1) };
+}
+// Preview arithmetic uses integer thousandths, never floating-point balances.
+export function scaleQuantity(
+  value: string,
+  numerator: number,
+  denominator = 1,
+): string {
+  if (
+    !/^\d+(\.\d{0,3})?$/.test(value) ||
+    !Number.isInteger(numerator) ||
+    numerator < 0 ||
+    !Number.isInteger(denominator) ||
+    denominator < 1
+  )
+    return "";
+  const [whole, fraction = ""] = value.split(".");
+  const milli = BigInt(whole) * 1000n + BigInt(fraction.padEnd(3, "0"));
+  const result =
+    (milli * BigInt(numerator) * 2n + BigInt(denominator)) /
+    (2n * BigInt(denominator));
+  return `${result / 1000n}.${String(result % 1000n).padStart(3, "0")}`;
+}
+
+export function compatibleUnits(unit: string) {
+  const dimensions = [
+    ["mg", "g", "kg", "oz", "lb"],
+    ["mL", "L", "us_fl_oz", "us_cup"],
+    ["count", "each"],
+  ];
+  const group = dimensions.find((g) => g.includes(unit)) || [unit];
+  return Object.fromEntries(
+    Object.entries(stockUnits).filter(([u]) => group.includes(u)),
+  );
+}
+export interface Pool {
+  item_id: string;
+  name: string;
+  available: string;
+  ready: number;
+  inoculated: number;
+  preparing: number;
+  other_reserved: number;
+  reserved: number;
+  total: string;
+}
+
+export function useLCMediaDefault(enabled = true) {
+  const [data, setData] = useState<Recipe | null | undefined>();
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    if (!enabled) {
+      setData(null);
+      return;
+    }
+    setData(undefined);
+    setError("");
+    preparationApi<{ recipe: Recipe | null }>("lc-default")
+      .then((v) => {
+        if (live) setData(v.recipe || null);
+      })
+      .catch((e) => {
+        if (live) setError(e.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, [enabled, attempt]);
+  return { data, error, reload: () => setAttempt((n) => n + 1) };
+}
