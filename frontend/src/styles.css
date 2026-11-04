@@ -2014,3 +2014,43 @@ a.summary-card:hover {
 .environment-chart text { fill: currentColor; font-size: 13px; }
 .environment-workspace select,.environment-workspace option { color: #edf3fa; background-color: #131f2d; color-scheme: dark; }
 .environment-workspace .actions { flex-wrap: wrap; }
+
+.experiment-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 52rem;
+}
+.experiment-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+.experiment-form label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+}
+.experiment-form fieldset {
+  min-width: 0;
+  border: 1px solid #344456;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+.experiment-form input:not([type="checkbox"]),
+.experiment-form select,
+.experiment-form textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.experiment-form select,
+.experiment-form option {
+  background: #1b2837;
+  color: #edf3fa;
+}
+.experiment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.experiment-snapshot { overflow-wrap: anywhere; }
+.experiment-snapshot dd { margin-inline-start: 1rem; white-space: pre-wrap; }

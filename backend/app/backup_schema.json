@@ -109,6 +109,30 @@
   ],
   [
     "index",
+    "ix_experiment_audit_history",
+    "experiment_audits",
+    "CREATE INDEX ix_experiment_audit_history ON experiment_audits (experiment_id, id)"
+  ],
+  [
+    "index",
+    "ix_experiment_groups_experiment_id",
+    "experiment_groups",
+    "CREATE INDEX ix_experiment_groups_experiment_id ON experiment_groups (experiment_id)"
+  ],
+  [
+    "index",
+    "ix_experiment_membership_fruiting",
+    "experiment_memberships",
+    "CREATE INDEX ix_experiment_membership_fruiting ON experiment_memberships (fruiting_id)"
+  ],
+  [
+    "index",
+    "ix_experiment_trial_tent_time",
+    "experiment_trials",
+    "CREATE INDEX ix_experiment_trial_tent_time ON experiment_trials (tent_id, starts_at, ends_at)"
+  ],
+  [
+    "index",
     "ix_fruiting_containers_batch_id",
     "fruiting_containers",
     "CREATE INDEX ix_fruiting_containers_batch_id ON fruiting_containers (batch_id)"
@@ -529,6 +553,48 @@
   ],
   [
     "table",
+    "experiment_audits",
+    "experiment_audits",
+    "CREATE TABLE experiment_audits (\"after\" TEXT NOT NULL, \"before\" TEXT, FOREIGN KEY(experiment_id) REFERENCES experiments (id), FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), PRIMARY KEY (id), UNIQUE (operation_id), action VARCHAR(40) NOT NULL, experiment_id VARCHAR(32) NOT NULL, id INTEGER NOT NULL, operation_id VARCHAR(32) NOT NULL, reason TEXT NOT NULL, recorded_at VARCHAR(40) NOT NULL)"
+  ],
+  [
+    "table",
+    "experiment_groups",
+    "experiment_groups",
+    "CREATE TABLE experiment_groups (FOREIGN KEY(experiment_id) REFERENCES experiments (id), PRIMARY KEY (id), UNIQUE (experiment_id, id), experiment_id VARCHAR(32) NOT NULL, id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "experiment_memberships",
+    "experiment_memberships",
+    "CREATE TABLE experiment_memberships (CHECK (classification IN ('prospective','retrospective','uncertain')), CHECK (exposure_end IS NULL OR exposure_end > exposure_start), FOREIGN KEY(experiment_id) REFERENCES experiments (id), FOREIGN KEY(experiment_id, unit_id) REFERENCES experiment_units (experiment_id, id), FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), PRIMARY KEY (id), UNIQUE (experiment_id, unit_id, fruiting_id, exposure_start), classification VARCHAR(20) NOT NULL, evidence TEXT NOT NULL, experiment_id VARCHAR(32) NOT NULL, exposure_end VARCHAR(40), exposure_start VARCHAR(40) NOT NULL, fruiting_id VARCHAR(32) NOT NULL, id INTEGER NOT NULL, unit_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "experiment_plan_revisions",
+    "experiment_plan_revisions",
+    "CREATE TABLE experiment_plan_revisions (CHECK (revision > 0), FOREIGN KEY(experiment_id) REFERENCES experiments (id), FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), PRIMARY KEY (experiment_id, revision), UNIQUE (operation_id), allocation_committed_at VARCHAR(40), committed_at VARCHAR(40), experiment_id VARCHAR(32) NOT NULL, operation_id VARCHAR(32) NOT NULL, reason TEXT NOT NULL, recorded_at VARCHAR(40) NOT NULL, revision INTEGER NOT NULL, snapshot TEXT NOT NULL)"
+  ],
+  [
+    "table",
+    "experiment_trials",
+    "experiment_trials",
+    "CREATE TABLE experiment_trials (CHECK (ends_at IS NULL OR ends_at > starts_at), CHECK (revision > 0), FOREIGN KEY(experiment_id) REFERENCES experiments (id), FOREIGN KEY(experiment_id, group_id) REFERENCES experiment_groups (experiment_id, id), FOREIGN KEY(tent_id) REFERENCES fruiting_tents (id), PRIMARY KEY (id), UNIQUE (experiment_id, group_id, id), UNIQUE (experiment_id, id), ends_at VARCHAR(40), experiment_id VARCHAR(32) NOT NULL, group_id VARCHAR(32) NOT NULL, id VARCHAR(32) NOT NULL, revision INTEGER NOT NULL, starts_at VARCHAR(40) NOT NULL, tent_id VARCHAR(32) NOT NULL, treatment_snapshot TEXT NOT NULL)"
+  ],
+  [
+    "table",
+    "experiment_units",
+    "experiment_units",
+    "CREATE TABLE experiment_units (CHECK ((kind='container' AND fruiting_id IS NOT NULL AND batch_id IS NULL AND trial_id IS NULL) OR (kind='batch' AND batch_id IS NOT NULL AND fruiting_id IS NULL AND trial_id IS NULL) OR (kind='tent_trial' AND trial_id IS NOT NULL AND fruiting_id IS NULL AND batch_id IS NULL)), CHECK (kind IN ('container','batch','tent_trial')), FOREIGN KEY(batch_id) REFERENCES grow_batches (id), FOREIGN KEY(experiment_id) REFERENCES experiments (id), FOREIGN KEY(experiment_id, group_id) REFERENCES experiment_groups (experiment_id, id), FOREIGN KEY(experiment_id, group_id, trial_id) REFERENCES experiment_trials (experiment_id, group_id, id), FOREIGN KEY(experiment_id, plan_revision) REFERENCES experiment_plan_revisions (experiment_id, revision), FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), PRIMARY KEY (id), UNIQUE (experiment_id, batch_id), UNIQUE (experiment_id, fruiting_id), UNIQUE (experiment_id, id), UNIQUE (experiment_id, trial_id), allocated_at VARCHAR(40) NOT NULL, batch_id VARCHAR(32), block VARCHAR(200), experiment_id VARCHAR(32) NOT NULL, fruiting_id VARCHAR(32), group_id VARCHAR(32) NOT NULL, id VARCHAR(32) NOT NULL, kind VARCHAR(20) NOT NULL, plan_revision INTEGER NOT NULL, recorded_at VARCHAR(40) NOT NULL, trial_id VARCHAR(32))"
+  ],
+  [
+    "table",
+    "experiments",
+    "experiments",
+    "CREATE TABLE experiments (CHECK (archived IN (0,1)), CHECK (category IN ('substrate','genetics','conditions')), CHECK (classification IN ('prospective','retrospective','uncertain')), CHECK (revision > 0), CHECK (scope = 'fruiting'), CHECK (state IN ('draft','planned','running','completed','cancelled')), CHECK (timing_precision IS NULL OR timing_precision IN ('instant','date')), PRIMARY KEY (id), archived INTEGER NOT NULL, category VARCHAR(20) NOT NULL, classification VARCHAR(20) NOT NULL, created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, revision INTEGER NOT NULL, scope VARCHAR(20) NOT NULL, start_plan_revision INTEGER, started_at VARCHAR(40), state VARCHAR(20) NOT NULL, timing_precision VARCHAR(10), treatment_start VARCHAR(40))"
+  ],
+  [
+    "table",
     "fruiting_containers",
     "fruiting_containers",
     "CREATE TABLE fruiting_containers (CHECK (material_type IN ('tray','bag','block','other')), CHECK (quantity IS NULL OR quantity >= 0), CHECK (quantity IS NULL OR unit IS NOT NULL), CHECK (stage IN ('colonizing','ready','fruiting','finished')), CHECK (status IN ('active','archived')), FOREIGN KEY(batch_id) REFERENCES grow_batches (id), PRIMARY KEY (id), UNIQUE (batch_id, id), acquisition_date VARCHAR(10), batch_id VARCHAR(32) NOT NULL, created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, material_type VARCHAR(20) NOT NULL, name VARCHAR(200), notes TEXT, quantity NUMERIC(14, 3), stage VARCHAR(20) NOT NULL, status VARCHAR(16) NOT NULL, storage_location VARCHAR(200), unit VARCHAR(20))"
@@ -796,6 +862,42 @@
     "immutable_environmental_readings_update",
     "environmental_readings",
     "CREATE TRIGGER immutable_environmental_readings_update BEFORE UPDATE ON environmental_readings BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
+  ],
+  [
+    "trigger",
+    "immutable_experiment_audits_delete",
+    "experiment_audits",
+    "CREATE TRIGGER immutable_experiment_audits_delete BEFORE DELETE ON experiment_audits BEGIN SELECT RAISE(ABORT,'Experiment history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_experiment_audits_update",
+    "experiment_audits",
+    "CREATE TRIGGER immutable_experiment_audits_update BEFORE UPDATE ON experiment_audits BEGIN SELECT RAISE(ABORT,'Experiment history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_experiment_groups_delete",
+    "experiment_groups",
+    "CREATE TRIGGER immutable_experiment_groups_delete BEFORE DELETE ON experiment_groups BEGIN SELECT RAISE(ABORT,'Experiment history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_experiment_groups_update",
+    "experiment_groups",
+    "CREATE TRIGGER immutable_experiment_groups_update BEFORE UPDATE ON experiment_groups BEGIN SELECT RAISE(ABORT,'Experiment history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_experiment_plan_revisions_delete",
+    "experiment_plan_revisions",
+    "CREATE TRIGGER immutable_experiment_plan_revisions_delete BEFORE DELETE ON experiment_plan_revisions BEGIN SELECT RAISE(ABORT,'Experiment history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_experiment_plan_revisions_update",
+    "experiment_plan_revisions",
+    "CREATE TRIGGER immutable_experiment_plan_revisions_update BEFORE UPDATE ON experiment_plan_revisions BEGIN SELECT RAISE(ABORT,'Experiment history is immutable'); END"
   ],
   [
     "trigger",
