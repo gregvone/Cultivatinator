@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import RecordNextAction from "../components/RecordNextAction";
 import StrainIdentity from "../components/StrainIdentity";
 import CollapsiblePanel from "../components/CollapsiblePanel";
@@ -252,7 +253,15 @@ export function NewFruiting({
 export function FruitingList() {
   const [rows, setRows] = useState<LibraryRecord[] | null>(null);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState("active");
+  const [params, setParams] = useSearchParams();
+  const filter = params.get("fruiting") || "active";
+  function setFilter(value: string) {
+    setParams((p) => {
+      const next = new URLSearchParams(p);
+      next.set("fruiting", value);
+      return next;
+    });
+  }
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
@@ -279,7 +288,8 @@ export function FruitingList() {
             r.fruiting_stage || r.lifecycle || "",
           ) &&
           r.stage !== "finished"
-        : cultivationStatus(r).toLowerCase() === filter),
+        : cultivationStatus(r).toLowerCase() === filter &&
+          (r.status === "active" || ["completed", "failed"].includes(filter))),
   );
   return (
     <section>
@@ -295,6 +305,11 @@ export function FruitingList() {
           onChange={(e) => setFilter(e.target.value)}
         >
           <option value="active">Growing</option>
+          <option value="colonizing">Colonizing</option>
+          <option value="ready">Ready</option>
+          <option value="pinning">Pinning</option>
+          <option value="fruiting">Fruiting</option>
+          <option value="harvest">Harvest</option>
           <option value="completed">Completed</option>
           <option value="failed">Failed</option>
           <option value="all">All / archived history</option>

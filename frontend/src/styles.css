@@ -1701,3 +1701,50 @@ main dd {
 .backup-entry h4 { margin: 0 0 0.4rem; }
 .backup-confirm { border-color: #ad7f38; }
 .backup-form input, .backup-form select { max-width: 100%; min-width: 0; }
+
+/* Dashboard links and compact journal summaries. */
+a.summary-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+a.summary-card:hover {
+  border-color: var(--accent, #67d9b0);
+}
+.stage-grid {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+}
+.stage-grid a {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem;
+  border: 1px solid var(--border, #34433c);
+  border-radius: 0.35rem;
+}
+.stage-grid strong {
+  font-size: 1.3rem;
+}
+.reminder-setting {
+  margin-block: 0.8rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border, #34433c);
+}
+#needs-attention {
+  min-width: 0;
+}
+#needs-attention:focus {
+  outline: 2px solid var(--accent, #67d9b0);
+  outline-offset: 0.25rem;
+}
+.attention-date time {
+  display: inline;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}

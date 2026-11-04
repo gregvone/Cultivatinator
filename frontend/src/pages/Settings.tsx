@@ -1,5 +1,6 @@
 import CollapsiblePanel from "../components/CollapsiblePanel";
 import FruitingEnvironmentSettings from "../components/FruitingEnvironment";
+import DashboardPreferences from "../components/DashboardPreferences";
 import BackupRestore from "../components/BackupRestore";
 import type { AppInfo } from "../api";
 import { useApi } from "../useApi";
@@ -41,6 +42,7 @@ export default function Settings() {
           </p>
         </CollapsiblePanel>
       )}
+      <DashboardPreferences />
       <FruitingEnvironmentSettings />
       <div className="settings-backup">
         <BackupRestore />

@@ -26,14 +26,24 @@ function mockApi() {
             ? []
             : String(input).includes("/api/reports/")
               ? emptyReport()
-              : String(input).endsWith("app/info")
-                ? {
-                    name: "Cultivatinator",
-                    version: "0.1.0",
-                    environment: "test",
-                    storage: "SQLite",
-                  }
-                : summary,
+              : String(input).endsWith("dashboard/preferences")
+                ? Object.fromEntries(
+                    Object.entries({
+                      agar_growing: 21,
+                      spawn_colonizing: 28,
+                      fruiting_colonizing: 21,
+                      pinning: 14,
+                      fruiting: 14,
+                    }).map(([key, days]) => [key, { enabled: true, days }]),
+                  )
+                : String(input).endsWith("app/info")
+                  ? {
+                      name: "Cultivatinator",
+                      version: "0.1.0",
+                      environment: "test",
+                      storage: "SQLite",
+                    }
+                  : summary,
         ),
         { status: 200 },
       ),
@@ -56,9 +66,9 @@ test("dashboard loads backend zero counts and all empty states", async () => {
     "No items currently require attention.",
     "No active cultivation records.",
     "No activity recorded yet.",
-    "No environmental observations available.",
   ])
     expect(screen.getByText(text)).toBeInTheDocument();
+  expect(screen.queryByText("Growing Conditions")).not.toBeInTheDocument();
 });
 test("counts actually use the response", async () => {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(

@@ -119,10 +119,11 @@ def get(path):
         return json.load(r)
 
 
-def post(path, data):
+def post(path, data, method="POST"):
     req = urllib.request.Request(
         base + path,
         data=json.dumps(data).encode(),
+        method=method,
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=120) as r:
@@ -220,6 +221,35 @@ try:
         f"from pathlib import Path;import os;r=Path({str(root)!r});(r/'files/note.txt').write_text('retained file');(r/'settings/custom.json').write_text('{{\"retained\":true}}');[os.chown(r/p,10001,10001) for p in ['files/note.txt','settings/custom.json']]"
     )
     before = get(f"/api/fruiting/records/{code}")
+    # Dashboard state is part of /data/settings: real container restart and
+    # four-directory restores must preserve preferences and dismissals together.
+    preferences = get("/api/dashboard/preferences")
+    preferences["pinning"]["days"] = 35
+    post("/api/dashboard/preferences", preferences, method="PUT")
+    alert = next(
+        a
+        for a in get("/api/dashboard/summary")["attention_items"]
+        if a["rule"] == "fruiting_action"
+    )
+    post(
+        "/api/dashboard/attention",
+        {
+            "alert_id": alert["alert_id"],
+            "fingerprint": alert["fingerprint"],
+            "action": "dismiss",
+        },
+    )
+    docker("compose", "-f", str(compose), "restart", "app")
+    for _ in range(100):
+        try:
+            if get("/api/health")["status"] == "ok":
+                break
+        except OSError:
+            time.sleep(0.2)
+    else:
+        raise RuntimeError("Application did not restart")
+    assert get("/api/dashboard/preferences") == preferences
+    assert get("/api/dashboard/attention?hidden=true")["total"] == 1
     archive = temp / "complete.zip"
     with urllib.request.urlopen(
         urllib.request.Request(
@@ -230,6 +260,16 @@ try:
     ) as r:
         archive.write_bytes(r.read())
     print(controller("verify", archive))
+    changed_preferences = {**preferences, "pinning": {"days": 45, "enabled": True}}
+    post("/api/dashboard/preferences", changed_preferences, method="PUT")
+    post(
+        "/api/dashboard/attention",
+        {
+            "alert_id": alert["alert_id"],
+            "fingerprint": alert["fingerprint"],
+            "action": "restore",
+        },
+    )
     extra = post("/api/library/strains", {"name": "After backup"})
     assert len(get("/api/library/strains")) == 2
     # Force a real post-cutover health failure, then verify automatic rollback
@@ -315,6 +355,8 @@ m.restore(Path({str(archive)!r}),root,Path({str(compose)!r}),confirm='REPLACE-PE
     operation = Path(result.split("at: ")[-1])
     assert len(get("/api/library/strains")) == 1
     assert get(f"/api/fruiting/records/{code}") == before
+    assert get("/api/dashboard/preferences") == preferences
+    assert get("/api/dashboard/attention?hidden=true")["total"] == 1
     for photo in [pin, harvest_photo, completed]:
         with urllib.request.urlopen(base + photo["url"]) as r:
             assert r.read() == png
@@ -328,7 +370,7 @@ m.restore(Path({str(archive)!r}),root,Path({str(compose)!r}),confirm='REPLACE-PE
     for path, digest in sentinels.items():
         assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
     print(
-        "Backup Docker smoke passed: real stdlib CLI verification, local Compose stop/process fencing, four-directory restore, startup-failure rollback, abrupt-process recovery, non-root startup, retained independent recovery ZIP and originals, exact flush/harvest/completion photos, file/settings persistence and unchanged Git/source/Compose/.env"
+        "Backup Docker smoke passed: real stdlib CLI verification, local Compose stop/process fencing, four-directory restore, startup-failure rollback, abrupt-process recovery, non-root startup, retained independent recovery ZIP and originals, exact flush/harvest/completion photos, file/settings/dashboard restart persistence and unchanged Git/source/Compose/.env"
     )
 finally:
     try:
