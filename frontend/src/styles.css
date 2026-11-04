@@ -1759,6 +1759,21 @@ a.summary-card:hover {
   gap: 8px;
   align-items: center;
 }
+/* Native select popups need explicit dark option colors on Windows browsers. */
+.genetics-controls select,
+.genetic-details select {
+  color-scheme: dark;
+  background-color: #131f2d;
+  color: #edf3fa;
+  border: 1px solid #40566c;
+  border-radius: 5px;
+  padding: 8px;
+}
+.genetics-controls select option,
+.genetic-details select option {
+  background-color: #131f2d;
+  color: #edf3fa;
+}
 .genetics-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;
