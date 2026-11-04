@@ -2,6 +2,7 @@ import { cloneElement, useId, useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode, ReactElement } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import CollapsiblePanel from "../components/CollapsiblePanel";
+import { newRequestKey } from "../preparationApi";
 import { PageHeader } from "../components/UI";
 import {
   environmentApi,
@@ -79,7 +80,7 @@ function Form({
       const body = payload() as Record<string, unknown>;
       const json = JSON.stringify(body);
       if (attempt.current.json !== json)
-        attempt.current = { json, key: crypto.randomUUID() };
+        attempt.current = { json, key: newRequestKey() };
       await environmentApi(path, method, {
         ...body,
         request_key: attempt.current.key,
