@@ -1,0 +1,37 @@
+# Copy this file to /opt/stacks/cultivatinator/compose.yaml.
+# The checkout stays at /storage/tv/cultivatinator, separate from this stack.
+# Dockge itself needs read-only access to that same absolute source path.
+# See docs/DOCKGE.md before moving an existing installation.
+name: cultivatinator
+services:
+  app:
+    build:
+      context: /storage/tv/cultivatinator
+      dockerfile: Dockerfile
+    image: cultivatinator:local
+    user: "10001:10001"
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8085}:8085"
+    volumes:
+      - type: bind
+        source: "${DATA_DIR:-/storage/tv/cultivatinator}"
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${MAINTENANCE_DIR:-/run/cultivatinator-maintenance}"
+        target: /run/cultivatinator-maintenance
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      CULTIVATINATOR_ENVIRONMENT: production
+      # The example .env explicitly selects Trusted LAN Mode for your subnet.
+      # Missing configuration still defaults to password mode.
+      CULTIVATINATOR_BACKUP_AUTH_MODE: "${CULTIVATINATOR_BACKUP_AUTH_MODE:-password}"
+      CULTIVATINATOR_TRUSTED_NETWORKS: "${CULTIVATINATOR_TRUSTED_NETWORKS:-}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
