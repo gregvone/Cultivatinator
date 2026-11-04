@@ -1,6 +1,6 @@
 # Milestone 2G — Fruiting Tent Environmental Monitoring
 
-Implemented on `feature/milestone-2g-environment`, awaiting review. No merge or Debian deployment is performed. Monitoring is manual and optional. There are no seeded tents, profiles, targets or readings, and no daily schedule, missed-reading alerts, device connection, CSV import, automation or cloud dependency.
+Merged into `main` by PR #13 at `a625abb33c52bdb99ecc775dc872910dc827438f`. The implementation task performed no Debian deployment; the historical verification limitations below remain applicable. Monitoring is manual and optional. There are no seeded tents, profiles, targets or readings, and no daily schedule, missed-reading alerts, device connection, CSV import, automation or cloud dependency.
 
 ## Architecture and data
 

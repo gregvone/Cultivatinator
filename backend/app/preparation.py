@@ -132,6 +132,7 @@ def execute(request, data, kind, work):
             )
         )
         if existing:
+            session.info["skip_experiment_sync"] = True
             if existing.request_hash != fingerprint:
                 fail(
                     "This request key was already used for different data; reload or use a new submission",
@@ -148,6 +149,8 @@ def execute(request, data, kind, work):
         )
         session.add(op)
         session.flush()
+        session.info["experiment_operation"] = op
+        session.info["skip_experiment_sync"] = kind.startswith("experiment.")
         result = work(session, op)
         # The committed response is replayed on retries, even if records later change.
         encoded = json.dumps(result, default=str)

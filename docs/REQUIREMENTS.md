@@ -35,3 +35,13 @@ See architectural constraints before implementing these modules. Preserve histor
 ## Deferred / excluded from this milestone
 
 The future requirements above remain deferred; manual provenance must never be mistaken for an executed consumption transaction. Optional sensor integrations come later. No alert engine, general-purpose file uploads, backup buttons, QR generation, label printing, PWA, authentication, user registration, multiuser permissions, cloud database, paid APIs, microservices, or production deployment is included. V1 is single-user on a trusted private network. Dashboard placeholder pages describe future scope and do not offer pretend actions.
+
+
+## Milestone 2H.1 — implemented for review
+
+Guided fruiting experiment definitions for substrate/genetics/conditions, one primary variable/outcome, multiple groups, optional hypotheses/advanced settings, explicit start, conservative timing classification, immutable plans/audits, lifecycle and archive/restore. Additive 0015 reserves units, memberships and trials. Concrete enrollment, trial workflows and optimization analytics remain deferred. Existing cultivation and Reports are unchanged. See [scope and release blockers](MILESTONE_2H.md).
+
+
+## Milestone 2H.2 — implemented for review
+
+Existing FR enrollment, precommitted multi-recipe fruiting creation, source-based automatic downstream association, mixed treatment-timing classifications and auditable review are operational. Group ownership/historical plan and container-unit identity checks supplement shared-source/flush counts. Additive 0016 and its exact schema catalog require a matching helper update before rollout. Environmental trial setup/attribution and analytics remain deferred. See [2H.2](MILESTONE_2H2.md).

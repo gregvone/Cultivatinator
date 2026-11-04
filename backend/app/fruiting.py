@@ -287,128 +287,144 @@ def save_environment(data: EnvironmentSave, request: Request):
 
 @router.post("/create", status_code=201)
 def spawn_to_bulk(data: SpawnToBulk, request: Request):
-    def work(session, op):
-        source = record(session, "spawn", data.spawn_id, active=True)
-        state = material_state(session, "spawn", source.id)
-        if source.stage != "ready" or state["lifecycle"] in {
-            "used",
-            "failed",
-            "completed",
-            "depleted",
-        }:
-            raise HTTPException(
-                409, "Select one Ready spawn jar or bag; this source is unavailable"
-            )
-        recipe = get(session, Recipe, data.recipe_id)
+    return execute(
+        request,
+        data,
+        "spawn_to_bulk",
+        lambda session, op: create_fruiting(session, op, data),
+    )
+
+
+def create_fruiting(session, op, data, recipe_ids=None):
+    """Transaction-level service shared by ordinary and experiment commands."""
+    source = record(session, "spawn", data.spawn_id, active=True)
+    state = material_state(session, "spawn", source.id)
+    if source.stage != "ready" or state["lifecycle"] in {
+        "used",
+        "failed",
+        "completed",
+        "depleted",
+    }:
+        raise HTTPException(
+            409, "Select one Ready spawn jar or bag; this source is unavailable"
+        )
+    recipes = []
+    for recipe_id in recipe_ids or [data.recipe_id] * data.count:
+        recipe = get(session, Recipe, recipe_id)
         if recipe.status != "active" or recipe.recipe_type != "substrate":
             raise HTTPException(422, "Select an active Substrate recipe")
-        if data.label_choices is not None and len(data.label_choices) != data.count:
-            raise HTTPException(422, "Provide one label choice per fruiting container")
-        snapshot = json.dumps(recipe_out(recipe, session))
-        env = session.get(FruitingEnvironment, 1)
-        batch = GrowBatch(
-            id=allocate(session, "GB"),
-            batch_origin="prepared",
-            allocation_mode="specific",
-            acquisition_date=data.spawning_date.isoformat(),
+        recipes.append(recipe)
+    if len(recipes) != data.count:
+        raise HTTPException(422, "Provide one recipe per destination")
+    if data.label_choices is not None and len(data.label_choices) != data.count:
+        raise HTTPException(422, "Provide one label choice per fruiting container")
+    snapshots = {
+        recipe.id: json.dumps(recipe_out(recipe, session)) for recipe in recipes
+    }
+    env = session.get(FruitingEnvironment, 1)
+    batch = GrowBatch(
+        id=allocate(session, "GB"),
+        batch_origin="prepared",
+        allocation_mode="specific",
+        acquisition_date=data.spawning_date.isoformat(),
+        notes=data.notes,
+    )
+    session.add(batch)
+    session.flush()
+    session.add(BatchSource(batch_id=batch.id, spawn_id=source.id))
+    session.flush()
+    session.info["reserved_label_codes"] = {
+        c.label for c in data.label_choices or [] if c.label
+    }
+    items = []
+    for index in range(data.count):
+        recipe = recipes[index]
+        snapshot = snapshots[recipe.id]
+        container = FruitingContainer(
+            id=allocate(session, "FR"),
+            batch_id=batch.id,
+            material_type=data.material_type,
+            stage="colonizing",
             notes=data.notes,
         )
-        session.add(batch)
+        if data.label_choices:
+            session.info.setdefault("container_choices", {})[container.id] = (
+                data.label_choices[index].model_dump()
+            )
+        session.add(container)
         session.flush()
-        session.add(BatchSource(batch_id=batch.id, spawn_id=source.id))
+        session.add(
+            FruitingSource(
+                fruiting_id=container.id, batch_id=batch.id, spawn_id=source.id
+            )
+        )
         session.flush()
-        session.info["reserved_label_codes"] = {
-            c.label for c in data.label_choices or [] if c.label
-        }
-        items = []
-        for index in range(data.count):
-            container = FruitingContainer(
-                id=allocate(session, "FR"),
-                batch_id=batch.id,
-                material_type=data.material_type,
+        session.add(
+            FruitingRun(
+                fruiting_id=container.id,
+                operation_id=op.id,
+                source_spawn_id=source.id,
+                recipe_id=recipe.id,
+                recipe_snapshot=snapshot,
+                environment_snapshot=env.settings if env else None,
+                spawning_date=data.spawning_date.isoformat(),
+                spawn_grams=data.spawn_grams,
+                substrate_grams=data.substrate_grams,
                 stage="colonizing",
-                notes=data.notes,
+                current_flush=1,
             )
-            if data.label_choices:
-                session.info.setdefault("container_choices", {})[container.id] = (
-                    data.label_choices[index].model_dump()
-                )
-            session.add(container)
-            session.flush()
-            session.add(
-                FruitingSource(
-                    fruiting_id=container.id, batch_id=batch.id, spawn_id=source.id
-                )
-            )
-            session.flush()
-            session.add(
-                FruitingRun(
-                    fruiting_id=container.id,
-                    operation_id=op.id,
-                    source_spawn_id=source.id,
-                    recipe_id=recipe.id,
-                    recipe_snapshot=snapshot,
-                    environment_snapshot=env.settings if env else None,
-                    spawning_date=data.spawning_date.isoformat(),
-                    spawn_grams=data.spawn_grams,
-                    substrate_grams=data.substrate_grams,
-                    stage="colonizing",
-                    current_flush=1,
-                )
-            )
-            session.flush()
-            session.add(FruitingFlush(fruiting_id=container.id, number=1))
-            event(
-                session,
-                "fruiting",
-                container.id,
-                "spawned",
-                f"Spawned on {data.spawning_date} from {source.id}; substrate recipe snapshot retained; operation {op.id}",
-            )
-            items.append(container)
-        # Close any historical pool reservation once. No partial-spawn balance.
-        prepared = session.scalar(
-            select(PreparedMaterial).where(PreparedMaterial.spawn_id == source.id)
         )
-        if prepared:
-            finish(
-                session,
-                op,
-                prepared,
-                FinishInput(
-                    request_key=data.request_key,
-                    action="complete",
-                    action_date=data.spawning_date,
-                    reason=f"Spawn consumed by {op.id}",
-                ),
-            )
-        else:
-            set_lifecycle(session, "spawn", source.id, "completed")
-        set_phase(session, "spawn", source.id, "used", data.spawning_date.isoformat())
-        release_label(
-            session,
-            "spawn",
-            source.id,
-            data.spawning_date.isoformat(),
-            "Spawn consumed by " + op.id,
-        )
-        source.stage = "used"
+        session.flush()
+        session.add(FruitingFlush(fruiting_id=container.id, number=1))
         event(
             session,
-            "spawn",
-            source.id,
-            "used",
-            f"Consumed in full for {len(items)} fruiting containers; operation {op.id}",
+            "fruiting",
+            container.id,
+            "spawned",
+            f"Spawned on {data.spawning_date} from {source.id}; substrate recipe snapshot retained; operation {op.id}",
         )
-        session.flush()
-        return {
-            "operation_id": op.id,
-            "containers": [
-                output(session, "fruiting", c).model_dump(mode="json") for c in items
-            ],
-        }
-
-    return execute(request, data, "spawn_to_bulk", work)
+        items.append(container)
+    # Close any historical pool reservation once. No partial-spawn balance.
+    prepared = session.scalar(
+        select(PreparedMaterial).where(PreparedMaterial.spawn_id == source.id)
+    )
+    if prepared:
+        finish(
+            session,
+            op,
+            prepared,
+            FinishInput(
+                request_key=data.request_key,
+                action="complete",
+                action_date=data.spawning_date,
+                reason=f"Spawn consumed by {op.id}",
+            ),
+        )
+    else:
+        set_lifecycle(session, "spawn", source.id, "completed")
+    set_phase(session, "spawn", source.id, "used", data.spawning_date.isoformat())
+    release_label(
+        session,
+        "spawn",
+        source.id,
+        data.spawning_date.isoformat(),
+        "Spawn consumed by " + op.id,
+    )
+    source.stage = "used"
+    event(
+        session,
+        "spawn",
+        source.id,
+        "used",
+        f"Consumed in full for {len(items)} fruiting containers; operation {op.id}",
+    )
+    session.flush()
+    return {
+        "operation_id": op.id,
+        "containers": [
+            output(session, "fruiting", c).model_dump(mode="json") for c in items
+        ],
+    }
 
 
 @router.get("")

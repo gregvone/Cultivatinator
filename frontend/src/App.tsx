@@ -25,6 +25,10 @@ import Growing from "./pages/Growing";
 import LegacyInoculation from "./pages/LegacyInoculation";
 import QuickCreatePage from "./pages/QuickCreate";
 import Shell from "./components/Shell";
+import Experiments, {
+  NewExperiment,
+  ExperimentDetail,
+} from "./pages/Experiments";
 import Environment from "./pages/Environment";
 import Dashboard from "./pages/Dashboard";
 import DashboardHistory from "./pages/DashboardHistory";
@@ -175,6 +179,9 @@ export default function App() {
             element={<RecordDetail />}
           />
           <Route path="genetics" element={<Genetics />} />
+          <Route path="experiments" element={<Experiments />} />
+          <Route path="experiments/new" element={<NewExperiment />} />
+          <Route path="experiments/:code" element={<ExperimentDetail />} />
           <Route path="environment" element={<Environment />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />

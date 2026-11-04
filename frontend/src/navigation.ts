@@ -18,6 +18,7 @@ export const navigation = [
   { path: "/environment", title: "Environment", icon: Thermometer },
   { path: "/acquisitions", title: "Acquisitions", icon: PackagePlus },
   { path: "/recipes", title: "Recipes", icon: BookOpen },
+  { path: "/experiments", title: "Experiments", icon: FlaskConical },
   { path: "/reports", title: "Reports", icon: ChartNoAxesCombined },
   { path: "/settings", title: "Settings", icon: Settings2 },
 ];

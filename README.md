@@ -14,6 +14,10 @@ See [Milestone 2B operations and safe upgrade](docs/MILESTONE_2B.md) for univers
 
 See [Culture Library operations](docs/MILESTONE_2A.md) for registration, photo limits, API details, validation, and historical 2A workflows; use the 2B operations document for current upgrade instructions. Strains are one catalog, with an optional scientific name; there is no required species hierarchy. Receiving spores does not establish a line; the explicit Establish Culture action registers a successful independent establishment. Starting quantities are not live inventory balances.
 
+## Fruiting experiments
+
+Milestone 2H.2 makes substrate/genetics fruiting experiments operational: link existing containers, save group/source assignments, atomically create destinations with different substrate recipes, and associate unambiguous recorded descendants. Participants show source sharing, timing classifications and auditable review of changed ancestry. Environmental trial setup and analytics remain later phases. Schema 0016 requires a matching privileged helper before rollout; see [2H.2 scope, APIs and release blockers](docs/MILESTONE_2H2.md) and [the 2H.1 foundation](docs/MILESTONE_2H.md).
+
 ## Genetics workspace
 
 Milestone 2F adds an Adaptive Photo Tree: explore one Strain Family or the full **Magic Kingdom**, inspect recorded ancestry and photographs, and launch existing isolate/recorded-fruiting clone workflows. Archived/unknown records and uncertain parents remain explicit. See [2F design, validation and deployment considerations](docs/MILESTONE_2F.md).

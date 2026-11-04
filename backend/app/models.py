@@ -328,3 +328,5 @@ from .fruiting_models import (
 )  # noqa: E402,F401
 
 from . import environment_models  # noqa: E402,F401
+
+from . import experiment_models  # noqa: E402,F401
