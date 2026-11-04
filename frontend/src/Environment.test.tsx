@@ -133,6 +133,35 @@ test("create tent sends a command key then displays recorded values and warnings
     request_key: expect.any(String),
   });
 });
+test("tent creation works on LAN HTTP without crypto.randomUUID", async () => {
+  vi.stubGlobal("crypto", {
+    getRandomValues: (bytes: Uint8Array) => {
+      for (let i = 0; i < bytes.length; i++) bytes[i] = i + 1;
+      return bytes;
+    },
+  });
+  const user = userEvent.setup();
+  mount();
+  await screen.findByText(/No tents yet/);
+  await user.type(screen.getByLabelText("Tent name"), "Boom Room 2");
+  await user.click(
+    within(screen.getByLabelText("Tent name").closest("form")!).getByRole(
+      "button",
+      { name: "Save" },
+    ),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Boom Room 2" }),
+  ).toBeInTheDocument();
+  const call = vi
+    .mocked(fetch)
+    .mock.calls.find(
+      ([u, o]) => u === "/api/environment/tents" && o?.method === "POST",
+    )!;
+  expect(JSON.parse(String(call[1]?.body)).request_key).toMatch(
+    /^[0-9a-f]{32}$/,
+  );
+});
 test("manual readings send missing CO2 as unknown with a UTC observation time", async () => {
   hasTent = true;
   const user = userEvent.setup();
