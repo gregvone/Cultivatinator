@@ -23,6 +23,8 @@ See [Culture Library operations](docs/MILESTONE_2A.md) for registration, photo l
 
 ## Docker Compose deployment (Debian / Dockge)
 
+For Dockge stack files under `/opt/stacks/cultivatinator` with an existing checkout/data root at `/storage/tv/cultivatinator`, use the [Dockge examples and migration guide](docs/DOCKGE.md). It covers the absolute source build context, Dockge's source mount, existing-container adoption, helper setup and both backup authentication modes.
+
 Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI / Docker Hub during build, and a free host port. On the Docker server, run:
 
 ```bash
