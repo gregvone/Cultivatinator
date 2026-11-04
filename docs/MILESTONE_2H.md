@@ -1,5 +1,9 @@
 # Milestone 2H — Grow Experimentation & Optimization
 
+Current development: [2H.2 enrollment, creation and automatic lineage](MILESTONE_2H2.md).
+The 2H.1 scope/verification below records the reviewed foundation; 2H.2 adds schema
+0016 and requires a matching helper bundle before release.
+
 ## 2H.1 — Experiment foundation
 
 Implemented for review on `feature/milestone-2h-experiments`, based on verified main

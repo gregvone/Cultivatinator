@@ -1,3 +1,4 @@
+import ExperimentParticipants from "../components/ExperimentParticipants";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -64,8 +65,8 @@ function Setup({
         {["Question and outcome", "Groups", "Review and save"][step]}
       </p>
       <p>
-        Fruiting experiments. Container enrollment, environmental trials and
-        results arrive in later phases.
+        Fruiting experiments. Commit the plan to link or create participants.
+        Environmental trial setup and results arrive in later phases.
       </p>
       {step === 0 && (
         <>
@@ -601,15 +602,15 @@ function Detail({
           {outcomes[record.plan.primary_outcome]}.
         </p>
         <p>
-          Classification: <strong>{record.classification}</strong>
+          Plan start classification: <strong>{record.classification}</strong>
           {record.treatment_start
             ? ` · Treatment began ${record.treatment_start}`
             : " · Treatment has not been started"}
         </p>
         <p>
-          {record.classification_basis} Container enrollment and concrete
-          allocation workflows are deferred; a plan alone cannot establish
-          prospective participation.
+          {record.classification_basis} A plan alone cannot establish
+          prospective participation. Individual participant classifications can
+          differ from this plan start summary.
         </p>
         <p>
           Several containers sharing a tent treatment and several flushes from
@@ -733,6 +734,7 @@ function Detail({
           <History code={record.id} revision={record.revision} />
         </Panel>
       )}
+      <ExperimentParticipants record={record} refresh={refresh} />
       <Link to="/experiments">All experiments</Link>
     </>
   );
@@ -740,7 +742,7 @@ function Detail({
 
 export function ExperimentDetail() {
   const { code } = useParams();
-  const state = useApi<Experiment>(`experiments/${code}`);
+  const state = useApi<Experiment>(`experiments/${code}`, true);
   if (state.error)
     return <ErrorState error={state.error} retry={state.retry} />;
   if (!state.data) return <LoadingState />;

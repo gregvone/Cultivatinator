@@ -144,3 +144,8 @@ Trusted browser access checks the actual peer and rejects forwarding headers. `s
 ## Milestone 2H.1: experiment foundation
 
 `experiment_models.py`, `experiment_schemas.py` and `experiments.py` add typed, revision-checked plan/lifecycle commands using existing transaction/idempotency and backup mutation fencing. Seven additive tables reserve treatment units, interval memberships and tent trials without operational enrollment or cultivation mutations. Plans/audits/group identities are protected by database triggers. Treatment timing requires concrete plan-specific allocation evidence; free-text schedules cannot establish prospective participation. The React guided setup reuses command replay and normal loading/retry/navigation. See [2H](MILESTONE_2H.md) for API, crossover boundaries and exact 0015 helper compatibility.
+
+
+## Milestone 2H.2: fruiting participation
+
+`experiment_enrollment.py` and its typed contracts add participants, precommitted destination assignments, source rules and audited review. `experiment_lineage.py` resolves recorded material paths using existing Reports identity semantics. Domain transactions reconcile unambiguous descendants and flag changed confirmations, including historical plans, without changing their group. `fruiting.create_fruiting` is the shared transaction-level creation service; ordinary payload/replay/whole-source consumption remain intact. Additive 0016 persists creation allocations, rules and immutable enrollment events; 0015 is unchanged. Conditions trial setup and outcome attribution remain later phases. See [2H.2](MILESTONE_2H2.md).

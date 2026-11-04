@@ -56,6 +56,27 @@ beforeEach(() => {
           },
         );
       }
+      if (url.includes("/participants"))
+        return new Response(
+          JSON.stringify({
+            items: [],
+            total: 0,
+            candidates: [],
+            candidate_total: 0,
+            revision: 1,
+            plan_revision: 1,
+            rules: [],
+            counts: {
+              containers: 0,
+              treatment_units: 0,
+              known_spawn_sources: 0,
+              classification_counts: {},
+            },
+            unit_warning: "Assignment counts do not prove independence.",
+          }),
+        );
+      if (url.includes("/enrollment-history"))
+        return new Response(JSON.stringify({ items: [], total: 0 }));
       const data = url.includes("/history")
         ? {
             plans: [

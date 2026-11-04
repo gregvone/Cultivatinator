@@ -2054,3 +2054,6 @@ a.summary-card:hover {
 }
 .experiment-snapshot { overflow-wrap: anywhere; }
 .experiment-snapshot dd { margin-inline-start: 1rem; white-space: pre-wrap; }
+
+.participant-actions { min-width: 0; border: 0; padding: 0; }
+.participant-actions li { overflow-wrap: anywhere; margin-block: 1rem; }

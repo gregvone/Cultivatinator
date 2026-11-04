@@ -58,6 +58,9 @@ def test_health_and_database(client, settings):
         "harvest_photos",
         "pinning_photos",
         "journal_photos",
+        "experiment_source_rules",
+        "experiment_creation_allocations",
+        "experiment_enrollment_events",
         "experiments",
         "experiment_groups",
         "experiment_plan_revisions",
@@ -125,7 +128,7 @@ def test_migrations_repeat_and_persist(settings):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
-                == "0015_grow_experiments"
+                == "0016_experiment_enrollment"
             )
 
 

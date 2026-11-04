@@ -175,3 +175,73 @@ class ExperimentAudit(Base):
     before: Mapped[str | None] = mapped_column(Text)
     after: Mapped[str] = mapped_column(Text)
     reason: Mapped[str] = mapped_column(Text)
+
+
+class ExperimentSourceRule(Base):
+    __tablename__ = "experiment_source_rules"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["experiment_id", "plan_revision"],
+            [
+                "experiment_plan_revisions.experiment_id",
+                "experiment_plan_revisions.revision",
+            ],
+        ),
+        ForeignKeyConstraint(
+            ["experiment_id", "group_id"],
+            ["experiment_groups.experiment_id", "experiment_groups.id"],
+        ),
+        CheckConstraint(
+            "(spawn_id IS NOT NULL) + (physical_id IS NOT NULL) + (line_id IS NOT NULL) = 1"
+        ),
+        CheckConstraint("active IN (0,1)"),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    experiment_id: Mapped[str] = mapped_column(ForeignKey("experiments.id"), index=True)
+    plan_revision: Mapped[int] = mapped_column(Integer)
+    group_id: Mapped[str] = mapped_column(String(32))
+    spawn_id: Mapped[str | None] = mapped_column(ForeignKey("spawn.id"))
+    physical_id: Mapped[str | None] = mapped_column(ForeignKey("physical_cultures.id"))
+    line_id: Mapped[str | None] = mapped_column(ForeignKey("culture_lines.id"))
+    recorded_at: Mapped[str] = mapped_column(String(40))
+    active: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class ExperimentCreationAllocation(Base):
+    __tablename__ = "experiment_creation_allocations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["experiment_id", "plan_revision"],
+            [
+                "experiment_plan_revisions.experiment_id",
+                "experiment_plan_revisions.revision",
+            ],
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    experiment_id: Mapped[str] = mapped_column(ForeignKey("experiments.id"), index=True)
+    plan_revision: Mapped[int] = mapped_column(Integer)
+    spawn_id: Mapped[str] = mapped_column(ForeignKey("spawn.id"))
+    destinations: Mapped[str] = mapped_column(Text)
+    recorded_at: Mapped[str] = mapped_column(String(40))
+    operation_id: Mapped[str] = mapped_column(
+        ForeignKey("inventory_operations.id"), unique=True
+    )
+
+
+class ExperimentEnrollmentEvent(Base):
+    __tablename__ = "experiment_enrollment_events"
+    __table_args__ = (Index("ix_enrollment_history", "experiment_id", "id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    experiment_id: Mapped[str] = mapped_column(ForeignKey("experiments.id"))
+    membership_id: Mapped[int | None] = mapped_column(
+        ForeignKey("experiment_memberships.id")
+    )
+    operation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("inventory_operations.id")
+    )
+    recorded_at: Mapped[str] = mapped_column(String(40))
+    action: Mapped[str] = mapped_column(String(40))
+    before: Mapped[str | None] = mapped_column(Text)
+    after: Mapped[str] = mapped_column(Text)
+    reason: Mapped[str] = mapped_column(Text)

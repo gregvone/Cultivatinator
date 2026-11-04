@@ -40,3 +40,8 @@ The future requirements above remain deferred; manual provenance must never be m
 ## Milestone 2H.1 — implemented for review
 
 Guided fruiting experiment definitions for substrate/genetics/conditions, one primary variable/outcome, multiple groups, optional hypotheses/advanced settings, explicit start, conservative timing classification, immutable plans/audits, lifecycle and archive/restore. Additive 0015 reserves units, memberships and trials. Concrete enrollment, trial workflows and optimization analytics remain deferred. Existing cultivation and Reports are unchanged. See [scope and release blockers](MILESTONE_2H.md).
+
+
+## Milestone 2H.2 — implemented for review
+
+Existing FR enrollment, precommitted multi-recipe fruiting creation, source-based automatic downstream association, mixed treatment-timing classifications and auditable review are operational. Group ownership/historical plan and container-unit identity checks supplement shared-source/flush counts. Additive 0016 and its exact schema catalog require a matching helper update before rollout. Environmental trial setup/attribution and analytics remain deferred. See [2H.2](MILESTONE_2H2.md).

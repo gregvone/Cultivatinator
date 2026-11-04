@@ -79,6 +79,12 @@ def transaction(
                 # cover and relationship decisions, including concurrent requests.
                 session.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 yield session
+                # Reconcile inside the same domain transaction, including legacy
+                # provenance commands that do not use InventoryOperation.
+                if not session.info.get("skip_experiment_sync"):
+                    from .experiment_enrollment import synchronize
+
+                    synchronize(session, session.info.get("experiment_operation"))
         except IntegrityError as exc:
             raise HTTPException(
                 409,
