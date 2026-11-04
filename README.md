@@ -1,8 +1,8 @@
 # Cultivatinator
 
-A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2D.1: Performance Dashboard & Cultivation Comparisons** adds read-only yield, timing, flush and outcome reports with measured sample counts and traceable grow records. See [2D.1 calculations and coverage](docs/MILESTONE_2D1.md) and [2C.4 layouts](docs/MILESTONE_2C4.md).
+A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2D.2: Complete Backup & Safe Restore** adds weekly retained server backups, manual save/download, focused administrator access and browser restore through a restricted host helper, replacing only the four persistent data directories. See [backup, verification and recovery instructions](docs/MILESTONE_2D2.md), [2D.1 reports](docs/MILESTONE_2D1.md) and [2C.4 layouts](docs/MILESTONE_2C4.md).
 
-The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; spawn and fruiting counts reflect active registered records; monitoring and unimplemented modules remain empty. No demonstration records or login are included. This single-user application has **no authentication** and is intended for a trusted private network only. Do not expose it directly to the Internet.
+The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; spawn and fruiting counts reflect active registered records; monitoring and unimplemented modules remain empty. No demonstration records are included. This single-user application has **no general cultivation login**; backup administration defaults to its own passphrase and expiring sessions, with an explicit passwordless Trusted LAN option. It is intended for a trusted private network only. Do not expose it directly to the Internet.
 
 See [Milestone 2C.3 fruiting workflows](docs/MILESTONE_2C3.md) for New Fruiting Container → Mark Pinning → Mark Fruiting → Record Harvest → Next Flush → Finish Grow. A Ready spawn jar/bag is consumed once for all destinations; harvests retain container occupancy until explicit completion/failure. Optional wet/dry weights, subjective potency and environment snapshots preserve individual histories. Pinning, Next Flush, Fruiting, Harvest and Finish Grow forms accept optional photos directly; compact galleries retain exact event/flush ownership and failed uploads can be retried without duplicating the saved event.
 
@@ -29,15 +29,16 @@ Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI 
 sudo install -d -m 0755 /opt/stacks
 sudo git clone https://github.com/gregvone/Cultivatinator.git /opt/stacks/cultivatinator
 cd /opt/stacks/cultivatinator
-# For the Milestone 2D.1 review implementation:
-sudo git switch feature/milestone-2d1-performance
+# For the Milestone 2D.2 review implementation:
+sudo git switch feature/milestone-2d2-backup-restore
 sudo install -d -o 10001 -g 10001 -m 0750 /storage/tv/cultivatinator
+sudo python3 scripts/install_backup_helper.py install --data-root /storage/tv/cultivatinator --compose-file /opt/stacks/cultivatinator/compose.yaml
 sudo docker compose up -d --build --wait
 sudo docker compose ps
 curl --fail http://127.0.0.1:8085/api/health
 ```
 
-Open `http://SERVER-IP:8085`. Dockge can manage `/opt/stacks/cultivatinator/compose.yaml`. If the stack directory already exists, use the existing checkout rather than cloning over it. The review branch must be available remotely before using these commands.
+Open `http://SERVER-IP:8085`. Dockge can manage `/opt/stacks/cultivatinator/compose.yaml`. If the stack directory already exists, use the existing checkout rather than cloning over it. The review branch must be available remotely before using these commands. The helper installer requires host Python 3.10+, SQLite/tzdata and systemd; save its private one-time browser setup code. The app receives only a read-only Unix-socket directory, never the Docker socket. For the existing co-located Debian checkout, use the exact [2D.2 setup steps](docs/MILESTONE_2D2.md) instead of cloning a second checkout.
 
 Default host port is **8085**. Copy `.env.example` to `.env` to change `APP_PORT` or `DATA_DIR`. Container port stays 8085. Pre-create the chosen host data directory owned by UID/GID **10001:10001**; the application never starts as root or changes host permissions automatically. For a development Compose deployment, set `DATA_DIR=./data`, create that directory with the same ownership, then use the same Compose command.
 
@@ -54,16 +55,17 @@ All persistent content is mounted at `/data`:
 | `files/` | Reserved for application-managed files |
 | `settings/` | Reserved for future persistent settings |
 
-Container recreation and image replacement preserve the bind-mounted directory. Do not remove it when updating. UI backup/restore is **not implemented**. For a consistent Docker-level backup, stop writes by stopping the container and archive the entire directory (including SQLite sidecars):
+Container recreation and image replacement preserve persistent data. The existing Debian installation has its Git checkout, Compose file and data together at `/storage/tv/cultivatinator`. **Never replace or archive that entire root as a data-restore operation.** Only `database/`, `photos/`, `files/` and `settings/` belong in a workspace backup; Git, source, Compose and `.env` are excluded.
 
-```bash
-cd /opt/stacks/cultivatinator
-sudo docker compose stop app
-sudo tar -C /storage/tv -czf /opt/stacks/cultivatinator-backup-$(date +%Y%m%d-%H%M%S).tar.gz cultivatinator
-sudo docker compose start app
-```
+Use **Settings → Backup & Restore** to establish/unlock the backup administrator and **Create Backup**. In explicitly configured Trusted LAN Mode, allowed clients open this panel immediately without a password. Both server save and browser download are selected by default. Stored backups can be verified, downloaded, restored or explicitly deleted. Automatic weekly backups default to Sunday 03:00 **America/New_York**, keeping the latest **12** successful automatic archives. Manual backups remain until explicitly deleted. Schedule/catalog state lives under `backups/.control/`, outside restored data. The app runs scheduling without a browser and catches up one latest missed occurrence after downtime.
 
-Check the tar command succeeded before relying on the archive; keep a copy off the server. To restore: stop the service, preserve the current data directory separately, inspect a trusted archive, extract its `cultivatinator/` directory under `/storage/tv`, restore UID/GID 10001 ownership, and start the **matching application version**. Test recovery on a separate copy first. No live-file copying procedure is promised safe.
+Capture coordinates complete application/photo mutations and uses SQLite's online backup API, including committed WAL contents. ZIP format and migration compatibility are retained. Check browser downloads and keep external copies: same-disk `backups/` cannot protect against total disk failure and is never recursively included in an archive.
+
+Restore from a stored row or **Restore from ZIP**. Both verify/stage first and display date, size, versions and replacement confirmation. A root-owned, Unix-only host helper saves an independent safety ZIP, stops/proves writers stopped, replaces only the four data children, preserves UID/GID 10001, restarts/checks health and reports the authoritative outcome after browser reconnection. Rollback and interrupted recovery retain originals. Git, source, Compose, `.env`, server backups, scheduling and administrator credentials remain in place. Normal operations require no terminal after the one-time helper installation.
+
+See [2D.2 authorization, helper setup, retention, archive limits, safe acceptance and emergency recovery](docs/MILESTONE_2D2.md). HTTP remains suitable only for a trusted network; use HTTPS when protecting credentials from interception is required. Backup sessions are separate from the existing unauthenticated cultivation API. Host CLI tools remain for emergency recovery, and no automatic database downgrade or migration repair occurs.
+
+For your `192.168.68.0/24` installation, merge the two values from [.env.trusted-lan.example](.env.trusted-lan.example) into the existing Debian `.env`, preserving its other settings. Re-run the helper installer, then rebuild/recreate the app as described in [exact mode-switch instructions](docs/MILESTONE_2D2.md#apply-your-debian-configuration-without-changing-cultivation-data). Every allowed LAN client can administer backups/restores. Direct-peer network checks, CSRF and explicit deletion/restore confirmation remain enforced. Forwarded requests are rejected; use a LAN IP or private hostname. The repository's default remains `password`; switching modes preserves credentials and all cultivation data.
 
 ## Development without Docker
 
@@ -79,7 +81,7 @@ cd ../backend
 ../.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-In another terminal run `cd frontend && npm run dev`. Vite serves the UI and proxies `/api` to port 8000. Alternatively the production frontend build is served directly by FastAPI at port 8000. Backend commands run from `backend/`; default data is `../data/` and frontend is `../frontend/dist/`. Override with `CULTIVATINATOR_DATA_DIR`, `CULTIVATINATOR_FRONTEND_DIR`, and `CULTIVATINATOR_ENVIRONMENT` as necessary. No credentials or external services are required. When switching between Docker and native development, use separate data directories to avoid ownership conflicts: for example, export `CULTIVATINATOR_DATA_DIR=/tmp/cultivatinator-native-data` for a disposable native database, or choose a persistent directory owned by your development user. Do not concurrently open the same database from both workflows.
+In another terminal run `cd frontend && npm run dev`. Vite serves the UI and proxies `/api` to port 8000. Alternatively the production frontend build is served directly by FastAPI at port 8000. Backend commands run from `backend/`; default data is `../data/` and frontend is `../frontend/dist/`. Override with `CULTIVATINATOR_DATA_DIR`, `CULTIVATINATOR_FRONTEND_DIR`, and `CULTIVATINATOR_ENVIRONMENT` as necessary. Cultivation development needs no credentials or external services; Backup & Restore remains locked without its configured host helper. Full browser restore acceptance uses the isolated Docker test installation described in 2D.2. When switching between Docker and native development, use separate data directories to avoid ownership conflicts: for example, export `CULTIVATINATOR_DATA_DIR=/tmp/cultivatinator-native-data` for a disposable native database, or choose a persistent directory owned by your development user. Do not concurrently open the same database from both workflows.
 
 Validation:
 

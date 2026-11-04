@@ -8,3 +8,10 @@ data/
 playwright-report/
 test-results/
 *.tsbuildinfo
+
+# Runtime fencing files when the data root shares the Git checkout.
+/.cultivatinator-runtime.lock
+/.cultivatinator-restore.lock
+/.cultivatinator-restore-in-progress.json
+/.cultivatinator-permission-*
+/backups/

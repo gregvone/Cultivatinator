@@ -494,6 +494,10 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-preparation-browser-") a
                 page.get_by_role("link", name="Edit Recipe", exact=True).click()
                 page.get_by_label("Recipe notes", exact=True).fill("Edited notes")
                 page.get_by_role("button", name="Save Recipe", exact=True).click()
+                # Recipe details are collapsed by default since 2C.4.
+                page.get_by_role(
+                    "button", name="Processing & secondary details"
+                ).click()
                 expect(page.get_by_text("Edited notes", exact=True)).to_be_visible()
                 snapshot = page.request.get(
                     base + "/api/preparation/materials/" + plates[0]

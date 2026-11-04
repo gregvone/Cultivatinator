@@ -12,3 +12,7 @@ data
 /photos/
 /files/
 /settings/
+
+/.cultivatinator-*
+/cultivatinator-backup-*.zip
+/backups/

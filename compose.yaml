@@ -9,8 +9,16 @@ services:
       - "${APP_PORT:-8085}:8085"
     volumes:
       - "${DATA_DIR:-/storage/tv/cultivatinator}:/data"
+      - type: bind
+        source: "${MAINTENANCE_DIR:-/run/cultivatinator-maintenance}"
+        target: /run/cultivatinator-maintenance
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       CULTIVATINATOR_ENVIRONMENT: production
+      CULTIVATINATOR_BACKUP_AUTH_MODE: "${CULTIVATINATOR_BACKUP_AUTH_MODE:-password}"
+      CULTIVATINATOR_TRUSTED_NETWORKS: "${CULTIVATINATOR_TRUSTED_NETWORKS:-}"
     security_opt:
       - no-new-privileges:true
     cap_drop:

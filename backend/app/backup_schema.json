@@ -1,0 +1,812 @@
+[
+  [
+    "index",
+    "ix_activity_events_batch_id",
+    "activity_events",
+    "CREATE INDEX ix_activity_events_batch_id ON activity_events (batch_id)"
+  ],
+  [
+    "index",
+    "ix_activity_events_fruiting_id",
+    "activity_events",
+    "CREATE INDEX ix_activity_events_fruiting_id ON activity_events (fruiting_id)"
+  ],
+  [
+    "index",
+    "ix_activity_events_line_id",
+    "activity_events",
+    "CREATE INDEX ix_activity_events_line_id ON activity_events (line_id)"
+  ],
+  [
+    "index",
+    "ix_activity_events_occurred_at",
+    "activity_events",
+    "CREATE INDEX ix_activity_events_occurred_at ON activity_events (occurred_at)"
+  ],
+  [
+    "index",
+    "ix_activity_events_physical_id",
+    "activity_events",
+    "CREATE INDEX ix_activity_events_physical_id ON activity_events (physical_id)"
+  ],
+  [
+    "index",
+    "ix_activity_events_spawn_id",
+    "activity_events",
+    "CREATE INDEX ix_activity_events_spawn_id ON activity_events (spawn_id)"
+  ],
+  [
+    "index",
+    "ix_activity_events_spore_id",
+    "activity_events",
+    "CREATE INDEX ix_activity_events_spore_id ON activity_events (spore_id)"
+  ],
+  [
+    "index",
+    "ix_activity_events_strain_id",
+    "activity_events",
+    "CREATE INDEX ix_activity_events_strain_id ON activity_events (strain_id)"
+  ],
+  [
+    "index",
+    "ix_batch_sources_spawn_id",
+    "batch_sources",
+    "CREATE INDEX ix_batch_sources_spawn_id ON batch_sources (spawn_id)"
+  ],
+  [
+    "index",
+    "ix_container_reservations_item_id",
+    "container_reservations",
+    "CREATE INDEX ix_container_reservations_item_id ON container_reservations (item_id)"
+  ],
+  [
+    "index",
+    "ix_culture_lines_status",
+    "culture_lines",
+    "CREATE INDEX ix_culture_lines_status ON culture_lines (status)"
+  ],
+  [
+    "index",
+    "ix_culture_lines_strain_id",
+    "culture_lines",
+    "CREATE INDEX ix_culture_lines_strain_id ON culture_lines (strain_id)"
+  ],
+  [
+    "index",
+    "ix_fruiting_containers_batch_id",
+    "fruiting_containers",
+    "CREATE INDEX ix_fruiting_containers_batch_id ON fruiting_containers (batch_id)"
+  ],
+  [
+    "index",
+    "ix_fruiting_containers_status",
+    "fruiting_containers",
+    "CREATE INDEX ix_fruiting_containers_status ON fruiting_containers (status)"
+  ],
+  [
+    "index",
+    "ix_fruiting_environment_changes_fruiting_id",
+    "fruiting_environment_changes",
+    "CREATE INDEX ix_fruiting_environment_changes_fruiting_id ON fruiting_environment_changes (fruiting_id)"
+  ],
+  [
+    "index",
+    "ix_fruiting_runs_recipe_id",
+    "fruiting_runs",
+    "CREATE INDEX ix_fruiting_runs_recipe_id ON fruiting_runs (recipe_id)"
+  ],
+  [
+    "index",
+    "ix_fruiting_sources_batch_id",
+    "fruiting_sources",
+    "CREATE INDEX ix_fruiting_sources_batch_id ON fruiting_sources (batch_id)"
+  ],
+  [
+    "index",
+    "ix_fruiting_sources_spawn_id",
+    "fruiting_sources",
+    "CREATE INDEX ix_fruiting_sources_spawn_id ON fruiting_sources (spawn_id)"
+  ],
+  [
+    "index",
+    "ix_grow_batches_line_id",
+    "grow_batches",
+    "CREATE INDEX ix_grow_batches_line_id ON grow_batches (line_id)"
+  ],
+  [
+    "index",
+    "ix_grow_batches_status",
+    "grow_batches",
+    "CREATE INDEX ix_grow_batches_status ON grow_batches (status)"
+  ],
+  [
+    "index",
+    "ix_harvest_entries_fruiting_id",
+    "harvest_entries",
+    "CREATE INDEX ix_harvest_entries_fruiting_id ON harvest_entries (fruiting_id)"
+  ],
+  [
+    "index",
+    "ix_harvest_photos_harvest_id",
+    "harvest_photos",
+    "CREATE INDEX ix_harvest_photos_harvest_id ON harvest_photos (harvest_id)"
+  ],
+  [
+    "index",
+    "ix_harvest_revisions_harvest_id",
+    "harvest_revisions",
+    "CREATE INDEX ix_harvest_revisions_harvest_id ON harvest_revisions (harvest_id)"
+  ],
+  [
+    "index",
+    "ix_inventory_operations_operation_type",
+    "inventory_operations",
+    "CREATE INDEX ix_inventory_operations_operation_type ON inventory_operations (operation_type)"
+  ],
+  [
+    "index",
+    "ix_journal_photos_event",
+    "journal_photos",
+    "CREATE INDEX ix_journal_photos_event ON journal_photos (fruiting_id, event_type, flush_number)"
+  ],
+  [
+    "index",
+    "ix_label_assignments_label_id",
+    "label_assignments",
+    "CREATE INDEX ix_label_assignments_label_id ON label_assignments (label_id)"
+  ],
+  [
+    "index",
+    "ix_line_origins_fruiting_id",
+    "line_origins",
+    "CREATE INDEX ix_line_origins_fruiting_id ON line_origins (fruiting_id)"
+  ],
+  [
+    "index",
+    "ix_line_origins_spore_id",
+    "line_origins",
+    "CREATE INDEX ix_line_origins_spore_id ON line_origins (spore_id)"
+  ],
+  [
+    "index",
+    "ix_line_parents_parent_id",
+    "line_parents",
+    "CREATE INDEX ix_line_parents_parent_id ON line_parents (parent_id)"
+  ],
+  [
+    "index",
+    "ix_material_transfers_operation_id",
+    "material_transfers",
+    "CREATE INDEX ix_material_transfers_operation_id ON material_transfers (operation_id)"
+  ],
+  [
+    "index",
+    "ix_material_transfers_physical_source_id",
+    "material_transfers",
+    "CREATE INDEX ix_material_transfers_physical_source_id ON material_transfers (physical_source_id)"
+  ],
+  [
+    "index",
+    "ix_material_transfers_spore_source_id",
+    "material_transfers",
+    "CREATE INDEX ix_material_transfers_spore_source_id ON material_transfers (spore_source_id)"
+  ],
+  [
+    "index",
+    "ix_photo_attachments_batch_id",
+    "photo_attachments",
+    "CREATE INDEX ix_photo_attachments_batch_id ON photo_attachments (batch_id)"
+  ],
+  [
+    "index",
+    "ix_photo_attachments_fruiting_id",
+    "photo_attachments",
+    "CREATE INDEX ix_photo_attachments_fruiting_id ON photo_attachments (fruiting_id)"
+  ],
+  [
+    "index",
+    "ix_photo_attachments_line_id",
+    "photo_attachments",
+    "CREATE INDEX ix_photo_attachments_line_id ON photo_attachments (line_id)"
+  ],
+  [
+    "index",
+    "ix_photo_attachments_physical_id",
+    "photo_attachments",
+    "CREATE INDEX ix_photo_attachments_physical_id ON photo_attachments (physical_id)"
+  ],
+  [
+    "index",
+    "ix_photo_attachments_spawn_id",
+    "photo_attachments",
+    "CREATE INDEX ix_photo_attachments_spawn_id ON photo_attachments (spawn_id)"
+  ],
+  [
+    "index",
+    "ix_photo_attachments_spore_id",
+    "photo_attachments",
+    "CREATE INDEX ix_photo_attachments_spore_id ON photo_attachments (spore_id)"
+  ],
+  [
+    "index",
+    "ix_photo_attachments_strain_id",
+    "photo_attachments",
+    "CREATE INDEX ix_photo_attachments_strain_id ON photo_attachments (strain_id)"
+  ],
+  [
+    "index",
+    "ix_physical_cultures_line_id",
+    "physical_cultures",
+    "CREATE INDEX ix_physical_cultures_line_id ON physical_cultures (line_id)"
+  ],
+  [
+    "index",
+    "ix_physical_cultures_registration_batch",
+    "physical_cultures",
+    "CREATE INDEX ix_physical_cultures_registration_batch ON physical_cultures (registration_batch)"
+  ],
+  [
+    "index",
+    "ix_physical_cultures_status",
+    "physical_cultures",
+    "CREATE INDEX ix_physical_cultures_status ON physical_cultures (status)"
+  ],
+  [
+    "index",
+    "ix_pinning_photos_flush",
+    "pinning_photos",
+    "CREATE INDEX ix_pinning_photos_flush ON pinning_photos (fruiting_id, flush_number)"
+  ],
+  [
+    "index",
+    "ix_preparation_batches_recipe_id",
+    "preparation_batches",
+    "CREATE INDEX ix_preparation_batches_recipe_id ON preparation_batches (recipe_id)"
+  ],
+  [
+    "index",
+    "ix_prepared_materials_batch_id",
+    "prepared_materials",
+    "CREATE INDEX ix_prepared_materials_batch_id ON prepared_materials (batch_id)"
+  ],
+  [
+    "index",
+    "ix_prepared_materials_stage",
+    "prepared_materials",
+    "CREATE INDEX ix_prepared_materials_stage ON prepared_materials (stage)"
+  ],
+  [
+    "index",
+    "ix_spawn_line_id",
+    "spawn",
+    "CREATE INDEX ix_spawn_line_id ON spawn (line_id)"
+  ],
+  [
+    "index",
+    "ix_spawn_status",
+    "spawn",
+    "CREATE INDEX ix_spawn_status ON spawn (status)"
+  ],
+  [
+    "index",
+    "ix_spawn_strain_id",
+    "spawn",
+    "CREATE INDEX ix_spawn_strain_id ON spawn (strain_id)"
+  ],
+  [
+    "index",
+    "ix_spore_collections_fruiting_id",
+    "spore_collections",
+    "CREATE INDEX ix_spore_collections_fruiting_id ON spore_collections (fruiting_id)"
+  ],
+  [
+    "index",
+    "ix_spore_sources_status",
+    "spore_sources",
+    "CREATE INDEX ix_spore_sources_status ON spore_sources (status)"
+  ],
+  [
+    "index",
+    "ix_spore_sources_strain_id",
+    "spore_sources",
+    "CREATE INDEX ix_spore_sources_strain_id ON spore_sources (strain_id)"
+  ],
+  [
+    "index",
+    "ix_stock_items_category",
+    "stock_items",
+    "CREATE INDEX ix_stock_items_category ON stock_items (category)"
+  ],
+  [
+    "index",
+    "ix_stock_transactions_item_id",
+    "stock_transactions",
+    "CREATE INDEX ix_stock_transactions_item_id ON stock_transactions (item_id)"
+  ],
+  [
+    "index",
+    "ix_stock_transactions_operation_id",
+    "stock_transactions",
+    "CREATE INDEX ix_stock_transactions_operation_id ON stock_transactions (operation_id)"
+  ],
+  [
+    "index",
+    "ix_strains_status",
+    "strains",
+    "CREATE INDEX ix_strains_status ON strains (status)"
+  ],
+  [
+    "index",
+    "uq_active_label_fruiting_id",
+    "label_assignments",
+    "CREATE UNIQUE INDEX uq_active_label_fruiting_id ON label_assignments (fruiting_id) WHERE released_at IS NULL AND fruiting_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_active_label_physical_id",
+    "label_assignments",
+    "CREATE UNIQUE INDEX uq_active_label_physical_id ON label_assignments (physical_id) WHERE released_at IS NULL AND physical_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_active_label_prepared_id",
+    "label_assignments",
+    "CREATE UNIQUE INDEX uq_active_label_prepared_id ON label_assignments (prepared_id) WHERE released_at IS NULL AND prepared_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_active_label_spawn_id",
+    "label_assignments",
+    "CREATE UNIQUE INDEX uq_active_label_spawn_id ON label_assignments (spawn_id) WHERE released_at IS NULL AND spawn_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_confirmed_parent",
+    "line_parents",
+    "CREATE UNIQUE INDEX uq_confirmed_parent ON line_parents (line_id) WHERE confidence = 'confirmed'"
+  ],
+  [
+    "index",
+    "uq_occupied_container_label",
+    "label_assignments",
+    "CREATE UNIQUE INDEX uq_occupied_container_label ON label_assignments (label_id) WHERE released_at IS NULL"
+  ],
+  [
+    "index",
+    "uq_photo_cover_batch_id",
+    "photo_attachments",
+    "CREATE UNIQUE INDEX uq_photo_cover_batch_id ON photo_attachments (batch_id) WHERE is_cover = 1 AND batch_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_photo_cover_fruiting_id",
+    "photo_attachments",
+    "CREATE UNIQUE INDEX uq_photo_cover_fruiting_id ON photo_attachments (fruiting_id) WHERE is_cover = 1 AND fruiting_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_photo_cover_line_id",
+    "photo_attachments",
+    "CREATE UNIQUE INDEX uq_photo_cover_line_id ON photo_attachments (line_id) WHERE is_cover = 1 AND line_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_photo_cover_physical_id",
+    "photo_attachments",
+    "CREATE UNIQUE INDEX uq_photo_cover_physical_id ON photo_attachments (physical_id) WHERE is_cover = 1 AND physical_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_photo_cover_spawn_id",
+    "photo_attachments",
+    "CREATE UNIQUE INDEX uq_photo_cover_spawn_id ON photo_attachments (spawn_id) WHERE is_cover = 1 AND spawn_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_photo_cover_spore_id",
+    "photo_attachments",
+    "CREATE UNIQUE INDEX uq_photo_cover_spore_id ON photo_attachments (spore_id) WHERE is_cover = 1 AND spore_id IS NOT NULL"
+  ],
+  [
+    "index",
+    "uq_photo_cover_strain_id",
+    "photo_attachments",
+    "CREATE UNIQUE INDEX uq_photo_cover_strain_id ON photo_attachments (strain_id) WHERE is_cover = 1 AND strain_id IS NOT NULL"
+  ],
+  [
+    "table",
+    "activity_events",
+    "activity_events",
+    "CREATE TABLE \"activity_events\" (CHECK ((strain_id IS NOT NULL) + (line_id IS NOT NULL) + (spore_id IS NOT NULL) + (physical_id IS NOT NULL) + (spawn_id IS NOT NULL) + (batch_id IS NOT NULL) + (fruiting_id IS NOT NULL) = 1), CONSTRAINT fk_activity_events_batch_id FOREIGN KEY(batch_id) REFERENCES grow_batches (id), CONSTRAINT fk_activity_events_fruiting_id FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), CONSTRAINT fk_activity_events_spawn_id FOREIGN KEY(spawn_id) REFERENCES spawn (id), FOREIGN KEY(line_id) REFERENCES culture_lines (id), FOREIGN KEY(physical_id) REFERENCES physical_cultures (id), FOREIGN KEY(spore_id) REFERENCES spore_sources (id), FOREIGN KEY(strain_id) REFERENCES strains (id), PRIMARY KEY (id), batch_id VARCHAR(32), description VARCHAR(500) NOT NULL, event_type VARCHAR(40) NOT NULL, fruiting_id VARCHAR(32), id INTEGER NOT NULL, line_id VARCHAR(32), occurred_at VARCHAR(40) NOT NULL, physical_id VARCHAR(32), spawn_id VARCHAR(32), spore_id VARCHAR(32), strain_id VARCHAR(32))"
+  ],
+  [
+    "table",
+    "alembic_version",
+    "alembic_version",
+    "CREATE TABLE alembic_version (CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num), version_num VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "batch_sources",
+    "batch_sources",
+    "CREATE TABLE batch_sources (FOREIGN KEY(batch_id) REFERENCES grow_batches (id), FOREIGN KEY(spawn_id) REFERENCES spawn (id), PRIMARY KEY (batch_id, spawn_id), batch_id VARCHAR(32) NOT NULL, spawn_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "container_labels",
+    "container_labels",
+    "CREATE TABLE container_labels (CHECK (number > 0), CHECK (reusable IN (0,1)), PRIMARY KEY (id), UNIQUE (code), UNIQUE (container_type, number), code VARCHAR(40) NOT NULL, container_type VARCHAR(30) NOT NULL, id INTEGER NOT NULL, number INTEGER NOT NULL, reusable INTEGER NOT NULL)"
+  ],
+  [
+    "table",
+    "container_reservations",
+    "container_reservations",
+    "CREATE TABLE container_reservations (CHECK (released IN (0,1)), FOREIGN KEY(item_id) REFERENCES stock_items (id), FOREIGN KEY(prepared_id) REFERENCES prepared_materials (id), PRIMARY KEY (prepared_id), item_id VARCHAR(32) NOT NULL, prepared_id VARCHAR(32) NOT NULL, released INTEGER NOT NULL)"
+  ],
+  [
+    "table",
+    "cultivation_states",
+    "cultivation_states",
+    "CREATE TABLE cultivation_states (CHECK ((physical_id IS NOT NULL) + (spawn_id IS NOT NULL) + (fruiting_id IS NOT NULL) + (prepared_id IS NOT NULL) = 1), CHECK (phase IN ('colonizing','ready','used','completed','failed')), FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), FOREIGN KEY(physical_id) REFERENCES physical_cultures (id), FOREIGN KEY(prepared_id) REFERENCES prepared_materials (id), FOREIGN KEY(spawn_id) REFERENCES spawn (id), PRIMARY KEY (id), UNIQUE (fruiting_id), UNIQUE (physical_id), UNIQUE (prepared_id), UNIQUE (spawn_id), completed_date VARCHAR(10), failed_date VARCHAR(10), fruiting_id VARCHAR(32), id INTEGER NOT NULL, inoculation_date VARCHAR(10), phase VARCHAR(20) NOT NULL, physical_id VARCHAR(32), prepared_id VARCHAR(32), ready_date VARCHAR(10), spawn_id VARCHAR(32), used_date VARCHAR(10))"
+  ],
+  [
+    "table",
+    "culture_lines",
+    "culture_lines",
+    "CREATE TABLE culture_lines (CHECK (origin IN ('purchased','gifted','other')), CHECK (status IN ('active','archived')), FOREIGN KEY(strain_id) REFERENCES strains (id), PRIMARY KEY (id), acquisition_date VARCHAR(10), created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, name VARCHAR(200), notes TEXT, origin VARCHAR(20) NOT NULL, status VARCHAR(16) NOT NULL, strain_id VARCHAR(32), supplier VARCHAR(200), supplier_batch VARCHAR(200), supplier_reference VARCHAR(200))"
+  ],
+  [
+    "table",
+    "fruiting_containers",
+    "fruiting_containers",
+    "CREATE TABLE fruiting_containers (CHECK (material_type IN ('tray','bag','block','other')), CHECK (quantity IS NULL OR quantity >= 0), CHECK (quantity IS NULL OR unit IS NOT NULL), CHECK (stage IN ('colonizing','ready','fruiting','finished')), CHECK (status IN ('active','archived')), FOREIGN KEY(batch_id) REFERENCES grow_batches (id), PRIMARY KEY (id), UNIQUE (batch_id, id), acquisition_date VARCHAR(10), batch_id VARCHAR(32) NOT NULL, created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, material_type VARCHAR(20) NOT NULL, name VARCHAR(200), notes TEXT, quantity NUMERIC(14, 3), stage VARCHAR(20) NOT NULL, status VARCHAR(16) NOT NULL, storage_location VARCHAR(200), unit VARCHAR(20))"
+  ],
+  [
+    "table",
+    "fruiting_environment",
+    "fruiting_environment",
+    "CREATE TABLE fruiting_environment (CHECK (id = 1), PRIMARY KEY (id), id INTEGER NOT NULL, revision INTEGER NOT NULL, settings TEXT NOT NULL)"
+  ],
+  [
+    "table",
+    "fruiting_environment_changes",
+    "fruiting_environment_changes",
+    "CREATE TABLE fruiting_environment_changes (FOREIGN KEY(fruiting_id) REFERENCES fruiting_runs (fruiting_id), PRIMARY KEY (id), change_date VARCHAR(10) NOT NULL, fruiting_id VARCHAR(32) NOT NULL, id INTEGER NOT NULL, notes TEXT NOT NULL, recorded_at VARCHAR(40) NOT NULL, settings TEXT)"
+  ],
+  [
+    "table",
+    "fruiting_flushes",
+    "fruiting_flushes",
+    "CREATE TABLE fruiting_flushes (CHECK (number > 0), FOREIGN KEY(fruiting_id) REFERENCES fruiting_runs (fruiting_id), PRIMARY KEY (fruiting_id, number), fruiting_date VARCHAR(10), fruiting_id VARCHAR(32) NOT NULL, fruiting_notes TEXT, number INTEGER NOT NULL, pinning_date VARCHAR(10), pinning_notes TEXT)"
+  ],
+  [
+    "table",
+    "fruiting_runs",
+    "fruiting_runs",
+    "CREATE TABLE fruiting_runs (CHECK (current_flush > 0), CHECK (spawn_grams IS NULL OR spawn_grams >= 0), CHECK (stage IN ('unrecorded','colonizing','pinning','fruiting','harvest','completed','failed')), CHECK (substrate_grams IS NULL OR substrate_grams >= 0), FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), FOREIGN KEY(recipe_id) REFERENCES preparation_recipes (id), FOREIGN KEY(source_spawn_id) REFERENCES spawn (id), PRIMARY KEY (fruiting_id), closing_notes TEXT, completed_date VARCHAR(10), current_flush INTEGER NOT NULL, environment_snapshot TEXT, failed_date VARCHAR(10), fruiting_id VARCHAR(32) NOT NULL, operation_id VARCHAR(32), recipe_id VARCHAR(32), recipe_snapshot TEXT, source_spawn_id VARCHAR(32), spawn_grams NUMERIC(14, 3), spawning_date VARCHAR(10), stage VARCHAR(20) NOT NULL, substrate_grams NUMERIC(14, 3))"
+  ],
+  [
+    "table",
+    "fruiting_sources",
+    "fruiting_sources",
+    "CREATE TABLE fruiting_sources (FOREIGN KEY(batch_id, fruiting_id) REFERENCES fruiting_containers (batch_id, id), FOREIGN KEY(batch_id, spawn_id) REFERENCES batch_sources (batch_id, spawn_id), PRIMARY KEY (fruiting_id, spawn_id), batch_id VARCHAR(32) NOT NULL, fruiting_id VARCHAR(32) NOT NULL, spawn_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "grow_batches",
+    "grow_batches",
+    "CREATE TABLE grow_batches (CHECK ((batch_origin = 'acquired' AND line_id IS NOT NULL) OR (batch_origin = 'prepared' AND line_id IS NULL)), CHECK (allocation_mode IN ('shared','specific')), CHECK (batch_origin IN ('acquired','prepared')), CHECK (status IN ('active','archived')), FOREIGN KEY(line_id) REFERENCES culture_lines (id), PRIMARY KEY (id), acquisition_date VARCHAR(10), allocation_mode VARCHAR(20) NOT NULL, batch_origin VARCHAR(20) NOT NULL, created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, line_id VARCHAR(32), name VARCHAR(200), notes TEXT, status VARCHAR(16) NOT NULL, supplier VARCHAR(200), supplier_batch VARCHAR(200), supplier_reference VARCHAR(200))"
+  ],
+  [
+    "table",
+    "harvest_entries",
+    "harvest_entries",
+    "CREATE TABLE harvest_entries (CHECK (dry_grams IS NULL OR dry_grams >= 0), CHECK (potency IS NULL OR potency BETWEEN 1 AND 5), CHECK (revision > 0), CHECK (wet_grams IS NULL OR wet_grams >= 0), FOREIGN KEY(fruiting_id, flush_number) REFERENCES fruiting_flushes (fruiting_id, number), PRIMARY KEY (id), created_at VARCHAR(40) NOT NULL, dry_grams NUMERIC(14, 3), flush_number INTEGER NOT NULL, fruiting_id VARCHAR(32) NOT NULL, harvest_date VARCHAR(10) NOT NULL, id VARCHAR(32) NOT NULL, notes TEXT, potency INTEGER, potency_notes TEXT, revision INTEGER NOT NULL, updated_at VARCHAR(40) NOT NULL, wet_grams NUMERIC(14, 3))"
+  ],
+  [
+    "table",
+    "harvest_photos",
+    "harvest_photos",
+    "CREATE TABLE harvest_photos (FOREIGN KEY(harvest_id) REFERENCES harvest_entries (id), FOREIGN KEY(photo_id) REFERENCES photo_attachments (id) ON DELETE CASCADE, PRIMARY KEY (photo_id), harvest_id VARCHAR(32) NOT NULL, photo_id VARCHAR(36) NOT NULL)"
+  ],
+  [
+    "table",
+    "harvest_revisions",
+    "harvest_revisions",
+    "CREATE TABLE harvest_revisions (FOREIGN KEY(harvest_id) REFERENCES harvest_entries (id), FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), PRIMARY KEY (id), UNIQUE (harvest_id, revision), UNIQUE (operation_id), harvest_id VARCHAR(32) NOT NULL, id INTEGER NOT NULL, operation_id VARCHAR(32) NOT NULL, recorded_at VARCHAR(40) NOT NULL, revision INTEGER NOT NULL, snapshot TEXT NOT NULL)"
+  ],
+  [
+    "table",
+    "identity_sequences",
+    "identity_sequences",
+    "CREATE TABLE identity_sequences (PRIMARY KEY (prefix), prefix VARCHAR(8) NOT NULL, value INTEGER NOT NULL)"
+  ],
+  [
+    "table",
+    "inventory_operations",
+    "inventory_operations",
+    "CREATE TABLE inventory_operations (PRIMARY KEY (id), UNIQUE (request_key), created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, operation_type VARCHAR(40) NOT NULL, payload TEXT NOT NULL, request_hash VARCHAR(64) NOT NULL, request_key VARCHAR(100) NOT NULL, result TEXT NOT NULL)"
+  ],
+  [
+    "table",
+    "journal_photos",
+    "journal_photos",
+    "CREATE TABLE journal_photos (CHECK ((event_type = 'fruiting' AND flush_number IS NOT NULL) OR (event_type = 'completed' AND flush_number IS NULL)), FOREIGN KEY(fruiting_id) REFERENCES fruiting_runs (fruiting_id), FOREIGN KEY(fruiting_id, flush_number) REFERENCES fruiting_flushes (fruiting_id, number), FOREIGN KEY(photo_id) REFERENCES photo_attachments (id) ON DELETE CASCADE, PRIMARY KEY (photo_id), event_type VARCHAR(20) NOT NULL, flush_number INTEGER, fruiting_id VARCHAR(32) NOT NULL, photo_id VARCHAR(36) NOT NULL)"
+  ],
+  [
+    "table",
+    "label_assignments",
+    "label_assignments",
+    "CREATE TABLE label_assignments (CHECK ((physical_id IS NOT NULL) + (spawn_id IS NOT NULL) + (fruiting_id IS NOT NULL) + (prepared_id IS NOT NULL) = 1), FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), FOREIGN KEY(label_id) REFERENCES container_labels (id), FOREIGN KEY(physical_id) REFERENCES physical_cultures (id), FOREIGN KEY(prepared_id) REFERENCES prepared_materials (id), FOREIGN KEY(spawn_id) REFERENCES spawn (id), PRIMARY KEY (id), assigned_at VARCHAR(40) NOT NULL, fruiting_id VARCHAR(32), id INTEGER NOT NULL, label_id INTEGER NOT NULL, physical_id VARCHAR(32), prepared_id VARCHAR(32), release_date VARCHAR(10), release_reason VARCHAR(500), released_at VARCHAR(40), spawn_id VARCHAR(32))"
+  ],
+  [
+    "table",
+    "lc_media_default",
+    "lc_media_default",
+    "CREATE TABLE lc_media_default (CHECK (id = 1), FOREIGN KEY(recipe_id) REFERENCES preparation_recipes (id), PRIMARY KEY (id), UNIQUE (recipe_id), id INTEGER NOT NULL, recipe_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "line_origins",
+    "line_origins",
+    "CREATE TABLE line_origins (CHECK ((origin_type = 'spores' AND spore_id IS NOT NULL AND fruiting_id IS NULL) OR (origin_type = 'clone' AND fruiting_id IS NOT NULL AND spore_id IS NULL) OR (origin_type IN ('external','isolate','other') AND spore_id IS NULL AND fruiting_id IS NULL)), CHECK (origin_type IN ('external','spores','clone','isolate','other')), FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), FOREIGN KEY(line_id) REFERENCES culture_lines (id), FOREIGN KEY(spore_id) REFERENCES spore_sources (id), PRIMARY KEY (line_id), fruiting_id VARCHAR(32), line_id VARCHAR(32) NOT NULL, notes TEXT, origin_date VARCHAR(10), origin_type VARCHAR(20) NOT NULL, revision INTEGER NOT NULL, spore_id VARCHAR(32))"
+  ],
+  [
+    "table",
+    "line_parents",
+    "line_parents",
+    "CREATE TABLE line_parents (CHECK (confidence IN ('confirmed','possible')), CHECK (line_id != parent_id), FOREIGN KEY(line_id) REFERENCES culture_lines (id), FOREIGN KEY(parent_id) REFERENCES culture_lines (id), PRIMARY KEY (line_id, parent_id), confidence VARCHAR(20) NOT NULL, line_id VARCHAR(32) NOT NULL, parent_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "material_lifecycles",
+    "material_lifecycles",
+    "CREATE TABLE material_lifecycles (CHECK ((physical_id IS NOT NULL) + (spawn_id IS NOT NULL) = 1), CHECK (state IN ('active','depleted','completed','failed')), FOREIGN KEY(physical_id) REFERENCES physical_cultures (id), FOREIGN KEY(spawn_id) REFERENCES spawn (id), PRIMARY KEY (id), UNIQUE (physical_id), UNIQUE (spawn_id), id INTEGER NOT NULL, physical_id VARCHAR(32), spawn_id VARCHAR(32), state VARCHAR(20) NOT NULL)"
+  ],
+  [
+    "table",
+    "material_transfers",
+    "material_transfers",
+    "CREATE TABLE material_transfers (CHECK ((physical_source_id IS NOT NULL) + (spore_source_id IS NOT NULL) = 1), FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), FOREIGN KEY(physical_source_id) REFERENCES physical_cultures (id), FOREIGN KEY(prepared_id) REFERENCES prepared_materials (id), FOREIGN KEY(spore_source_id) REFERENCES spore_sources (id), PRIMARY KEY (id), UNIQUE (prepared_id), id INTEGER NOT NULL, operation_id VARCHAR(32) NOT NULL, physical_source_id VARCHAR(32), prepared_id VARCHAR(32) NOT NULL, spore_source_id VARCHAR(32), transfer_date VARCHAR(10), unit VARCHAR(20) NOT NULL, usage_quantity NUMERIC(14, 3))"
+  ],
+  [
+    "table",
+    "photo_attachments",
+    "photo_attachments",
+    "CREATE TABLE \"photo_attachments\" (CHECK ((strain_id IS NOT NULL) + (line_id IS NOT NULL) + (spore_id IS NOT NULL) + (physical_id IS NOT NULL) + (spawn_id IS NOT NULL) + (batch_id IS NOT NULL) + (fruiting_id IS NOT NULL) = 1), CHECK (is_cover IN (0,1)), CONSTRAINT fk_photo_attachments_batch_id FOREIGN KEY(batch_id) REFERENCES grow_batches (id), CONSTRAINT fk_photo_attachments_fruiting_id FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), CONSTRAINT fk_photo_attachments_spawn_id FOREIGN KEY(spawn_id) REFERENCES spawn (id), FOREIGN KEY(line_id) REFERENCES culture_lines (id), FOREIGN KEY(physical_id) REFERENCES physical_cultures (id), FOREIGN KEY(spore_id) REFERENCES spore_sources (id), FOREIGN KEY(strain_id) REFERENCES strains (id), PRIMARY KEY (id), UNIQUE (filename), UNIQUE (thumbnail), batch_id VARCHAR(32), created_at VARCHAR(40) NOT NULL, filename VARCHAR(50) NOT NULL, fruiting_id VARCHAR(32), id VARCHAR(36) NOT NULL, is_cover INTEGER NOT NULL, line_id VARCHAR(32), media_type VARCHAR(30) NOT NULL, physical_id VARCHAR(32), spawn_id VARCHAR(32), spore_id VARCHAR(32), strain_id VARCHAR(32), thumbnail VARCHAR(50) NOT NULL)"
+  ],
+  [
+    "table",
+    "physical_cultures",
+    "physical_cultures",
+    "CREATE TABLE physical_cultures (CHECK (material_type IN ('lc_syringe','lc_jar','agar_plate','slant','other_culture')), CHECK (purchase_price IS NULL OR purchase_price >= 0), CHECK (quantity IS NULL OR quantity >= 0), CHECK (quantity IS NULL OR unit IS NOT NULL), CHECK (status IN ('active','archived')), FOREIGN KEY(line_id) REFERENCES culture_lines (id), PRIMARY KEY (id), acquisition_date VARCHAR(10), created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, line_id VARCHAR(32) NOT NULL, material_type VARCHAR(30) NOT NULL, name VARCHAR(200), notes TEXT, purchase_price NUMERIC(14, 2), quantity NUMERIC(14, 3), registration_batch VARCHAR(36) NOT NULL, status VARCHAR(16) NOT NULL, storage_location VARCHAR(200), unit VARCHAR(20))"
+  ],
+  [
+    "table",
+    "pinning_photos",
+    "pinning_photos",
+    "CREATE TABLE pinning_photos (FOREIGN KEY(fruiting_id, flush_number) REFERENCES fruiting_flushes (fruiting_id, number), FOREIGN KEY(photo_id) REFERENCES photo_attachments (id) ON DELETE CASCADE, PRIMARY KEY (photo_id), flush_number INTEGER NOT NULL, fruiting_id VARCHAR(32) NOT NULL, photo_id VARCHAR(36) NOT NULL)"
+  ],
+  [
+    "table",
+    "preparation_batches",
+    "preparation_batches",
+    "CREATE TABLE preparation_batches (FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), FOREIGN KEY(recipe_id) REFERENCES preparation_recipes (id), PRIMARY KEY (id), UNIQUE (operation_id), created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, operation_id VARCHAR(32) NOT NULL, recipe_id VARCHAR(32), snapshot TEXT NOT NULL)"
+  ],
+  [
+    "table",
+    "preparation_recipes",
+    "preparation_recipes",
+    "CREATE TABLE preparation_recipes (CHECK (status IN ('active','archived')), PRIMARY KEY (id), contents TEXT NOT NULL, created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, name VARCHAR(200) NOT NULL, recipe_type VARCHAR(20) NOT NULL, revision INTEGER NOT NULL, status VARCHAR(16) NOT NULL, updated_at VARCHAR(40))"
+  ],
+  [
+    "table",
+    "prepared_materials",
+    "prepared_materials",
+    "CREATE TABLE prepared_materials (CHECK ((physical_id IS NOT NULL) + (spawn_id IS NOT NULL) <= 1), CHECK (material_type IN ('agar_plate','lc_jar','lc_syringe','spawn_jar','spawn_bag')), CHECK (stage IN ('preparing','ready','inoculated','completed','failed')), FOREIGN KEY(batch_id) REFERENCES preparation_batches (id), FOREIGN KEY(physical_id) REFERENCES physical_cultures (id), FOREIGN KEY(spawn_id) REFERENCES spawn (id), PRIMARY KEY (id), UNIQUE (physical_id), UNIQUE (spawn_id), batch_id VARCHAR(32) NOT NULL, created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, material_type VARCHAR(30) NOT NULL, physical_id VARCHAR(32), spawn_id VARCHAR(32), stage VARCHAR(20) NOT NULL, use_by VARCHAR(10))"
+  ],
+  [
+    "table",
+    "spawn",
+    "spawn",
+    "CREATE TABLE spawn (CHECK (material_type IN ('spawn_jar','spawn_bag')), CHECK (quantity IS NULL OR quantity >= 0), CHECK (quantity IS NULL OR unit IS NOT NULL), CHECK (stage IN ('ready','colonizing','used')), CHECK (status IN ('active','archived')), FOREIGN KEY(line_id) REFERENCES culture_lines (id), FOREIGN KEY(strain_id) REFERENCES strains (id), PRIMARY KEY (id), acquisition_date VARCHAR(10), created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, line_id VARCHAR(32) NOT NULL, material_type VARCHAR(30) NOT NULL, name VARCHAR(200), notes TEXT, quantity NUMERIC(14, 3), stage VARCHAR(20) NOT NULL, status VARCHAR(16) NOT NULL, storage_location VARCHAR(200), strain_id VARCHAR(32), supplier VARCHAR(200), supplier_batch VARCHAR(200), supplier_reference VARCHAR(200), unit VARCHAR(20))"
+  ],
+  [
+    "table",
+    "spore_collections",
+    "spore_collections",
+    "CREATE TABLE spore_collections (FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), FOREIGN KEY(spore_id) REFERENCES spore_sources (id), PRIMARY KEY (spore_id), collection_date VARCHAR(10), fruiting_id VARCHAR(32) NOT NULL, spore_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "spore_sources",
+    "spore_sources",
+    "CREATE TABLE spore_sources (CHECK (material_type IN ('spore_print','spore_syringe','spore_swab','other_spore')), CHECK (quantity IS NULL OR quantity >= 0), CHECK (quantity IS NULL OR unit IS NOT NULL), CHECK (status IN ('active','archived')), FOREIGN KEY(strain_id) REFERENCES strains (id), PRIMARY KEY (id), acquisition_date VARCHAR(10), created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, material_type VARCHAR(30) NOT NULL, name VARCHAR(200), notes TEXT, quantity NUMERIC(14, 3), status VARCHAR(16) NOT NULL, storage_location VARCHAR(200), strain_id VARCHAR(32), supplier VARCHAR(200), supplier_reference VARCHAR(200), unit VARCHAR(20))"
+  ],
+  [
+    "table",
+    "stock_items",
+    "stock_items",
+    "CREATE TABLE \"stock_items\" (CHECK ((category = 'source' AND (physical_id IS NOT NULL) + (spore_id IS NOT NULL) = 1) OR (category != 'source' AND physical_id IS NULL AND spore_id IS NULL)), CHECK (available IS NULL OR available >= 0), CHECK (category != 'reusable' OR (available IS NOT NULL AND unit = 'count')), CHECK (category IN ('ingredient','consumable','reusable','source','equipment','other')), CHECK (status IN ('active','archived')), FOREIGN KEY(physical_id) REFERENCES physical_cultures (id), FOREIGN KEY(spore_id) REFERENCES spore_sources (id), PRIMARY KEY (id), UNIQUE (physical_id), UNIQUE (spore_id), available NUMERIC(14, 3), available_exact VARCHAR(64), category VARCHAR(20) NOT NULL, container_type VARCHAR(30), created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, name VARCHAR(200) NOT NULL, notes TEXT, physical_id VARCHAR(32), revision INTEGER NOT NULL, spore_id VARCHAR(32), status VARCHAR(16) NOT NULL, storage_location VARCHAR(200), unit VARCHAR(20) NOT NULL)"
+  ],
+  [
+    "table",
+    "stock_transactions",
+    "stock_transactions",
+    "CREATE TABLE stock_transactions (FOREIGN KEY(item_id) REFERENCES stock_items (id), FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), PRIMARY KEY (id), after_exact VARCHAR(64), after_quantity NUMERIC(14, 3), amount NUMERIC(14, 3), amount_exact VARCHAR(64), before_exact VARCHAR(64), before_quantity NUMERIC(14, 3), created_at VARCHAR(40) NOT NULL, entry_type VARCHAR(20) NOT NULL, id INTEGER NOT NULL, item_id VARCHAR(32) NOT NULL, operation_id VARCHAR(32) NOT NULL, reason TEXT NOT NULL, unit VARCHAR(20) NOT NULL)"
+  ],
+  [
+    "table",
+    "strains",
+    "strains",
+    "CREATE TABLE strains (CHECK (status IN ('active','archived')), PRIMARY KEY (id), UNIQUE (normalized_name), created_at VARCHAR(40) NOT NULL, description TEXT, id VARCHAR(32) NOT NULL, name VARCHAR(200) NOT NULL, normalized_name VARCHAR(200) NOT NULL, notes TEXT, scientific_name VARCHAR(200), status VARCHAR(16) NOT NULL)"
+  ],
+  [
+    "trigger",
+    "immutable_container_labels_delete",
+    "container_labels",
+    "CREATE TRIGGER immutable_container_labels_delete BEFORE DELETE ON container_labels BEGIN SELECT RAISE(ABORT, 'Physical label definitions are permanent'); END"
+  ],
+  [
+    "trigger",
+    "immutable_container_labels_update",
+    "container_labels",
+    "CREATE TRIGGER immutable_container_labels_update BEFORE UPDATE ON container_labels BEGIN SELECT RAISE(ABORT, 'Physical label definitions are permanent'); END"
+  ],
+  [
+    "trigger",
+    "immutable_fruiting_environment_changes_delete",
+    "fruiting_environment_changes",
+    "CREATE TRIGGER immutable_fruiting_environment_changes_delete BEFORE DELETE ON fruiting_environment_changes BEGIN SELECT RAISE(ABORT, 'Fruiting history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_fruiting_environment_changes_update",
+    "fruiting_environment_changes",
+    "CREATE TRIGGER immutable_fruiting_environment_changes_update BEFORE UPDATE ON fruiting_environment_changes BEGIN SELECT RAISE(ABORT, 'Fruiting history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_fruiting_origin",
+    "fruiting_runs",
+    "CREATE TRIGGER immutable_fruiting_origin BEFORE UPDATE ON fruiting_runs WHEN NEW.operation_id IS NOT OLD.operation_id OR NEW.source_spawn_id IS NOT OLD.source_spawn_id OR NEW.recipe_id IS NOT OLD.recipe_id OR NEW.recipe_snapshot IS NOT OLD.recipe_snapshot OR NEW.environment_snapshot IS NOT OLD.environment_snapshot OR NEW.spawning_date IS NOT OLD.spawning_date OR NEW.spawn_grams IS NOT OLD.spawn_grams OR NEW.substrate_grams IS NOT OLD.substrate_grams BEGIN SELECT RAISE(ABORT, 'Fruiting origin snapshots are immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_harvest_owner",
+    "harvest_entries",
+    "CREATE TRIGGER immutable_harvest_owner BEFORE UPDATE ON harvest_entries WHEN NEW.fruiting_id != OLD.fruiting_id OR NEW.flush_number != OLD.flush_number OR NEW.created_at != OLD.created_at BEGIN SELECT RAISE(ABORT, 'Harvest ownership is permanent'); END"
+  ],
+  [
+    "trigger",
+    "immutable_harvest_revisions_delete",
+    "harvest_revisions",
+    "CREATE TRIGGER immutable_harvest_revisions_delete BEFORE DELETE ON harvest_revisions BEGIN SELECT RAISE(ABORT, 'Fruiting history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_harvest_revisions_update",
+    "harvest_revisions",
+    "CREATE TRIGGER immutable_harvest_revisions_update BEFORE UPDATE ON harvest_revisions BEGIN SELECT RAISE(ABORT, 'Fruiting history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_journal_photo",
+    "journal_photos",
+    "CREATE TRIGGER immutable_journal_photo BEFORE UPDATE ON journal_photos BEGIN SELECT RAISE(ABORT, 'Journal photo relationships are permanent'); END"
+  ],
+  [
+    "trigger",
+    "immutable_label_assignment_delete",
+    "label_assignments",
+    "CREATE TRIGGER immutable_label_assignment_delete BEFORE DELETE ON label_assignments BEGIN SELECT RAISE(ABORT, 'Physical label history is permanent'); END"
+  ],
+  [
+    "trigger",
+    "immutable_label_assignment_identity",
+    "label_assignments",
+    "CREATE TRIGGER immutable_label_assignment_identity BEFORE UPDATE ON label_assignments WHEN NEW.label_id != OLD.label_id OR NEW.assigned_at != OLD.assigned_at OR OLD.released_at IS NOT NULL OR COALESCE(NEW.physical_id,NEW.spawn_id,NEW.fruiting_id,NEW.prepared_id) != COALESCE(OLD.physical_id,OLD.spawn_id,OLD.fruiting_id,OLD.prepared_id) BEGIN SELECT RAISE(ABORT, 'Physical assignment history cannot be rewritten'); END"
+  ],
+  [
+    "trigger",
+    "immutable_material_transfers_delete",
+    "material_transfers",
+    "CREATE TRIGGER immutable_material_transfers_delete BEFORE DELETE ON material_transfers BEGIN SELECT RAISE(ABORT, 'Preparation history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_material_transfers_update",
+    "material_transfers",
+    "CREATE TRIGGER immutable_material_transfers_update BEFORE UPDATE ON material_transfers BEGIN SELECT RAISE(ABORT, 'Preparation history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_operation_delete",
+    "inventory_operations",
+    "CREATE TRIGGER immutable_operation_delete BEFORE DELETE ON inventory_operations BEGIN SELECT RAISE(ABORT, 'Committed operation history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_operation_update",
+    "inventory_operations",
+    "CREATE TRIGGER immutable_operation_update BEFORE UPDATE ON inventory_operations WHEN OLD.result != '{}' BEGIN SELECT RAISE(ABORT, 'Committed operation history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_pinning_photo",
+    "pinning_photos",
+    "CREATE TRIGGER immutable_pinning_photo BEFORE UPDATE ON pinning_photos BEGIN SELECT RAISE(ABORT, 'Pinning photo relationships are permanent'); END"
+  ],
+  [
+    "trigger",
+    "immutable_preparation_batches_delete",
+    "preparation_batches",
+    "CREATE TRIGGER immutable_preparation_batches_delete BEFORE DELETE ON preparation_batches BEGIN SELECT RAISE(ABORT, 'Preparation history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_preparation_batches_update",
+    "preparation_batches",
+    "CREATE TRIGGER immutable_preparation_batches_update BEFORE UPDATE ON preparation_batches BEGIN SELECT RAISE(ABORT, 'Preparation history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_stock_delete",
+    "stock_transactions",
+    "CREATE TRIGGER immutable_stock_delete BEFORE DELETE ON stock_transactions BEGIN SELECT RAISE(ABORT, 'Inventory history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "immutable_stock_update",
+    "stock_transactions",
+    "CREATE TRIGGER immutable_stock_update BEFORE UPDATE ON stock_transactions BEGIN SELECT RAISE(ABORT, 'Inventory history is immutable'); END"
+  ],
+  [
+    "trigger",
+    "lineage_no_cycle_insert",
+    "line_parents",
+    "CREATE TRIGGER lineage_no_cycle_insert BEFORE INSERT ON line_parents BEGIN SELECT RAISE(ABORT, 'Circular ancestry is not allowed') WHERE NEW.line_id IN ( WITH RECURSIVE ancestors(id) AS ( SELECT NEW.parent_id UNION SELECT p.parent_id FROM line_parents p JOIN ancestors a ON p.line_id = a.id ) SELECT id FROM ancestors ); END"
+  ],
+  [
+    "trigger",
+    "lineage_no_cycle_update",
+    "line_parents",
+    "CREATE TRIGGER lineage_no_cycle_update BEFORE UPDATE ON line_parents BEGIN SELECT RAISE(ABORT, 'Circular ancestry is not allowed') WHERE NEW.line_id IN ( WITH RECURSIVE ancestors(id) AS ( SELECT NEW.parent_id UNION SELECT p.parent_id FROM line_parents p JOIN ancestors a ON p.line_id = a.id ) SELECT id FROM ancestors ); END"
+  ],
+  [
+    "trigger",
+    "operational_spawn_on_registration",
+    "fruiting_runs",
+    "CREATE TRIGGER operational_spawn_on_registration BEFORE INSERT ON fruiting_runs WHEN NEW.operation_id IS NOT NULL AND ((SELECT count(*) FROM fruiting_sources WHERE fruiting_id=NEW.fruiting_id) != 1 OR NOT EXISTS (SELECT 1 FROM fruiting_sources WHERE fruiting_id=NEW.fruiting_id AND spawn_id=NEW.source_spawn_id)) BEGIN SELECT RAISE(ABORT, 'An operational grow must retain exactly its selected spawn source'); END"
+  ],
+  [
+    "trigger",
+    "single_operational_spawn",
+    "fruiting_sources",
+    "CREATE TRIGGER single_operational_spawn BEFORE INSERT ON fruiting_sources WHEN EXISTS (SELECT 1 FROM fruiting_runs r WHERE r.fruiting_id=NEW.fruiting_id AND r.operation_id IS NOT NULL AND r.source_spawn_id != NEW.spawn_id) BEGIN SELECT RAISE(ABORT, 'An operational fruiting container has one spawn source'); END"
+  ],
+  [
+    "trigger",
+    "single_operational_spawn_delete",
+    "fruiting_sources",
+    "CREATE TRIGGER single_operational_spawn_delete BEFORE DELETE ON fruiting_sources WHEN EXISTS (SELECT 1 FROM fruiting_runs r WHERE r.fruiting_id=OLD.fruiting_id AND r.operation_id IS NOT NULL) BEGIN SELECT RAISE(ABORT, 'Operational spawn provenance is permanent'); END"
+  ],
+  [
+    "trigger",
+    "single_operational_spawn_update",
+    "fruiting_sources",
+    "CREATE TRIGGER single_operational_spawn_update BEFORE UPDATE ON fruiting_sources WHEN EXISTS (SELECT 1 FROM fruiting_runs r WHERE r.fruiting_id=OLD.fruiting_id AND r.operation_id IS NOT NULL) BEGIN SELECT RAISE(ABORT, 'Operational spawn provenance is immutable'); END"
+  ],
+  [
+    "trigger",
+    "valid_journal_photo",
+    "journal_photos",
+    "CREATE TRIGGER valid_journal_photo BEFORE INSERT ON journal_photos WHEN NOT EXISTS (SELECT 1 FROM photo_attachments p JOIN fruiting_runs r ON r.fruiting_id=NEW.fruiting_id WHERE p.id=NEW.photo_id AND p.fruiting_id=NEW.fruiting_id AND ((NEW.event_type='completed' AND r.completed_date IS NOT NULL AND NEW.flush_number IS NULL) OR (NEW.event_type='fruiting' AND EXISTS (SELECT 1 FROM fruiting_flushes f WHERE f.fruiting_id=NEW.fruiting_id AND f.number=NEW.flush_number AND f.fruiting_date IS NOT NULL)))) BEGIN SELECT RAISE(ABORT, 'Journal photo must belong to its recorded event'); END"
+  ],
+  [
+    "trigger",
+    "valid_pinning_photo",
+    "pinning_photos",
+    "CREATE TRIGGER valid_pinning_photo BEFORE INSERT ON pinning_photos WHEN NOT EXISTS (SELECT 1 FROM fruiting_flushes f JOIN photo_attachments p ON p.id=NEW.photo_id WHERE f.fruiting_id=NEW.fruiting_id AND f.number=NEW.flush_number AND f.pinning_date IS NOT NULL AND p.fruiting_id=NEW.fruiting_id) BEGIN SELECT RAISE(ABORT, 'Pinning photo must belong to its recorded flush event'); END"
+  ]
+]

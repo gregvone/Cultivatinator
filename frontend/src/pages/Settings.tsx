@@ -1,14 +1,9 @@
 import CollapsiblePanel from "../components/CollapsiblePanel";
 import FruitingEnvironmentSettings from "../components/FruitingEnvironment";
-import { Archive } from "lucide-react";
+import BackupRestore from "../components/BackupRestore";
 import type { AppInfo } from "../api";
 import { useApi } from "../useApi";
-import {
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  PageHeader,
-} from "../components/UI";
+import { ErrorState, LoadingState, PageHeader } from "../components/UI";
 export default function Settings() {
   const { data, error, retry } = useApi<AppInfo>("app/info");
   return (
@@ -48,13 +43,7 @@ export default function Settings() {
       )}
       <FruitingEnvironmentSettings />
       <div className="settings-backup">
-        <CollapsiblePanel title="Backup & Restore">
-          <EmptyState
-            icon={Archive}
-            title="Complete workspace backups are planned."
-            description="Downloadable backup and restore will be added in a future milestone. For now, use the stopped-container backup procedure in the deployment documentation."
-          />
-        </CollapsiblePanel>
+        <BackupRestore />
       </div>
     </>
   );

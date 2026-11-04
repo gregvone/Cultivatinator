@@ -1680,3 +1680,24 @@ main dd {
     margin-left: 0;
   }
 }
+
+.backup-command {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #111f2d;
+  border: 1px solid #40566c;
+  padding: 0.8rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+}
+
+.backup-form { display: grid; gap: 0.8rem; max-width: 48rem; margin: 1rem 0; }
+.backup-form label { display: grid; gap: 0.35rem; }
+.backup-choices, .backup-schedule { display: grid; gap: 0.8rem; border: 1px solid #40566c; padding: 1rem; min-width: 0; }
+.backup-choices label, .backup-check, .backup-form label.backup-check { display: flex; align-items: center; gap: 0.6rem; min-height: 44px; }
+.backup-choices input, .backup-check input { width: auto; flex-shrink: 0; }
+.backup-list { display: grid; gap: 0.8rem; }
+.backup-entry, .backup-confirm, .backup-operation { padding: 1rem; border: 1px solid #40566c; border-radius: 5px; margin: 0.8rem 0; overflow-wrap: anywhere; }
+.backup-entry h4 { margin: 0 0 0.4rem; }
+.backup-confirm { border-color: #ad7f38; }
+.backup-form input, .backup-form select { max-width: 100%; min-width: 0; }
