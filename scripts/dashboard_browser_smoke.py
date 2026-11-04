@@ -2,6 +2,7 @@
 Run: .venv/bin/python scripts/dashboard_browser_smoke.py /usr/bin/chromium
 """
 
+from datetime import date
 from pathlib import Path
 from uuid import uuid4
 import os
@@ -105,22 +106,30 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-dashboard-browser-") as 
                 card.focus()
                 page.keyboard.press("Enter")
                 expect(region).to_be_focused()
-                region.get_by_role("button", name="Snooze 3 days").click()
-                expect(page.get_by_test_id("open_alerts")).to_have_text("0")
+                assert (
+                    region.get_by_role(
+                        "button",
+                        name=__import__("re").compile("Snooze|Dismiss|Undo|Restore"),
+                    ).count()
+                    == 0
+                )
+                assert (
+                    region.get_by_role(
+                        "link",
+                        name=__import__("re").compile("snoozed|dismissed|hidden"),
+                    ).count()
+                    == 0
+                )
                 page.reload()
-                expect(page.get_by_test_id("open_alerts")).to_have_text("0")
-                page.get_by_role(
-                    "link", name="Review snoozed / dismissed alerts"
-                ).click()
-                page.get_by_role("button", name="Restore alert").click()
+                expect(page.get_by_test_id("open_alerts")).to_have_text("1")
+                page.get_by_role("link", name="View all attention items (1)").click()
                 expect(
-                    page.get_by_text("No current hidden attention items.")
+                    page.get_by_role("heading", name="Needs Attention")
+                ).to_be_visible()
+                expect(
+                    page.get_by_role("link", name="P-01 · Dashboard Browser Oyster")
                 ).to_be_visible()
                 page.get_by_role("link", name="Back to Dashboard").click()
-                expect(page.get_by_test_id("open_alerts")).to_have_text("1")
-                page.get_by_role("button", name="Dismiss", exact=True).click()
-                expect(page.get_by_test_id("open_alerts")).to_have_text("0")
-                page.get_by_role("button", name="Undo", exact=True).click()
                 expect(page.get_by_test_id("open_alerts")).to_have_text("1")
                 page.get_by_role("link", name="Active Cultures", exact=False).click()
                 expect(page.get_by_label("Show records")).to_have_value("active")
@@ -172,10 +181,28 @@ with tempfile.TemporaryDirectory(prefix="cultivatinator-dashboard-browser-") as 
                 page.unroute("**/api/dashboard/summary?*")
                 page.get_by_role("button", name="Retry connection").click()
                 expect(page.get_by_test_id("open_alerts")).to_have_text("1")
+                post(
+                    f"/api/containers/records/physical/{plate['id']}/state",
+                    {
+                        "request_key": str(uuid4()),
+                        "action": "failed",
+                        "action_date": date.today().isoformat(),
+                        "reason": "Explicit lifecycle resolution",
+                    },
+                )
+                page.reload()
+                expect(page.get_by_test_id("open_alerts")).to_have_text("0")
+                expect(
+                    page.get_by_text(
+                        "No items currently require attention.", exact=True
+                    )
+                ).to_be_visible()
+                page.get_by_role("button", name="Recent Activity", exact=False).click()
+                expect(page.get_by_text("failed", exact=True)).to_be_visible()
                 assert not errors, errors
                 browser.close()
                 print(
-                    "Dashboard browser acceptance passed: alerts/Undo/review, filters, activity, preferences, mobile/keyboard and error recovery."
+                    "Dashboard browser acceptance passed: condition visibility/resolution and no suppression controls, filters, activity, preferences, mobile/keyboard and error recovery."
                 )
         finally:
             process.terminate()

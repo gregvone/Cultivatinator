@@ -20,7 +20,6 @@ const alert: AttentionItem = {
   rule: "ready",
   category: "Ready for action",
   alert_id: "ready:physical:AG-1",
-  fingerprint: "a".repeat(64),
   recorded_date: "2026-01-01",
   elapsed_days: 3,
 };
@@ -82,39 +81,16 @@ function mount(path = "/") {
   );
 }
 function mock(initial = fixture()) {
-  let data = structuredClone(initial);
-  let hidden: AttentionItem[] = [];
+  const data = structuredClone(initial);
   return vi
     .spyOn(globalThis, "fetch")
     .mockImplementation(async (input, init) => {
       const path = String(input);
-      if (path.endsWith("/dashboard/attention") && init?.method === "POST") {
-        const cmd = JSON.parse(init.body as string);
-        if (cmd.action === "restore") {
-          data.attention_items = [alert];
-          hidden = [];
-        } else {
-          data.attention_items = [];
-          hidden = [
-            {
-              ...alert,
-              suppression: {
-                action: cmd.action,
-                until: cmd.action === "snooze" ? "2026-01-07T00:00:00Z" : null,
-              },
-            },
-          ];
-        }
-        data.counts.open_alerts = data.attention_items.length;
-        return Response.json({ saved: true });
-      }
       if (path.includes("dashboard/summary")) return Response.json(data);
       if (path.includes("dashboard/attention?"))
         return Response.json({
-          items: path.includes("hidden=true") ? hidden : data.attention_items,
-          total: path.includes("hidden=true")
-            ? hidden.length
-            : data.attention_items.length,
+          items: data.attention_items,
+          total: data.attention_items.length,
           page: 1,
           page_size: 25,
         });
@@ -206,79 +182,51 @@ test("cards navigate, alerts focus and expand, periods and missing-weight covera
   ).toBeInTheDocument();
   expect(screen.queryByText("Growing Conditions")).not.toBeInTheDocument();
 });
-test.each([1, 3, 7])(
-  "snooze %i days immediately updates count, offers Undo and persists on refresh",
-  async (days) => {
-    const fetch = mock();
-    mount();
-    await screen.findByTestId("open_alerts");
-    await userEvent.click(
-      screen.getByRole("button", {
-        name: `Snooze ${days} ${days === 1 ? "day" : "days"}`,
-      }),
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId("open_alerts")).toHaveTextContent("0"),
-    );
-    expect(screen.getByRole("status")).toHaveTextContent("snoozed");
-    const post = fetch.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(JSON.parse(post![1]!.body as string)).toMatchObject({
-      days,
-      action: "snooze",
-      fingerprint: alert.fingerprint,
-    });
-    fireEvent(window, new Event("focus"));
-    await waitFor(() =>
-      expect(screen.getByTestId("open_alerts")).toHaveTextContent("0"),
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
-    await waitFor(() =>
-      expect(screen.getByTestId("open_alerts")).toHaveTextContent("1"),
-    );
-  },
-);
-test("dismissed alerts can be reviewed and restored", async () => {
-  mock();
-  mount();
-  await screen.findByTestId("open_alerts");
-  await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-  await waitFor(() =>
-    expect(screen.getByTestId("open_alerts")).toHaveTextContent("0"),
-  );
-  await userEvent.click(
-    screen.getByRole("link", { name: "Review snoozed / dismissed alerts" }),
-  );
-  expect(
-    await screen.findByText("Dismissed until a relevant lifecycle change"),
-  ).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: "Restore alert" }));
-  expect(
-    await screen.findByText("No current hidden attention items."),
-  ).toBeInTheDocument();
-  await userEvent.click(
-    screen.getByRole("link", { name: "Back to Dashboard" }),
-  );
-  expect(await screen.findByTestId("open_alerts")).toHaveTextContent("1");
-});
-test("failed alert mutation stays visible and leaves count unchanged", async () => {
+test("attention has no suppression controls and remains visible after focus refresh", async () => {
   const fetch = mock();
-  const original = fetch.getMockImplementation()!;
-  fetch.mockImplementation(async (input, init) =>
-    init?.method === "POST"
-      ? Response.json(
-          { detail: "This alert changed. Refresh before acting." },
-          { status: 409 },
-        )
-      : original(input, init),
-  );
   mount();
-  await screen.findByTestId("open_alerts");
-  await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Refresh before acting",
-  );
+  expect(await screen.findByTestId("open_alerts")).toHaveTextContent("1");
+  const region = screen.getByRole("region", { name: "Needs Attention" });
+  expect(
+    within(region).getByRole("link", { name: alert.title }),
+  ).toHaveAttribute("href", alert.target);
+  expect(
+    within(region).queryByRole("button", {
+      name: /snooze|dismiss|undo|restore/i,
+    }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(region).queryByRole("link", { name: /hidden|snoozed|dismissed/i }),
+  ).not.toBeInTheDocument();
+  const before = fetch.mock.calls.length;
+  fireEvent(window, new Event("focus"));
+  await waitFor(() => expect(fetch.mock.calls.length).toBeGreaterThan(before));
   expect(screen.getByTestId("open_alerts")).toHaveTextContent("1");
+  expect(
+    fetch.mock.calls.every(
+      ([, init]) => !init?.method || init.method === "GET",
+    ),
+  ).toBe(true);
 });
+
+test("legacy hidden bookmark shows normal current attention without hidden UI", async () => {
+  const fetch = mock();
+  mount("/attention?hidden=true");
+  expect(
+    await screen.findByRole("link", { name: alert.title }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Needs Attention" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Hidden Attention Items")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /snooze|dismiss|undo|restore/i }),
+  ).not.toBeInTheDocument();
+  expect(
+    fetch.mock.calls.every(([input]) => !String(input).includes("hidden=")),
+  ).toBe(true);
+});
+
 test("activity uses actual local timestamp, archived links, pagination and URL record filters", async () => {
   const fetch = mock();
   mount("/activity");

@@ -7,12 +7,10 @@ export interface RecordReference {
 }
 export interface AttentionItem extends RecordReference {
   alert_id: string;
-  fingerprint: string;
   rule: string;
   category: string;
   recorded_date: string | null;
   elapsed_days: number | null;
-  suppression?: { action: "dismiss" | "snooze"; until: string | null } | null;
   severity: "info" | "warning" | "critical";
   description: string;
 }

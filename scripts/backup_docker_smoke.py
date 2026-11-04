@@ -222,22 +222,28 @@ try:
     )
     before = get(f"/api/fruiting/records/{code}")
     # Dashboard state is part of /data/settings: real container restart and
-    # four-directory restores must preserve preferences and dismissals together.
+    # four-directory restores preserve preferences; legacy alert state stays inert.
     preferences = get("/api/dashboard/preferences")
     preferences["pinning"]["days"] = 35
     post("/api/dashboard/preferences", preferences, method="PUT")
-    alert = next(
-        a
-        for a in get("/api/dashboard/summary")["attention_items"]
-        if a["rule"] == "fruiting_action"
-    )
-    post(
-        "/api/dashboard/attention",
-        {
-            "alert_id": alert["alert_id"],
-            "fingerprint": alert["fingerprint"],
-            "action": "dismiss",
-        },
+    alerts = get("/api/dashboard/summary")["attention_items"]
+    assert alerts
+    # Simulate a pre-withdrawal settings file with both kinds of hidden alerts.
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            ["colonizing", "active", "2026-01-01", 1, None], separators=(",", ":")
+        ).encode()
+    ).hexdigest()
+    legacy_states = {
+        a["alert_id"]: {
+            "fingerprint": fingerprint,
+            "action": "dismiss" if i % 2 else "snooze",
+            "until": None if i % 2 else "2099-01-01T00:00:00+00:00",
+        }
+        for i, a in enumerate(alerts)
+    }
+    helper(
+        f"from pathlib import Path;import json;p=Path({str(root / 'settings/dashboard.json')!r});d=json.loads(p.read_text());d['alerts']={legacy_states!r};p.write_text(json.dumps(d))"
     )
     docker("compose", "-f", str(compose), "restart", "app")
     for _ in range(100):
@@ -249,7 +255,8 @@ try:
     else:
         raise RuntimeError("Application did not restart")
     assert get("/api/dashboard/preferences") == preferences
-    assert get("/api/dashboard/attention?hidden=true")["total"] == 1
+    assert get("/api/dashboard/attention")["total"] == len(alerts)
+    assert get("/api/dashboard/summary")["counts"]["open_alerts"] == len(alerts)
     archive = temp / "complete.zip"
     with urllib.request.urlopen(
         urllib.request.Request(
@@ -262,14 +269,6 @@ try:
     print(controller("verify", archive))
     changed_preferences = {**preferences, "pinning": {"days": 45, "enabled": True}}
     post("/api/dashboard/preferences", changed_preferences, method="PUT")
-    post(
-        "/api/dashboard/attention",
-        {
-            "alert_id": alert["alert_id"],
-            "fingerprint": alert["fingerprint"],
-            "action": "restore",
-        },
-    )
     extra = post("/api/library/strains", {"name": "After backup"})
     assert len(get("/api/library/strains")) == 2
     # Force a real post-cutover health failure, then verify automatic rollback
@@ -356,7 +355,8 @@ m.restore(Path({str(archive)!r}),root,Path({str(compose)!r}),confirm='REPLACE-PE
     assert len(get("/api/library/strains")) == 1
     assert get(f"/api/fruiting/records/{code}") == before
     assert get("/api/dashboard/preferences") == preferences
-    assert get("/api/dashboard/attention?hidden=true")["total"] == 1
+    assert get("/api/dashboard/attention")["total"] == len(alerts)
+    assert get("/api/dashboard/summary")["counts"]["open_alerts"] == len(alerts)
     for photo in [pin, harvest_photo, completed]:
         with urllib.request.urlopen(base + photo["url"]) as r:
             assert r.read() == png
@@ -370,7 +370,7 @@ m.restore(Path({str(archive)!r}),root,Path({str(compose)!r}),confirm='REPLACE-PE
     for path, digest in sentinels.items():
         assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
     print(
-        "Backup Docker smoke passed: real stdlib CLI verification, local Compose stop/process fencing, four-directory restore, startup-failure rollback, abrupt-process recovery, non-root startup, retained independent recovery ZIP and originals, exact flush/harvest/completion photos, file/settings/dashboard restart persistence and unchanged Git/source/Compose/.env"
+        "Backup Docker smoke passed: real stdlib CLI verification, local Compose stop/process fencing, four-directory restore, startup-failure rollback, abrupt-process recovery, non-root startup, retained independent recovery ZIP and originals, exact flush/harvest/completion photos, file/settings/dashboard restart persistence and obsolete-alert compatibility and unchanged Git/source/Compose/.env"
     )
 finally:
     try:

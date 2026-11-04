@@ -7,7 +7,7 @@ Reads never create files; cultivation tables and backup archive format are uncha
 from pathlib import Path
 from typing import Literal
 from fastapi import HTTPException
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from .backup_store import atomic_json
 
 
@@ -26,16 +26,12 @@ class Preferences(BaseModel):
     fruiting: Threshold = Field(default_factory=lambda: Threshold(days=14))
 
 
-class Suppression(BaseModel):
-    fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
-    action: Literal["dismiss", "snooze"]
-    until: AwareDatetime | None = None
-
-
 class Document(BaseModel):
+    # Version 1 preferences are unchanged. Ignore obsolete alert-state fields in
+    # existing settings/backups; reads never rewrite them or let them hide alerts.
+    model_config = ConfigDict(extra="ignore")
     version: Literal[1] = 1
     preferences: Preferences = Field(default_factory=Preferences)
-    alerts: dict[str, Suppression] = Field(default_factory=dict, max_length=5000)
 
 
 def path(settings):

@@ -34,7 +34,6 @@ class RecordReference(BaseModel):
 
 class AttentionItem(RecordReference):
     alert_id: str
-    fingerprint: str
     rule: str
     category: str
     recorded_date: str | None = None

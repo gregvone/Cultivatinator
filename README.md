@@ -1,6 +1,6 @@
 # Cultivatinator
 
-A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2E: Dashboard Completion** adds recorded-state attention with persistent snooze/dismiss controls, configurable time reminders, linked cultivation stages, real activity history and recent harvest coverage. See [dashboard rules and Debian review update instructions](docs/MILESTONE_2E.md), [backup and restore](docs/MILESTONE_2D2.md), and [Reports](docs/MILESTONE_2D1.md).
+A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2E: Dashboard Completion** adds recorded-state attention that stays visible until its cultivation condition is resolved, configurable time reminders, linked cultivation stages, real activity history and recent harvest coverage. See [dashboard rules and Debian review update instructions](docs/MILESTONE_2E.md), [backup and restore](docs/MILESTONE_2D2.md), and [Reports](docs/MILESTONE_2D1.md).
 
 The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard derives active counts, stage summaries, attention and harvest coverage from recorded facts; environmental monitoring remains deferred. No demonstration records are included. This single-user application has **no general cultivation login**; backup administration defaults to its own passphrase and expiring sessions, with an explicit passwordless Trusted LAN option. It is intended for a trusted private network only. Do not expose it directly to the Internet.
 
@@ -55,7 +55,7 @@ All persistent content is mounted at `/data`:
 | `database/cultivatinator.sqlite3` | SQLite database, including migration version; WAL sidecars may be present |
 | `photos/` | Photo originals and generated thumbnails |
 | `files/` | Reserved for application-managed files |
-| `settings/` | Dashboard reminder preferences and snoozed/dismissed alerts |
+| `settings/` | Dashboard reminder preferences |
 
 Container recreation and image replacement preserve persistent data. The existing Debian installation has its Git checkout, Compose file and data together at `/storage/tv/cultivatinator`. **Never replace or archive that entire root as a data-restore operation.** Only `database/`, `photos/`, `files/` and `settings/` belong in a workspace backup; Git, source, Compose and `.env` are excluded.
 

@@ -1,7 +1,9 @@
-"""Recorded facts, suppression lifecycle, paging, dates and backup compatibility."""
+"""Recorded facts, persistent condition visibility, paging and backup compatibility."""
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from uuid import uuid4
+from hashlib import sha256
+import json
 from fastapi.testclient import TestClient
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
@@ -100,13 +102,26 @@ def add(
     return code
 
 
-def action(client, item, action="dismiss", **extra):
-    r = client.post(
-        "/api/dashboard/attention",
-        json={k: item[k] for k in ["alert_id", "fingerprint"]}
-        | dict(action=action, **extra),
-    )
-    assert r.status_code == 200, r.text
+def legacy_alerts(client, settings, items):
+    """A real version-1 file from before withdrawal, including matching fingerprints."""
+    prefs = client.get("/api/dashboard/preferences").json()
+    prefs["pinning"]["days"] = 35
+    document = {"version": 1, "preferences": prefs, "alerts": {}}
+    for item, action in items:
+        fingerprint = sha256(
+            json.dumps(
+                ["ready", "active", item["recorded_date"], None, None],
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+        document["alerts"][item["alert_id"]] = dict(
+            fingerprint=fingerprint,
+            action=action,
+            until="2099-01-01T00:00:00+00:00" if action == "snooze" else None,
+        )
+    path = settings.data_dir / "settings/dashboard.json"
+    path.write_text(json.dumps(document))
+    return prefs, path.read_bytes()
 
 
 def rules(client):
@@ -147,87 +162,95 @@ def test_eligibility_missing_dates_terminal_archive_and_threshold_boundary(clien
     assert summary(client)["counts"]["open_alerts"] == 4
 
 
-def test_recent_failures_only_explicit_dates_last_seven_calendar_days(client):
-    yes = [
-        add(client, phase="failed", date="2026-01-26"),
-        add(client, "spawn", "failed", "2026-02-01"),
-    ]
-    for date in ["2026-01-25", None, "2026-02-02"]:
-        add(client, phase="failed", date=date)
-    add(client, phase="failed", date="2026-02-01", archived=True)
-    assert set(rules(client)) == {(code, "recent_failure") for code in yes}
-    assert summary(client)["counts"]["active_cultures"] == 0
+@pytest.mark.parametrize("kind", ["physical", "spawn"])
+def test_failed_cultures_and_spawn_are_activity_not_attention(client, kind):
+    from test_container_labels import action as lifecycle_action
+
+    code = add(client, kind=kind, phase="ready")
+    assert summary(client)["counts"]["open_alerts"] == 1
+    lifecycle_action(
+        client,
+        kind,
+        code,
+        "failed",
+        action_date="2026-02-01",
+        reason="Explicit failure",
+    )
+    assert summary(client)["counts"]["open_alerts"] == 0
+    assert client.get("/api/dashboard/attention").json()["total"] == 0
+    activity = summary(client)["recent_activity"]
+    assert activity[0]["event_type"] == "failed" and activity[0]["record_id"] == code
+    assert activity[0]["target"] == f"/culture-library/{kind}/{code}"
+    assert (
+        client.get(f"/api/dashboard/activity?record_type={kind}").json()["items"][0][
+            "event_type"
+        ]
+        == "failed"
+    )
 
 
-def test_snooze_expiry_undo_stale_rejection_and_restart(client, settings, clock):
+@pytest.mark.parametrize("action", ["snooze", "dismiss"])
+def test_legacy_alert_states_never_hide_current_conditions_after_restart(
+    client, settings, action
+):
     add(client, phase="ready")
     item = summary(client)["attention_items"][0]
-    action(client, item, "snooze", days=3)
-    assert summary(client)["counts"]["open_alerts"] == 0
-    assert client.get("/api/dashboard/attention?hidden=true").json()["total"] == 1
+    prefs, original = legacy_alerts(client, settings, [(item, action)])
+    for _ in range(2):
+        assert summary(client)["counts"]["open_alerts"] == 1
+        assert client.get("/api/dashboard/attention").json()["total"] == 1
+        # Old bookmarks cannot access a hidden collection or suppress anything.
+        assert (
+            client.get("/api/dashboard/attention?hidden=true").json()["items"][0][
+                "alert_id"
+            ]
+            == item["alert_id"]
+        )
     app = create_app(settings)
-    with Session(app.state.engine) as s:
-        assert dashboard.summary(s, settings, "UTC")["counts"]["open_alerts"] == 0
+    with Session(app.state.engine) as session:
+        assert dashboard.summary(session, settings, "UTC")["counts"]["open_alerts"] == 1
     app.state.engine.dispose()
-    clock[0] += timedelta(days=3)
-    assert summary(client)["counts"]["open_alerts"] == 1
-    assert client.get("/api/dashboard/attention?hidden=true").json()["total"] == 0
-    action(client, item)
-    assert summary(client)["counts"]["open_alerts"] == 0
-    action(client, item, "restore")
-    assert summary(client)["counts"]["open_alerts"] == 1
-    assert (
-        client.post(
-            "/api/dashboard/attention",
-            json=dict(
-                alert_id=item["alert_id"], fingerprint="0" * 64, action="dismiss"
-            ),
-        ).status_code
-        == 409
-    )
-    assert (
-        client.post(
-            "/api/dashboard/attention",
-            json=dict(
-                alert_id=item["alert_id"],
-                fingerprint=item["fingerprint"],
-                action="snooze",
-                days=2,
-            ),
-        ).status_code
-        == 422
-    )
+    assert client.get("/api/dashboard/preferences").json() == prefs
+    assert (settings.data_dir / "settings/dashboard.json").read_bytes() == original
 
 
-def test_dismiss_survives_refresh_unrelated_edits_and_photos_relevant_change_reactivates(
-    client,
-):
-    code = add(client, phase="ready", date="2026-01-15")
+@pytest.mark.parametrize("action", ["snooze", "dismiss", "restore"])
+def test_alert_mutation_endpoint_removed(client, action):
+    add(client, phase="ready")
     item = summary(client)["attention_items"][0]
-    action(client, item)
-    with Session(client.app.state.engine) as s, s.begin():
-        s.get(PhysicalCulture, code).notes = "Unrelated note"
+    response = client.post(
+        "/api/dashboard/attention",
+        json={
+            "alert_id": item["alert_id"],
+            "fingerprint": "a" * 64,
+            "action": action,
+            "days": 7,
+        },
+    )
+    assert response.status_code == 405
+    assert summary(client)["counts"]["open_alerts"] == 1
+    schema = client.get("/openapi.json").json()
+    assert "post" not in schema["paths"]["/api/dashboard/attention"]
+    assert "AttentionAction" not in schema["components"]["schemas"]
+
+
+def test_alert_persists_through_unrelated_changes_and_resolves_with_lifecycle(client):
+    code = add(client, phase="ready", date="2026-01-15")
+    with Session(client.app.state.engine) as session, session.begin():
+        session.get(PhysicalCulture, code).notes = "Unrelated note"
         for kind in ["edited", "photo_added", "physical_label"]:
-            s.add(
+            session.add(
                 ActivityEvent(
                     physical_id=code, event_type=kind, description="Unrelated change"
                 )
             )
-    assert summary(client)["counts"]["open_alerts"] == 0
-    assert summary(client)["counts"]["open_alerts"] == 0
-    with Session(client.app.state.engine) as s, s.begin():
-        s.scalar(
-            select(CultivationState).where(CultivationState.physical_id == code)
-        ).ready_date = "2026-01-31"
-        s.add(
-            ActivityEvent(
-                physical_id=code,
-                event_type="ready",
-                description="Explicit new readiness",
-            )
-        )
     assert summary(client)["counts"]["open_alerts"] == 1
-    assert summary(client)["attention_items"][0]["fingerprint"] != item["fingerprint"]
+    with Session(client.app.state.engine) as session, session.begin():
+        session.scalar(
+            select(CultivationState).where(CultivationState.physical_id == code)
+        ).phase = "used"
+    assert summary(client)["counts"]["open_alerts"] == 0
+    assert client.get("/api/dashboard/attention").json()["total"] == 0
 
 
 def test_fruiting_current_flush_next_action_terminal_states_and_stage_links(client):
@@ -241,13 +264,11 @@ def test_fruiting_current_flush_next_action_terminal_states_and_stage_links(clie
     assert (code, "fruiting") in rules(client)
     harvest(client, code)
     old = rules(client)[(code, "fruiting_action")]
-    action(client, old)
     stage(client, code, "next_flush", "2026-01-31")
     new = rules(client)[(code, "fruiting_action")]
     assert new["recorded_date"] == "2026-01-31" and new["elapsed_days"] == 1
-    assert new["fingerprint"] != old["fingerprint"] and (code, "pinning") not in rules(
-        client
-    )
+    assert old["alert_id"] == new["alert_id"]
+    assert (code, "pinning") not in rules(client)
     stages = summary(client)["stage_overview"]
     item = next(
         s for s in stages if s["group"] == "fruiting" and s["stage"] == "pinning"
@@ -392,15 +413,18 @@ def test_bounded_payload_constant_query_count_and_pagination(client):
     assert page["total"] == 35 and len(page["items"]) == 10
 
 
+@pytest.mark.parametrize("legacy_action", [None, "snooze", "dismiss"])
 def test_settings_backup_roundtrip_schema_unchanged_and_corruption_visible(
-    client, settings
+    client, settings, legacy_action
 ):
     add(client, phase="ready")
     item = summary(client)["attention_items"][0]
-    action(client, item)
-    prefs = client.get("/api/dashboard/preferences").json()
-    prefs["pinning"]["days"] = 35
-    client.put("/api/dashboard/preferences", json=prefs)
+    if legacy_action:
+        prefs, _ = legacy_alerts(client, settings, [(item, legacy_action)])
+    else:
+        prefs = client.get("/api/dashboard/preferences").json()
+        prefs["pinning"]["days"] = 35
+        client.put("/api/dashboard/preferences", json=prefs)
     artifact = create_backup(settings.data_dir)
     verified = check_archive(artifact.path)
     try:
@@ -411,11 +435,8 @@ def test_settings_backup_roundtrip_schema_unchanged_and_corruption_visible(
         ) as restored:
             assert restored.get("/api/health").json()["migrations"] == "current"
             assert restored.get("/api/dashboard/preferences").json() == prefs
-            assert summary(restored)["counts"]["open_alerts"] == 0
-            assert (
-                restored.get("/api/dashboard/attention?hidden=true").json()["total"]
-                == 1
-            )
+            assert summary(restored)["counts"]["open_alerts"] == 1
+            assert restored.get("/api/dashboard/attention").json()["total"] == 1
     finally:
         verified.cleanup()
         artifact.cleanup()
@@ -424,28 +445,50 @@ def test_settings_backup_roundtrip_schema_unchanged_and_corruption_visible(
     assert client.get("/api/dashboard/preferences").status_code == 503
 
 
-def test_disabled_rule_keeps_dismissal_when_another_alert_is_changed(client):
+def test_disabled_reminder_reappears_when_enabled_if_condition_still_applies(client):
     code = add(client, phase="colonizing", date="2026-01-01")
-    other = add(client, phase="ready")
-    action(client, rules(client)[(code, "agar_growing")])
+    assert (code, "agar_growing") in rules(client)
     prefs = client.get("/api/dashboard/preferences").json()
     prefs["agar_growing"]["enabled"] = False
-    client.put("/api/dashboard/preferences", json=prefs)
-    action(client, rules(client)[(other, "ready")], "snooze", days=1)
-    prefs["agar_growing"]["enabled"] = True
-    client.put("/api/dashboard/preferences", json=prefs)
+    assert client.put("/api/dashboard/preferences", json=prefs).status_code == 200
     assert not rules(client)
-    assert client.get("/api/dashboard/attention?hidden=true").json()["total"] == 2
+    prefs["agar_growing"]["enabled"] = True
+    assert client.put("/api/dashboard/preferences", json=prefs).status_code == 200
+    assert (code, "agar_growing") in rules(client)
 
 
-def test_recent_fruiting_failures_and_no_harvest_measurements(client):
+def test_preferences_save_accepts_old_alert_fields_but_never_rewrites_cultivation(
+    client, settings
+):
+    code = add(client, phase="ready")
+    item = summary(client)["attention_items"][0]
+    prefs, _ = legacy_alerts(client, settings, [(item, "snooze")])
+    prefs["pinning"]["days"] = 40
+    assert client.put("/api/dashboard/preferences", json=prefs).status_code == 200
+    document = json.loads((settings.data_dir / "settings/dashboard.json").read_text())
+    assert document == {"version": 1, "preferences": prefs}
+    assert rules(client)[(code, "ready")]["alert_id"] == item["alert_id"]
+    with Session(client.app.state.engine) as session:
+        assert (
+            session.scalar(
+                select(CultivationState).where(CultivationState.physical_id == code)
+            ).phase
+            == "ready"
+        )
+        assert session.scalar(select(ActivityEvent.id)) is None
+
+
+def test_failed_fruiting_runs_are_activity_not_attention(client):
     code = spawn(client)[0]["id"]
+    assert (code, "fruiting_action") in rules(client)
     stage(client, code, "failed", "2026-01-30")
-    items = rules(client)
-    assert set(items) == {(code, "recent_failure")}
-    assert "F-01" in items[(code, "recent_failure")]["title"]
-    assert summary(client)["harvest_summary"]["wet_grams"] is None
-    assert summary(client)["harvest_summary"]["wet_weight_count"] == 0
+    data = summary(client)
+    assert data["counts"]["open_alerts"] == 0 and not data["attention_items"]
+    assert client.get("/api/dashboard/attention").json()["total"] == 0
+    failure = next(e for e in data["recent_activity"] if e["event_type"] == "failed")
+    assert failure["record_id"] == code and "F-01" in failure["title"]
+    assert data["harvest_summary"]["wet_grams"] is None
+    assert data["harvest_summary"]["wet_weight_count"] == 0
 
 
 def test_legacy_fruiting_placeholder_is_unrecorded_not_a_ready_stage(client):

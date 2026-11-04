@@ -2,13 +2,10 @@
 
 from collections import Counter
 from datetime import datetime, timezone, timedelta
-from hashlib import sha256
 from decimal import Decimal
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-import json
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel, Field
 from sqlalchemy import Float, and_, case, cast, func, literal, or_, select
 from sqlalchemy.orm import Session, load_only
 from .models import (
@@ -39,18 +36,6 @@ OWNERS = {
     "batches": "batch_id",
 }
 TERMINAL = {"used", "completed", "failed", "depleted", "finished"}
-STAGE_EVENTS = {
-    "ready",
-    "used",
-    "failed",
-    "fail",
-    "complete",
-    "completed",
-    "pinning",
-    "fruiting",
-    "next_flush",
-    "harvest",
-}
 
 
 def now():
@@ -81,7 +66,7 @@ def identity(rows):
     )
 
 
-def records(session, kinds=None, archived=False, today=None):
+def records(session, kinds=None, archived=False, active_only=False):
     """Fixed query count; scalar projections, no lazy relationships/per-record queries.
 
     kinds maps kinds to bounded owner-ID sets for activity, or None for all active
@@ -144,20 +129,16 @@ def records(session, kinds=None, archived=False, today=None):
                     ),
                 )
             )
-        if today is not None and not archived:
+        if active_only and not archived:
             alive = or_(
                 CultivationState.phase.is_(None), ~CultivationState.phase.in_(TERMINAL)
             )
-            failed = CultivationState.phase == "failed"
-            failed_date = CultivationState.failed_date
             if kind == "fruiting":
                 alive = and_(
                     alive,
                     model.stage != "finished",
                     or_(FruitingRun.stage.is_(None), ~FruitingRun.stage.in_(TERMINAL)),
                 )
-                failed = or_(failed, FruitingRun.stage == "failed")
-                failed_date = func.coalesce(FruitingRun.failed_date, failed_date)
             else:
                 alive = and_(
                     alive,
@@ -166,19 +147,9 @@ def records(session, kinds=None, archived=False, today=None):
                         MaterialLifecycle.state == "active",
                     ),
                 )
-                failed = or_(failed, MaterialLifecycle.state == "failed")
                 if kind == "spawn":
                     alive = and_(alive, model.stage != "used")
-            query = query.where(
-                or_(
-                    alive,
-                    and_(
-                        failed,
-                        failed_date >= (today - timedelta(days=6)).isoformat(),
-                        failed_date <= today.isoformat(),
-                    ),
-                )
-            )
+            query = query.where(alive)
         columns = [model.id, model.status, model.material_type, model.created_at]
         if kind != "physical":
             columns.append(model.stage)
@@ -281,21 +252,6 @@ def reference(record):
 
 
 def candidates(session, rows, preferences, today):
-    # Only explicit lifecycle events participate: photos, notes, weights and label
-    # edits cannot invalidate a dismissal. Flush/date also distinguish legacy data.
-    transition_ids = {}
-    for kind in MODELS:
-        owner = getattr(ActivityEvent, OWNERS[kind])
-        transition_ids[kind] = dict(
-            session.execute(
-                select(owner, func.max(ActivityEvent.id))
-                .where(
-                    owner.in_([code for k, code in rows if k == kind]),
-                    ActivityEvent.event_type.in_(STAGE_EVENTS),
-                )
-                .group_by(owner)
-            ).all()
-        )
     output = []
     for (kind, code), r in rows.items():
         stage, lifecycle = r["stage"], r["lifecycle"]
@@ -303,27 +259,12 @@ def candidates(session, rows, preferences, today):
             continue
         date = day(r["recorded_date"])
         elapsed = (today - date).days if date and date <= today else None
-        fingerprint = sha256(
-            json.dumps(
-                [
-                    stage,
-                    lifecycle,
-                    r["recorded_date"],
-                    r["flush"],
-                    transition_ids[kind].get(code),
-                ],
-                separators=(",", ":"),
-            ).encode()
-        ).hexdigest()
-
-        r["fingerprint"] = fingerprint
 
         def add(rule, category, description, severity="info"):
             output.append(
                 {
                     **reference(r),
                     "alert_id": f"{rule}:{kind}:{code}",
-                    "fingerprint": fingerprint,
                     "rule": rule,
                     "category": category,
                     "severity": severity,
@@ -334,17 +275,6 @@ def candidates(session, rows, preferences, today):
             )
 
         if lifecycle in TERMINAL or stage in TERMINAL:
-            if (
-                (lifecycle == "failed" or stage == "failed")
-                and elapsed is not None
-                and elapsed <= 6
-            ):
-                add(
-                    "recent_failure",
-                    "Review / history",
-                    "Explicitly marked Failed within the last seven calendar days. Review the recorded history; no cause is inferred.",
-                    "warning",
-                )
             continue
         if stage == "ready" and (
             kind == "spawn" or kind == "physical" and r["material_type"] == "agar_plate"
@@ -409,27 +339,6 @@ def candidates(session, rows, preferences, today):
             a["alert_id"],
         ),
     )
-
-
-def attention(session, settings, today):
-    document = store.read(settings)
-    rows = records(session, today=today)
-    all_items = candidates(session, rows, document.preferences, today)
-    visible, hidden = [], []
-    for item in all_items:
-        state = document.alerts.get(item["alert_id"])
-        suppressed = (
-            state
-            and state.fingerprint == item["fingerprint"]
-            and (state.action == "dismiss" or state.until and state.until > now())
-        )
-        (hidden if suppressed else visible).append(
-            {
-                **item,
-                "suppression": state.model_dump(mode="json") if suppressed else None,
-            }
-        )
-    return visible, hidden, all_items, document, rows
 
 
 def activity(session, record_type="all", page=1, page_size=25):
@@ -533,18 +442,9 @@ def activity(session, record_type="all", page=1, page_size=25):
 
 def summary(session, settings, zone):
     today = local_day(zone)
-    rows = records(session, today=today)
+    rows = records(session, active_only=True)
     doc = store.read(settings)
-    all_items = candidates(session, rows, doc.preferences, today)
-    visible = [
-        a
-        for a in all_items
-        if not (
-            (s := doc.alerts.get(a["alert_id"]))
-            and s.fingerprint == a["fingerprint"]
-            and (s.action == "dismiss" or s.until and s.until > now())
-        )
-    ]
+    visible = candidates(session, rows, doc.preferences, today)
     active = [
         r
         for r in rows.values()
@@ -653,70 +553,17 @@ def activity_page(
 def attention_page(
     request: Request,
     timezone: str = Query("UTC", max_length=100),
-    hidden: bool = False,
     page: int = Query(1, ge=1, le=1000000),
 ):
     with Session(request.app.state.engine) as session:
-        visible, suppressed, _, _, _ = attention(
-            session, request.app.state.settings, local_day(timezone)
+        today = local_day(timezone)
+        preferences = store.read(request.app.state.settings).preferences
+        items = candidates(
+            session, records(session, active_only=True), preferences, today
         )
-        items = suppressed if hidden else visible
         return dict(
             items=items[(page - 1) * 25 : page * 25],
             total=len(items),
             page=page,
             page_size=25,
         )
-
-
-class AttentionAction(BaseModel):
-    alert_id: str = Field(max_length=120)
-    fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
-    action: Literal["dismiss", "snooze", "restore"]
-    days: Literal[1, 3, 7] = 1
-    timezone: str = Field(default="UTC", max_length=100)
-
-
-@router.post("/attention")
-def change_attention(data: AttentionAction, request: Request):
-    with Session(request.app.state.engine) as session:
-        _, _, current, doc, rows = attention(
-            session, request.app.state.settings, local_day(data.timezone)
-        )
-        item = next((a for a in current if a["alert_id"] == data.alert_id), None)
-        if item is None or item["fingerprint"] != data.fingerprint:
-            raise HTTPException(
-                409,
-                "This alert changed or resolved. Refresh the dashboard before acting.",
-            )
-
-        # Preserve disabled/below-threshold dismissals while the same issue state
-        # remains. Drop expired snoozes and records whose lifecycle really changed.
-        def same_issue(key, state):
-            parts = key.split(":", 2)
-            record = rows.get(tuple(parts[1:])) if len(parts) == 3 else None
-            return record and record.get("fingerprint") == state.fingerprint
-
-        doc.alerts = {
-            k: s
-            for k, s in doc.alerts.items()
-            if same_issue(k, s)
-            and (s.action == "dismiss" or s.until and s.until > now())
-        }
-        doc.alerts.pop(data.alert_id, None)
-        if data.action != "restore":
-            if len(doc.alerts) >= 5000:
-                raise HTTPException(
-                    409, "Restore a hidden alert before hiding more alerts."
-                )
-            doc.alerts[data.alert_id] = store.Suppression(
-                fingerprint=data.fingerprint,
-                action=data.action,
-                until=(
-                    now() + timedelta(days=data.days)
-                    if data.action == "snooze"
-                    else None
-                ),
-            )
-        store.write(request.app.state.settings, doc)
-    return {"saved": True}

@@ -129,18 +129,15 @@ export default function Dashboard() {
                 className="attention-panel"
                 summary={`${data.counts.open_alerts} open alerts`}
               >
-                <AttentionList items={data.attention_items} onChange={retry} />
+                <AttentionList items={data.attention_items} />
                 {!data.attention_items.length && (
                   <EmptyState
                     icon={CircleCheck}
                     title="No items currently require attention."
-                    description="Snoozed and dismissed items can be reviewed below."
+                    description="Alerts appear while their recorded conditions apply and disappear when resolved."
                   />
                 )}
                 <div className="panel-footer">
-                  <Link to="/attention?hidden=true">
-                    Review snoozed / dismissed alerts
-                  </Link>
                   <Link to="/attention">
                     View all attention items ({data.counts.open_alerts})
                   </Link>

@@ -37,11 +37,10 @@ export default function DashboardHistory({
 }) {
   const [params, setParams] = useSearchParams();
   const page = Math.max(1, Number(params.get("page")) || 1);
-  const hidden = params.get("hidden") === "true";
   const kind = params.get("record_type") || "all";
   const { data, error, retry } = useApi<ActivityPage | AttentionPage>(
     attention
-      ? `dashboard/attention?${zoneQuery()}&hidden=${hidden}&page=${page}`
+      ? `dashboard/attention?${zoneQuery()}&page=${page}`
       : `dashboard/activity?record_type=${encodeURIComponent(kind)}&page=${page}`,
     true,
   );
@@ -56,27 +55,15 @@ export default function DashboardHistory({
   return (
     <>
       <PageHeader
-        title={
-          attention
-            ? hidden
-              ? "Hidden Attention Items"
-              : "Needs Attention"
-            : "All Activity"
-        }
+        title={attention ? "Needs Attention" : "All Activity"}
         description={
           attention
-            ? "Review current reminders and restore snoozed or dismissed alerts."
+            ? "Alerts remain visible while their recorded conditions apply. Open a record to resolve its underlying condition."
             : "Persisted activity, newest first. Times are displayed in your local timezone."
         }
       />
       <Link to="/">Back to Dashboard</Link>
-      {attention ? (
-        <div className="actions">
-          <Link to={hidden ? "/attention" : "/attention?hidden=true"}>
-            {hidden ? "Open attention items" : "Review hidden items"}
-          </Link>
-        </div>
-      ) : (
+      {!attention && (
         <label className="field">
           <span>Record type</span>
           <select
@@ -107,20 +94,14 @@ export default function DashboardHistory({
       ) : (
         <section className="panel">
           {attention ? (
-            <AttentionList
-              items={data.items as AttentionPage["items"]}
-              onChange={retry}
-              hidden={hidden}
-            />
+            <AttentionList items={data.items as AttentionPage["items"]} />
           ) : (
             <ActivityList items={data.items as ActivityPage["items"]} />
           )}
           {!data.items.length && (
             <p>
               {attention
-                ? hidden
-                  ? "No current hidden attention items."
-                  : "No items currently require attention."
+                ? "No items currently require attention."
                 : "No matching activity recorded."}
             </p>
           )}
