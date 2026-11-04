@@ -331,6 +331,8 @@ def candidates(session, rows, preferences, today):
                     f"{elapsed} days since recorded {'Germinating' if rule == 'agar_growing' else stage.title()} date; reminder threshold {pref.days} days. Review only; this is not a growth prediction.",
                     "warning",
                 )
+    from .environment import attention
+    output.extend(attention(session))
     return sorted(
         output,
         key=lambda a: (

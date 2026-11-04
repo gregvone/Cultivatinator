@@ -15,6 +15,7 @@ from .containers import router as container_router
 from .fruiting import router as fruiting_router
 from .reports import router as reports_router
 from .dashboard import router as dashboard_router
+from .environment import router as environment_router
 from .genetics import router as genetics_router
 from .backups import router as backup_router, MutationGate, expire_backups
 from .backup_format import lease, clean_stale_backups, RESTORE_MARKER, BackupError
@@ -74,6 +75,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(reports_router)
     app.include_router(dashboard_router)
     app.include_router(genetics_router)
+    app.include_router(environment_router)
     app.include_router(backup_router)
     app.include_router(backup_management_router)
     app.include_router(library_router)

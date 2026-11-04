@@ -1999,3 +1999,18 @@ a.summary-card:hover {
 .genetic-overview button { margin-top:12px; }
 .genetic-select,.genetic-select img { transition:height 120ms ease,border-radius 120ms ease; }
 @media(prefers-reduced-motion:reduce){.genetic-select,.genetic-select img{transition:none;}}
+
+/* Manual environmental monitoring shares the existing console panels and fields. */
+.environment-workspace { display: grid; gap: 18px; min-width: 0; }
+.environment-workspace .panel { padding: 18px; }
+.environment-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,220px),1fr)); gap: 16px; }
+.environment-form fieldset { border: 0; padding: 0; min-width: 0; display: grid; gap: 12px; }
+.environment-table { overflow-x: auto; max-width: 100%; }
+.environment-table table { width: 100%; border-collapse: collapse; }
+.environment-table th,.environment-table td { padding: 10px; border-bottom: 1px solid #40566c; vertical-align: top; text-align: left; }
+.environment-table details { min-width: 160px; }
+.environment-chart { margin: 16px 0; max-width: 100%; }
+.environment-chart svg { display: block; width: 100%; min-height: 160px; color: #adc0d2; }
+.environment-chart text { fill: currentColor; font-size: 13px; }
+.environment-workspace select,.environment-workspace option { color: #edf3fa; background-color: #131f2d; color-scheme: dark; }
+.environment-workspace .actions { flex-wrap: wrap; }

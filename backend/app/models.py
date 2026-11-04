@@ -326,3 +326,5 @@ from .fruiting_models import (
     PinningPhoto,
     JournalPhoto,
 )  # noqa: E402,F401
+
+from . import environment_models  # noqa: E402,F401

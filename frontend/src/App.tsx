@@ -25,6 +25,7 @@ import Growing from "./pages/Growing";
 import LegacyInoculation from "./pages/LegacyInoculation";
 import QuickCreatePage from "./pages/QuickCreate";
 import Shell from "./components/Shell";
+import Environment from "./pages/Environment";
 import Dashboard from "./pages/Dashboard";
 import DashboardHistory from "./pages/DashboardHistory";
 import Genetics from "./pages/Genetics";
@@ -174,6 +175,7 @@ export default function App() {
             element={<RecordDetail />}
           />
           <Route path="genetics" element={<Genetics />} />
+          <Route path="environment" element={<Environment />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
           <Route

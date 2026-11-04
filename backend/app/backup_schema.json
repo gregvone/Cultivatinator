@@ -73,6 +73,42 @@
   ],
   [
     "index",
+    "ix_env_assignment_time",
+    "environment_profile_assignments",
+    "CREATE INDEX ix_env_assignment_time ON environment_profile_assignments (tent_id, assigned_at, id)"
+  ],
+  [
+    "index",
+    "ix_env_audit_owner",
+    "environment_audits",
+    "CREATE INDEX ix_env_audit_owner ON environment_audits (entity_type, entity_id, id)"
+  ],
+  [
+    "index",
+    "ix_env_occupancy_container",
+    "tent_occupancies",
+    "CREATE INDEX ix_env_occupancy_container ON tent_occupancies (fruiting_id, entered_at, left_at)"
+  ],
+  [
+    "index",
+    "ix_env_occupancy_tent",
+    "tent_occupancies",
+    "CREATE INDEX ix_env_occupancy_tent ON tent_occupancies (tent_id, entered_at, left_at)"
+  ],
+  [
+    "index",
+    "ix_env_reading_time",
+    "environmental_readings",
+    "CREATE INDEX ix_env_reading_time ON environmental_readings (tent_id, observed_at, id)"
+  ],
+  [
+    "index",
+    "ix_env_warning_history",
+    "environment_warning_events",
+    "CREATE INDEX ix_env_warning_history ON environment_warning_events (tent_id, id)"
+  ],
+  [
+    "index",
     "ix_fruiting_containers_batch_id",
     "fruiting_containers",
     "CREATE INDEX ix_fruiting_containers_batch_id ON fruiting_containers (batch_id)"
@@ -457,6 +493,42 @@
   ],
   [
     "table",
+    "environment_audits",
+    "environment_audits",
+    "CREATE TABLE environment_audits (\"after\" TEXT NOT NULL, \"before\" TEXT, FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), PRIMARY KEY (id), entity_id VARCHAR(32) NOT NULL, entity_type VARCHAR(40) NOT NULL, id INTEGER NOT NULL, operation_id VARCHAR(32) NOT NULL, reason TEXT, recorded_at VARCHAR(40) NOT NULL)"
+  ],
+  [
+    "table",
+    "environment_profile_assignments",
+    "environment_profile_assignments",
+    "CREATE TABLE environment_profile_assignments (FOREIGN KEY(profile_id) REFERENCES environmental_profiles (id), FOREIGN KEY(tent_id) REFERENCES fruiting_tents (id), PRIMARY KEY (id), assigned_at VARCHAR(40) NOT NULL, id INTEGER NOT NULL, profile_id VARCHAR(32), snapshot TEXT NOT NULL, tent_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "environment_warning_events",
+    "environment_warning_events",
+    "CREATE TABLE environment_warning_events (\"after\" TEXT NOT NULL, \"before\" TEXT, FOREIGN KEY(operation_id) REFERENCES inventory_operations (id), FOREIGN KEY(tent_id) REFERENCES fruiting_tents (id), PRIMARY KEY (id), id INTEGER NOT NULL, metric VARCHAR(30) NOT NULL, operation_id VARCHAR(32) NOT NULL, recorded_at VARCHAR(40) NOT NULL, tent_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "environment_warnings",
+    "environment_warnings",
+    "CREATE TABLE environment_warnings (CHECK (metric IN ('temperature_f','humidity','co2')), FOREIGN KEY(reading_id) REFERENCES environmental_readings (id), FOREIGN KEY(tent_id) REFERENCES fruiting_tents (id), PRIMARY KEY (tent_id, metric), metric VARCHAR(30) NOT NULL, reading_id INTEGER NOT NULL, state VARCHAR(20) NOT NULL, tent_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "environmental_profiles",
+    "environmental_profiles",
+    "CREATE TABLE environmental_profiles (CHECK (revision > 0), CHECK (status IN ('active','archived')), PRIMARY KEY (id), id VARCHAR(32) NOT NULL, name VARCHAR(200) NOT NULL, notes TEXT, revision INTEGER NOT NULL, species VARCHAR(200), status VARCHAR(20) NOT NULL, targets TEXT NOT NULL)"
+  ],
+  [
+    "table",
+    "environmental_readings",
+    "environmental_readings",
+    "CREATE TABLE environmental_readings (CHECK (co2 IS NULL OR co2 BETWEEN 0 AND 1000000), CHECK (fan IS NULL OR fan BETWEEN 0 AND 10), CHECK (humidifier IS NULL OR humidifier BETWEEN 0 AND 10), CHECK (humidity BETWEEN 0 AND 100), CHECK (temperature_f BETWEEN -148 AND 212), FOREIGN KEY(profile_id) REFERENCES environmental_profiles (id), FOREIGN KEY(replaces_id) REFERENCES environmental_readings (id), FOREIGN KEY(tent_id) REFERENCES fruiting_tents (id), PRIMARY KEY (id), UNIQUE (replaces_id), co2 FLOAT, correction_reason TEXT, created_at VARCHAR(40) NOT NULL, evaluations TEXT NOT NULL, fan INTEGER, humidifier INTEGER, humidity FLOAT NOT NULL, id INTEGER NOT NULL, notes TEXT, observed_at VARCHAR(40) NOT NULL, profile_id VARCHAR(32), replaces_id INTEGER, snapshot TEXT NOT NULL, source VARCHAR(40) NOT NULL, temperature_f FLOAT NOT NULL, tent_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
     "fruiting_containers",
     "fruiting_containers",
     "CREATE TABLE fruiting_containers (CHECK (material_type IN ('tray','bag','block','other')), CHECK (quantity IS NULL OR quantity >= 0), CHECK (quantity IS NULL OR unit IS NOT NULL), CHECK (stage IN ('colonizing','ready','fruiting','finished')), CHECK (status IN ('active','archived')), FOREIGN KEY(batch_id) REFERENCES grow_batches (id), PRIMARY KEY (id), UNIQUE (batch_id, id), acquisition_date VARCHAR(10), batch_id VARCHAR(32) NOT NULL, created_at VARCHAR(40) NOT NULL, id VARCHAR(32) NOT NULL, material_type VARCHAR(20) NOT NULL, name VARCHAR(200), notes TEXT, quantity NUMERIC(14, 3), stage VARCHAR(20) NOT NULL, status VARCHAR(16) NOT NULL, storage_location VARCHAR(200), unit VARCHAR(20))"
@@ -490,6 +562,12 @@
     "fruiting_sources",
     "fruiting_sources",
     "CREATE TABLE fruiting_sources (FOREIGN KEY(batch_id, fruiting_id) REFERENCES fruiting_containers (batch_id, id), FOREIGN KEY(batch_id, spawn_id) REFERENCES batch_sources (batch_id, spawn_id), PRIMARY KEY (fruiting_id, spawn_id), batch_id VARCHAR(32) NOT NULL, fruiting_id VARCHAR(32) NOT NULL, spawn_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "table",
+    "fruiting_tents",
+    "fruiting_tents",
+    "CREATE TABLE fruiting_tents (CHECK (revision > 0), CHECK (status IN ('active','archived')), FOREIGN KEY(profile_id) REFERENCES environmental_profiles (id), PRIMARY KEY (id), description TEXT, id VARCHAR(32) NOT NULL, name VARCHAR(200) NOT NULL, profile_id VARCHAR(32), revision INTEGER NOT NULL, status VARCHAR(20) NOT NULL)"
   ],
   [
     "table",
@@ -642,6 +720,24 @@
     "CREATE TABLE strains (CHECK (status IN ('active','archived')), PRIMARY KEY (id), UNIQUE (normalized_name), created_at VARCHAR(40) NOT NULL, description TEXT, id VARCHAR(32) NOT NULL, name VARCHAR(200) NOT NULL, normalized_name VARCHAR(200) NOT NULL, notes TEXT, scientific_name VARCHAR(200), status VARCHAR(16) NOT NULL)"
   ],
   [
+    "table",
+    "tent_occupancies",
+    "tent_occupancies",
+    "CREATE TABLE tent_occupancies (CHECK (left_at IS NULL OR left_at > entered_at), CHECK (revision > 0), FOREIGN KEY(fruiting_id) REFERENCES fruiting_containers (id), FOREIGN KEY(tent_id) REFERENCES fruiting_tents (id), PRIMARY KEY (id), entered_at VARCHAR(40) NOT NULL, fruiting_id VARCHAR(32) NOT NULL, id INTEGER NOT NULL, left_at VARCHAR(40), revision INTEGER NOT NULL, tent_id VARCHAR(32) NOT NULL)"
+  ],
+  [
+    "trigger",
+    "env_occupancy_overlap_insert",
+    "tent_occupancies",
+    "CREATE TRIGGER env_occupancy_overlap_insert BEFORE INSERT ON tent_occupancies WHEN EXISTS (SELECT 1 FROM tent_occupancies o WHERE o.fruiting_id=NEW.fruiting_id AND o.id != COALESCE(NEW.id,-1) AND (o.left_at IS NULL OR NEW.entered_at < o.left_at) AND (NEW.left_at IS NULL OR o.entered_at < NEW.left_at)) BEGIN SELECT RAISE(ABORT,'Overlapping tent occupancy'); END"
+  ],
+  [
+    "trigger",
+    "env_occupancy_overlap_update",
+    "tent_occupancies",
+    "CREATE TRIGGER env_occupancy_overlap_update BEFORE UPDATE ON tent_occupancies WHEN EXISTS (SELECT 1 FROM tent_occupancies o WHERE o.fruiting_id=NEW.fruiting_id AND o.id != COALESCE(NEW.id,-1) AND (o.left_at IS NULL OR NEW.entered_at < o.left_at) AND (NEW.left_at IS NULL OR o.entered_at < NEW.left_at)) BEGIN SELECT RAISE(ABORT,'Overlapping tent occupancy'); END"
+  ],
+  [
     "trigger",
     "immutable_container_labels_delete",
     "container_labels",
@@ -652,6 +748,54 @@
     "immutable_container_labels_update",
     "container_labels",
     "CREATE TRIGGER immutable_container_labels_update BEFORE UPDATE ON container_labels BEGIN SELECT RAISE(ABORT, 'Physical label definitions are permanent'); END"
+  ],
+  [
+    "trigger",
+    "immutable_environment_audits_delete",
+    "environment_audits",
+    "CREATE TRIGGER immutable_environment_audits_delete BEFORE DELETE ON environment_audits BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
+  ],
+  [
+    "trigger",
+    "immutable_environment_audits_update",
+    "environment_audits",
+    "CREATE TRIGGER immutable_environment_audits_update BEFORE UPDATE ON environment_audits BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
+  ],
+  [
+    "trigger",
+    "immutable_environment_profile_assignments_delete",
+    "environment_profile_assignments",
+    "CREATE TRIGGER immutable_environment_profile_assignments_delete BEFORE DELETE ON environment_profile_assignments BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
+  ],
+  [
+    "trigger",
+    "immutable_environment_profile_assignments_update",
+    "environment_profile_assignments",
+    "CREATE TRIGGER immutable_environment_profile_assignments_update BEFORE UPDATE ON environment_profile_assignments BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
+  ],
+  [
+    "trigger",
+    "immutable_environment_warning_events_delete",
+    "environment_warning_events",
+    "CREATE TRIGGER immutable_environment_warning_events_delete BEFORE DELETE ON environment_warning_events BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
+  ],
+  [
+    "trigger",
+    "immutable_environment_warning_events_update",
+    "environment_warning_events",
+    "CREATE TRIGGER immutable_environment_warning_events_update BEFORE UPDATE ON environment_warning_events BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
+  ],
+  [
+    "trigger",
+    "immutable_environmental_readings_delete",
+    "environmental_readings",
+    "CREATE TRIGGER immutable_environmental_readings_delete BEFORE DELETE ON environmental_readings BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
+  ],
+  [
+    "trigger",
+    "immutable_environmental_readings_update",
+    "environmental_readings",
+    "CREATE TRIGGER immutable_environmental_readings_update BEFORE UPDATE ON environmental_readings BEGIN SELECT RAISE(ABORT,'Monitoring history is append-only'); END"
   ],
   [
     "trigger",

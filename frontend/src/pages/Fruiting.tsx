@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router-dom";
+import { ContainerEnvironment } from "./Environment";
 import RecordNextAction from "../components/RecordNextAction";
 import StrainIdentity from "../components/StrainIdentity";
 import CollapsiblePanel from "../components/CollapsiblePanel";
@@ -830,6 +831,7 @@ export function FruitingPanel({
   return (
     <section className="panel workflow-source">
       <h2>Fruiting & Harvest</h2>
+      <ContainerEnvironment id={record.id} />
       {error && (
         <p role="alert">
           {error}
