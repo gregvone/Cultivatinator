@@ -11,6 +11,7 @@ import {
 export const navigation = [
   { path: "/", title: "Dashboard", icon: LayoutDashboard },
   { path: "/culture-library", title: "Culture Library", icon: Dna },
+  { path: "/genetics", title: "Genetics", icon: Dna },
   { path: "/laboratory", title: "Laboratory", icon: FlaskConical },
   { path: "/cultivation", title: "Cultivation", icon: Sprout },
   { path: "/acquisitions", title: "Acquisitions", icon: PackagePlus },
