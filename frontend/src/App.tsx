@@ -26,6 +26,7 @@ import LegacyInoculation from "./pages/LegacyInoculation";
 import QuickCreatePage from "./pages/QuickCreate";
 import Shell from "./components/Shell";
 import Dashboard from "./pages/Dashboard";
+import DashboardHistory from "./pages/DashboardHistory";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import { CultureLibrary, RecordDetail } from "./pages/CultureLibrary";
@@ -47,6 +48,8 @@ export default function App() {
       <Routes>
         <Route element={<Shell />}>
           <Route index element={<Dashboard />} />
+          <Route path="activity" element={<DashboardHistory />} />
+          <Route path="attention" element={<DashboardHistory attention />} />
           <Route path="quick-create/:operation" element={<QuickCreatePage />} />
           <Route path="acquisitions" element={<Acquisitions />} />
           <Route path="acquisitions/receive" element={<AcquisitionForm />} />

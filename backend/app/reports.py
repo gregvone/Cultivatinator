@@ -81,6 +81,75 @@ def harvest_aggregate(*keys):
     ).group_by(*keys)
 
 
+def source_identities(session, codes=None):
+    # Resolve all physical sources in one set query. Operational sources are
+    # authoritative; otherwise preserve the existing shared/specific model.
+    operational = select(
+        FruitingRun.fruiting_id.label("fruiting_id"),
+        Spawn.id.label("spawn_id"),
+        Spawn.line_id.label("line_id"),
+    ).join(Spawn, Spawn.id == FruitingRun.source_spawn_id)
+    common = (
+        select(
+            FruitingContainer.id.label("fruiting_id"),
+            Spawn.id.label("spawn_id"),
+            Spawn.line_id.label("line_id"),
+        )
+        .join(GrowBatch, GrowBatch.id == FruitingContainer.batch_id)
+        .outerjoin(FruitingRun, FruitingRun.fruiting_id == FruitingContainer.id)
+        .where(FruitingRun.source_spawn_id.is_(None))
+    )
+    shared = (
+        common.join(BatchSource, BatchSource.batch_id == GrowBatch.id)
+        .join(Spawn, Spawn.id == BatchSource.spawn_id)
+        .where(GrowBatch.allocation_mode == "shared")
+    )
+    specific = (
+        common.join(
+            FruitingSource,
+            and_(
+                FruitingSource.fruiting_id == FruitingContainer.id,
+                FruitingSource.batch_id == GrowBatch.id,
+            ),
+        )
+        .join(Spawn, Spawn.id == FruitingSource.spawn_id)
+        .where(GrowBatch.allocation_mode == "specific")
+    )
+    # Acquired fruiting material retains its real culture line, without inventing spawn.
+    acquired = (
+        select(
+            FruitingContainer.id.label("fruiting_id"),
+            cast(None, Spawn.id.type).label("spawn_id"),
+            GrowBatch.line_id.label("line_id"),
+        )
+        .join(GrowBatch, GrowBatch.id == FruitingContainer.batch_id)
+        .where(GrowBatch.line_id.is_not(None))
+    )
+    sources = union(operational, shared, specific, acquired).subquery()
+    query = select(sources)
+    if codes is not None:
+        query = query.where(sources.c.fruiting_id.in_(codes))
+    sources = query.subquery()
+    identities = defaultdict(list)
+    for row in session.execute(
+        select(
+            sources.c.fruiting_id,
+            sources.c.spawn_id,
+            sources.c.line_id,
+            CultureLine.name.label("line_name"),
+            Strain.id.label("strain_id"),
+            Strain.name.label("strain_name"),
+            Strain.scientific_name,
+        )
+        .select_from(sources)
+        .outerjoin(CultureLine, CultureLine.id == sources.c.line_id)
+        .outerjoin(Strain, Strain.id == CultureLine.strain_id)
+    ).mappings():
+        identities[row["fruiting_id"]].append(row)
+
+    return identities
+
+
 def load_observations(session):
     harvests = harvest_aggregate(HarvestEntry.fruiting_id).subquery()
     pins = (
@@ -151,66 +220,7 @@ def load_observations(session):
         .order_by(FruitingContainer.id)
     ).all()
 
-    # Resolve all physical sources in one set query. Operational sources are
-    # authoritative; otherwise preserve the existing shared/specific model.
-    operational = select(
-        FruitingRun.fruiting_id.label("fruiting_id"),
-        Spawn.id.label("spawn_id"),
-        Spawn.line_id.label("line_id"),
-    ).join(Spawn, Spawn.id == FruitingRun.source_spawn_id)
-    common = (
-        select(
-            FruitingContainer.id.label("fruiting_id"),
-            Spawn.id.label("spawn_id"),
-            Spawn.line_id.label("line_id"),
-        )
-        .join(GrowBatch, GrowBatch.id == FruitingContainer.batch_id)
-        .outerjoin(FruitingRun, FruitingRun.fruiting_id == FruitingContainer.id)
-        .where(FruitingRun.source_spawn_id.is_(None))
-    )
-    shared = (
-        common.join(BatchSource, BatchSource.batch_id == GrowBatch.id)
-        .join(Spawn, Spawn.id == BatchSource.spawn_id)
-        .where(GrowBatch.allocation_mode == "shared")
-    )
-    specific = (
-        common.join(
-            FruitingSource,
-            and_(
-                FruitingSource.fruiting_id == FruitingContainer.id,
-                FruitingSource.batch_id == GrowBatch.id,
-            ),
-        )
-        .join(Spawn, Spawn.id == FruitingSource.spawn_id)
-        .where(GrowBatch.allocation_mode == "specific")
-    )
-    # Acquired fruiting material retains its real culture line, without inventing spawn.
-    acquired = (
-        select(
-            FruitingContainer.id.label("fruiting_id"),
-            cast(None, Spawn.id.type).label("spawn_id"),
-            GrowBatch.line_id.label("line_id"),
-        )
-        .join(GrowBatch, GrowBatch.id == FruitingContainer.batch_id)
-        .where(GrowBatch.line_id.is_not(None))
-    )
-    sources = union(operational, shared, specific, acquired).subquery()
-    identities = defaultdict(list)
-    for row in session.execute(
-        select(
-            sources.c.fruiting_id,
-            sources.c.spawn_id,
-            sources.c.line_id,
-            CultureLine.name.label("line_name"),
-            Strain.id.label("strain_id"),
-            Strain.name.label("strain_name"),
-            Strain.scientific_name,
-        )
-        .select_from(sources)
-        .outerjoin(CultureLine, CultureLine.id == sources.c.line_id)
-        .outerjoin(Strain, Strain.id == CultureLine.strain_id)
-    ).mappings():
-        identities[row["fruiting_id"]].append(row)
+    identities = source_identities(session)
 
     observations = []
     for (

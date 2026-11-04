@@ -1,8 +1,8 @@
 # Cultivatinator
 
-A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2D.2: Complete Backup & Safe Restore** adds weekly retained server backups, manual save/download, focused administrator access and browser restore through a restricted host helper, replacing only the four persistent data directories. See [backup, verification and recovery instructions](docs/MILESTONE_2D2.md), [2D.1 reports](docs/MILESTONE_2D1.md) and [2C.4 layouts](docs/MILESTONE_2C4.md).
+A personal mushroom cultivation and culture lineage application for legally cultivated mushrooms. **Milestone 2E: Dashboard Completion** adds recorded-state attention that stays visible until its cultivation condition is resolved, configurable time reminders, linked cultivation stages, real activity history and recent harvest coverage. See [dashboard rules and Debian review update instructions](docs/MILESTONE_2E.md), [backup and restore](docs/MILESTONE_2D2.md), and [Reports](docs/MILESTONE_2D1.md).
 
-The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard counts active registered physical cultures; spawn and fruiting counts reflect active registered records; monitoring and unimplemented modules remain empty. No demonstration records are included. This single-user application has **no general cultivation login**; backup administration defaults to its own passphrase and expiring sessions, with an explicit passwordless Trusted LAN option. It is intended for a trusted private network only. Do not expose it directly to the Internet.
+The Industrial Monitoring Console includes a photo-card-first Strain Catalog, acquired culture lines, spore sources, individual physical culture containers, photo galleries, archive/restore, search/filtering, and persistent record activity. The dashboard derives active counts, stage summaries, attention and harvest coverage from recorded facts; environmental monitoring remains deferred. No demonstration records are included. This single-user application has **no general cultivation login**; backup administration defaults to its own passphrase and expiring sessions, with an explicit passwordless Trusted LAN option. It is intended for a trusted private network only. Do not expose it directly to the Internet.
 
 See [Milestone 2C.3 fruiting workflows](docs/MILESTONE_2C3.md) for New Fruiting Container → Mark Pinning → Mark Fruiting → Record Harvest → Next Flush → Finish Grow. A Ready spawn jar/bag is consumed once for all destinations; harvests retain container occupancy until explicit completion/failure. Optional wet/dry weights, subjective potency and environment snapshots preserve individual histories. Pinning, Next Flush, Fruiting, Harvest and Finish Grow forms accept optional photos directly; compact galleries retain exact event/flush ownership and failed uploads can be retried without duplicating the saved event.
 
@@ -31,8 +31,8 @@ Requirements: Git, Docker Engine with Compose v2, access to GitHub / npm / PyPI 
 sudo install -d -m 0755 /opt/stacks
 sudo git clone https://github.com/gregvone/Cultivatinator.git /opt/stacks/cultivatinator
 cd /opt/stacks/cultivatinator
-# For the Milestone 2D.2 review implementation:
-sudo git switch feature/milestone-2d2-backup-restore
+# For the Milestone 2E review implementation:
+sudo git switch feature/milestone-2e-dashboard
 sudo install -d -o 10001 -g 10001 -m 0750 /storage/tv/cultivatinator
 sudo python3 scripts/install_backup_helper.py install --data-root /storage/tv/cultivatinator --compose-file /opt/stacks/cultivatinator/compose.yaml
 sudo docker compose up -d --build --wait
@@ -55,7 +55,7 @@ All persistent content is mounted at `/data`:
 | `database/cultivatinator.sqlite3` | SQLite database, including migration version; WAL sidecars may be present |
 | `photos/` | Photo originals and generated thumbnails |
 | `files/` | Reserved for application-managed files |
-| `settings/` | Reserved for future persistent settings |
+| `settings/` | Dashboard reminder preferences |
 
 Container recreation and image replacement preserve persistent data. The existing Debian installation has its Git checkout, Compose file and data together at `/storage/tv/cultivatinator`. **Never replace or archive that entire root as a data-restore operation.** Only `database/`, `photos/`, `files/` and `settings/` belong in a workspace backup; Git, source, Compose and `.env` are excluded.
 
@@ -97,7 +97,7 @@ npm test
 npm run build
 ```
 
-`/api/health` verifies connectivity and the current Alembic revision, returning 503 if unhealthy; `/api/dashboard/summary` counts active physical cultures and keeps unimplemented metrics zero; `/api/app/info` returns safe metadata. Interactive API docs: `/docs`, schema: `/openapi.json`.
+`/api/health` verifies connectivity and the current Alembic revision, returning 503 if unhealthy; `/api/dashboard/summary` provides live counts, lifecycle reminders, stages, recorded activity and measured harvest coverage; `/api/app/info` returns safe metadata. Interactive API docs: `/docs`, schema: `/openapi.json`.
 
 ## Troubleshooting
 
