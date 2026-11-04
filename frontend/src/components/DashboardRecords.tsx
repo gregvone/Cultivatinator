@@ -36,7 +36,7 @@ export function AttentionList({ items }: { items: AttentionItem[] }) {
           {item.recorded_date && (
             <p className="attention-date">
               Recorded date:{" "}
-              <time dateTime={item.recorded_date}>{item.recorded_date}</time>
+              <time dateTime={item.recorded_date}>{item.rule === "environment" ? new Date(item.recorded_date).toLocaleString() : item.recorded_date}</time>
               {item.elapsed_days !== null &&
                 ` · ${item.elapsed_days} elapsed days`}
             </p>

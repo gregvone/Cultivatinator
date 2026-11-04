@@ -58,6 +58,14 @@ def test_health_and_database(client, settings):
         "harvest_photos",
         "pinning_photos",
         "journal_photos",
+        "environmental_profiles",
+        "fruiting_tents",
+        "environment_profile_assignments",
+        "environmental_readings",
+        "tent_occupancies",
+        "environment_audits",
+        "environment_warnings",
+        "environment_warning_events",
         "container_labels",
         "label_assignments",
         "cultivation_states",
@@ -110,7 +118,7 @@ def test_migrations_repeat_and_persist(settings):
                 connection.execute(
                     text("SELECT version_num FROM alembic_version")
                 ).scalar()
-                == "0013_journal_photos"
+                == "0014_environment_monitoring"
             )
 
 
