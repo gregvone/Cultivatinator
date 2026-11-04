@@ -770,9 +770,13 @@ export function GrowForm() {
 export function LineagePanel({
   record,
   onChange,
+  initialAction = "",
+  onEstablished,
 }: {
   record: LibraryRecord;
   onChange: () => void;
+  initialAction?: string;
+  onEstablished?: (line: LibraryRecord) => void;
 }) {
   const [data, setData] = useState<Provenance | null>(null);
   const [error, setError] = useState("");
@@ -799,7 +803,7 @@ export function LineagePanel({
   useEffect(() => {
     let live = true;
     setData(null);
-    setAction("");
+    setAction(initialAction);
     setError("");
     provenanceApi<Provenance>(`${record.kind}/${record.id}`)
       .then((d) => {
@@ -881,7 +885,8 @@ export function LineagePanel({
                   },
           },
         );
-        navigate(`/culture-library/lines/${result.line.id}`);
+        if (onEstablished) onEstablished(result.line);
+        else navigate(`/culture-library/lines/${result.line.id}`);
       }
     } catch (e) {
       setError(failure(e));

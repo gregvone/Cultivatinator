@@ -27,6 +27,7 @@ import QuickCreatePage from "./pages/QuickCreate";
 import Shell from "./components/Shell";
 import Dashboard from "./pages/Dashboard";
 import DashboardHistory from "./pages/DashboardHistory";
+import Genetics from "./pages/Genetics";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import { CultureLibrary, RecordDetail } from "./pages/CultureLibrary";
@@ -172,6 +173,7 @@ export default function App() {
             path="culture-library/:kind/:code"
             element={<RecordDetail />}
           />
+          <Route path="genetics" element={<Genetics />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
           <Route
