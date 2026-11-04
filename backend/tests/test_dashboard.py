@@ -255,9 +255,8 @@ def test_alert_persists_through_unrelated_changes_and_resolves_with_lifecycle(cl
 
 def test_fruiting_current_flush_next_action_terminal_states_and_stage_links(client):
     code = spawn(client)[0]["id"]
-    assert {(code, "fruiting_colonizing"), (code, "fruiting_action")} <= set(
-        rules(client)
-    )
+    assert (code, "fruiting_colonizing") in rules(client)
+    assert (code, "fruiting_action") not in rules(client)
     stage(client, code, "pinning", "2026-01-03")
     assert (code, "pinning") in rules(client)
     stage(client, code, "fruiting", "2026-01-05")
@@ -480,7 +479,8 @@ def test_preferences_save_accepts_old_alert_fields_but_never_rewrites_cultivatio
 
 def test_failed_fruiting_runs_are_activity_not_attention(client):
     code = spawn(client)[0]["id"]
-    assert (code, "fruiting_action") in rules(client)
+    assert (code, "fruiting_colonizing") in rules(client)
+    assert (code, "fruiting_action") not in rules(client)
     stage(client, code, "failed", "2026-01-30")
     data = summary(client)
     assert data["counts"]["open_alerts"] == 0 and not data["attention_items"]
@@ -537,3 +537,107 @@ def test_activity_order_preserves_microseconds_and_equivalent_offset_instants(cl
             ids.append(item.id)
     events = client.get("/api/dashboard/activity").json()["items"]
     assert [item["event_id"] for item in events] == [ids[2], ids[0], ids[1], ids[3]]
+
+
+def test_new_colonizing_fruiting_is_active_without_immediate_attention(client):
+    code = spawn(client, spawning_date="2026-01-31")[0]["id"]
+    data = summary(client)
+    assert not rules(client)
+    assert data["counts"]["fruiting_units"] == 1
+    assert data["counts"]["open_alerts"] == 0
+    assert any(
+        r["record_id"] == code and r["stage"] == "colonizing"
+        for r in data["active_cultivation"]
+    )
+    assert (
+        next(
+            s
+            for s in data["stage_overview"]
+            if s["group"] == "fruiting" and s["stage"] == "colonizing"
+        )["count"]
+        == 1
+    )
+    assert client.get("/api/dashboard/attention").json()["total"] == 0
+    # Removing attention must not prevent the existing observed-stage transition.
+    stage(client, code, "pinning", "2026-02-01")
+    assert (code, "fruiting_action") in rules(client)
+
+
+def test_fruiting_colonization_threshold_and_disabled_setting_are_preserved(
+    client, clock
+):
+    code = spawn(client, spawning_date="2026-01-10")[0]["id"]
+    prefs = client.get("/api/dashboard/preferences").json()
+    assert prefs["fruiting_colonizing"] == {"enabled": True, "days": 21}
+    clock[0] = datetime(2026, 1, 31, 12, tzinfo=timezone.utc)
+    assert not rules(client)  # Exactly 21 days, no reminder.
+    clock[0] = datetime(2026, 2, 1, 12, tzinfo=timezone.utc)
+    reminder = rules(client)[(code, "fruiting_colonizing")]
+    assert reminder["category"] == "Colonization progress review"
+    assert (
+        reminder["description"]
+        == "Colonizing for 22 days. Review the container's progress and mark Pinning only when observed."
+    )
+    assert reminder["severity"] == "warning"
+    assert (code, "fruiting_action") not in rules(client)
+    prefs["fruiting_colonizing"]["enabled"] = False
+    assert client.put("/api/dashboard/preferences", json=prefs).status_code == 200
+    assert not rules(client)
+    prefs["fruiting_colonizing"] = {"enabled": True, "days": 30}
+    assert client.put("/api/dashboard/preferences", json=prefs).status_code == 200
+    assert not rules(client)
+    assert client.get("/api/dashboard/preferences").json() == prefs
+
+
+@pytest.mark.parametrize(
+    "phase,category,description",
+    [
+        ("pinning", "Next stage: Fruiting", "Mark Fruiting when fruiting is observed."),
+        ("fruiting", "Harvest recording", "Record a harvest when one occurs."),
+        (
+            "harvest",
+            "Harvest / Next Flush / Finish Grow",
+            "Record another harvest, start the next flush, or finish the grow when appropriate.",
+        ),
+    ],
+)
+def test_fruiting_action_wording_and_attention_counts_match(
+    client, phase, category, description
+):
+    code = spawn(client, spawning_date="2026-01-30")[0]["id"]
+    stage(client, code, "pinning", "2026-01-30")
+    if phase in {"fruiting", "harvest"}:
+        stage(client, code, "fruiting", "2026-01-31")
+    if phase == "harvest":
+        harvest(client, code, harvest_date="2026-02-01")
+    data = summary(client)
+    page = client.get("/api/dashboard/attention").json()
+    assert data["counts"]["open_alerts"] == page["total"] == len(page["items"]) == 1
+    assert data["attention_items"] == page["items"]
+    item = page["items"][0]
+    assert item["rule"] == "fruiting_action" and item["severity"] == "info"
+    assert item["category"] == category
+    assert item["description"] == f"Recorded stage: {phase.title()}. {description}"
+    assert code in item["target"]
+
+
+@pytest.mark.parametrize("terminal", ["completed", "failed", "archived"])
+def test_fruiting_attention_excludes_terminal_and_archived_records(client, terminal):
+    code = spawn(client)[0]["id"]
+    stage(client, code, "pinning", "2026-01-03")
+    assert (code, "fruiting_action") in rules(client)
+    if terminal == "archived":
+        from app.models import FruitingContainer
+
+        with Session(client.app.state.engine) as s, s.begin():
+            s.get(FruitingContainer, code).status = "archived"
+    else:
+        stage(
+            client,
+            code,
+            "complete" if terminal == "completed" else "failed",
+            "2026-01-30",
+        )
+    assert not rules(client)
+    assert summary(client)["counts"]["open_alerts"] == 0
+    assert client.get("/api/dashboard/attention").json()["total"] == 0

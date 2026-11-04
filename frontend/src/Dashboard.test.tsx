@@ -313,3 +313,68 @@ test("preferences validate range and save separate enabled flags", async () => {
   expect(body.pinning.days).toBe(30);
   expect(body.agar_growing.enabled).toBe(false);
 });
+
+const fruitingAttentionCases = [
+  [
+    "Colonization progress review",
+    "Colonizing for 22 days. Review the container's progress and mark Pinning only when observed.",
+    "fruiting_colonizing",
+    "warning",
+  ],
+  [
+    "Next stage: Fruiting",
+    "Recorded stage: Pinning. Mark Fruiting when fruiting is observed.",
+    "fruiting_action",
+    "info",
+  ],
+  [
+    "Harvest recording",
+    "Recorded stage: Fruiting. Record a harvest when one occurs.",
+    "fruiting_action",
+    "info",
+  ],
+  [
+    "Harvest / Next Flush / Finish Grow",
+    "Recorded stage: Harvest. Record another harvest, start the next flush, or finish the grow when appropriate.",
+    "fruiting_action",
+    "info",
+  ],
+] as const;
+
+for (const path of ["/", "/attention"]) {
+  test.each(fruitingAttentionCases)(
+    `${path} displays %s with its recorded-stage guidance`,
+    async (category, description, rule, severity) => {
+      const data = fixture();
+      const item: AttentionItem = {
+        ...alert,
+        record_id: "FR-1",
+        title: "F-01 · Oyster",
+        target: "/culture-library/fruiting/FR-1",
+        alert_id: `${rule}:fruiting:FR-1`,
+        rule,
+        category,
+        description,
+        severity,
+      };
+      data.attention_items = [item];
+      mock(data);
+      mount(path);
+      expect(await screen.findByText(description)).toBeInTheDocument();
+      expect(screen.getByText(`${category} · ${severity}`)).toBeInTheDocument();
+      const scope =
+        path === "/"
+          ? within(screen.getByRole("region", { name: "Needs Attention" }))
+          : screen;
+      expect(scope.getByRole("link", { name: item.title })).toHaveAttribute(
+        "href",
+        item.target,
+      );
+      expect(
+        screen.queryByText("Ready for action · info"),
+      ).not.toBeInTheDocument();
+      if (path === "/")
+        expect(screen.getByTestId("open_alerts")).toHaveTextContent("1");
+    },
+  );
+}

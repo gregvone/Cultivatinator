@@ -285,22 +285,29 @@ def candidates(session, rows, preferences, today):
                 "Marked Ready. Open the record to choose a transfer or spawning action.",
             )
         if kind == "fruiting" and stage in {
-            "colonizing",
             "ready",
             "pinning",
             "fruiting",
             "harvest",
         }:
-            suggestion = {
-                "colonizing": "Review the grow; mark Pinning when observed.",
-                "ready": "Review this recorded Ready grow before recording its next stage.",
-                "pinning": "Mark Fruiting when observed.",
-                "fruiting": "Record a harvest when one occurs.",
-                "harvest": "Record another harvest, start Next Flush, or Finish Grow when appropriate.",
+            category, suggestion = {
+                "ready": (
+                    "Review recorded stage",
+                    "Review this recorded Ready grow before recording its next stage.",
+                ),
+                "pinning": (
+                    "Next stage: Fruiting",
+                    "Mark Fruiting when fruiting is observed.",
+                ),
+                "fruiting": ("Harvest recording", "Record a harvest when one occurs."),
+                "harvest": (
+                    "Harvest / Next Flush / Finish Grow",
+                    "Record another harvest, start the next flush, or finish the grow when appropriate.",
+                ),
             }[stage]
             add(
                 "fruiting_action",
-                "Ready for action",
+                category,
                 f"Recorded stage: {stage.title()}. {suggestion}",
             )
         rule = (
@@ -327,11 +334,20 @@ def candidates(session, rows, preferences, today):
             if pref.enabled and elapsed is not None and elapsed > pref.days:
                 add(
                     rule,
-                    "Elapsed-time reminder",
-                    f"{elapsed} days since recorded {'Germinating' if rule == 'agar_growing' else stage.title()} date; reminder threshold {pref.days} days. Review only; this is not a growth prediction.",
+                    (
+                        "Colonization progress review"
+                        if rule == "fruiting_colonizing"
+                        else "Elapsed-time reminder"
+                    ),
+                    (
+                        f"Colonizing for {elapsed} days. Review the container's progress and mark Pinning only when observed."
+                        if rule == "fruiting_colonizing"
+                        else f"{elapsed} days since recorded {'Germinating' if rule == 'agar_growing' else stage.title()} date; reminder threshold {pref.days} days. Review only; this is not a growth prediction."
+                    ),
                     "warning",
                 )
     from .environment import attention
+
     output.extend(attention(session))
     return sorted(
         output,

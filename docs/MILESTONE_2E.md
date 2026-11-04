@@ -7,7 +7,7 @@ The dashboard answers what needs attention, what is growing, and what happened r
 | Stable rule ID | Eligible records | Recorded date | Default |
 | --- | --- | --- | --- |
 | `ready` | Ready established agar; Ready spawn jars/bags | Ready date, if recorded | Always available |
-| `fruiting_action` | FR with recorded Colonizing, Ready, Pinning, Fruiting or Harvest stage | Current stage date, if recorded | Review possible next action |
+| `fruiting_action` | FR with recorded Ready, Pinning, Fruiting or Harvest stage | Current stage date, if recorded | Review possible next action |
 | `agar_growing` | Agar with Colonizing lifecycle (displayed Germinating) | Inoculation date | More than 21 days |
 | `spawn_colonizing` | Colonizing spawn | Inoculation date | More than 28 days |
 | `fruiting_colonizing` | Colonizing FR | Spawning date | More than 21 days |
@@ -16,7 +16,7 @@ The dashboard answers what needs attention, what is growing, and what happened r
 
 Time reminders are customizable reminders, **not biological deadlines, diagnoses or predictions**. At exactly the threshold there is no elapsed-time reminder; it appears the following day. Missing, invalid or future dates do not create elapsed reminders. Administrative Active never makes agar Ready. Undated legacy records retain their unknown readiness; uninoculated prepared media and pending, unestablished spore cultures are not treated as established Ready agar. Undated failures are not assigned a historical failure date from registration time.
 
-Archived, Used, Completed, Depleted and otherwise terminal records do not produce actionable reminders. Failed cultures, spawn and fruiting runs appear in recorded Recent Activity and full activity history; they are not unresolved Needs Attention alerts. A FR stage produces a manual review suggestion (for example, mark Fruiting **when observed**), not a claim that it is biologically ready. Each record/rule pair occurs once; a stage review and its separate overdue reminder can both apply.
+Archived, Used, Completed, Depleted and otherwise terminal records do not produce actionable reminders. Failed cultures, spawn and fruiting runs appear in recorded Recent Activity and full activity history; they are not unresolved Needs Attention alerts. Normal FR Colonizing has no immediate action alert; its configured elapsed-time rule can still request a Colonization progress review. Other recorded FR stages produce a manual review suggestion (for example, mark Fruiting **when observed**), not a claim that it is biologically ready. Each record/rule pair occurs once; a stage review and its separate overdue reminder can both apply.
 
 Every item links to its permanent record, shows its latest recorded physical label (including released labels), permanent ID, known strain/culture identity, category, severity, description and available date/elapsed days. Labels are never used as alert keys. FR identity uses the same batched provenance resolution as Reports: operational source, otherwise shared/specific allocations, or acquired line. Mixed and partially identified strains remain explicit.
 
